@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite
+
+# JavaScript/TypeScript Node
+node_modules/
+dist/
+.eslintcache
+
+# Environment variables
+.env
+.env.local
+
+# IDEs and OS
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
