@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 
 from app.database import get_db
 from app import models, schemas
@@ -45,3 +46,7 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
     db.refresh(db_transaction)
 
     return db_transaction
+
+@router.get("/", response_model=List[schemas.TransactionResponse])
+def list_transactions(db: Session = Depends(get_db)):
+    return db.query(models.Transaction).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()

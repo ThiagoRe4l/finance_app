@@ -1,6 +1,6 @@
 from datetime import date
 from typing import List
-from sqlalchemy import ForeignKey, String, Float, Date
+from sqlalchemy import ForeignKey, String, Float, Date, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -37,6 +37,39 @@ class Transaction(Base):
 
     def __repr__(self) -> str:
         return f"<Transaction {self.type} - {self.amount} on Account {self.account_id}>"
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    icon_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    budget: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    color: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Category {self.name} (Budget: {self.budget})>"
+
+
+class Installment(Base):
+    __tablename__ = "installments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    category_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    installment_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    current_installment: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_installments: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_date: Mapped[str] = mapped_column(String(20), nullable=False)  # Ex: "Ago/2026"
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+
+    # Relação muitos-para-um com Conta
+    account: Mapped["Account"] = relationship("Account")
+
+    def __repr__(self) -> str:
+        return f"<Installment {self.title} ({self.current_installment}/{self.total_installments})>"
 
 
 class Investment(Base):

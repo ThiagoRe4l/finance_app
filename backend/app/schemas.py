@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 import datetime
+from typing import List, Optional
 
 class AccountBase(BaseModel):
     name: str = Field(..., max_length=100, description="Nome da conta bancária")
@@ -66,4 +67,71 @@ class InvestmentHistoryResponse(BaseModel):
     investment_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Novas Schemas para Categoria e Parcelamento
+class CategoryBase(BaseModel):
+    name: str = Field(..., max_length=50, description="Nome da categoria")
+    icon_name: str = Field(..., max_length=50, description="Nome do ícone da Lucide")
+    budget: float = Field(0.0, description="Orçamento mensal para a categoria")
+    color: str = Field(..., max_length=50, description="Cor em formato OKLCH ou HEX")
+
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryResponse(CategoryBase):
+    id: int
+    spent: float = 0.0
+    txs_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InstallmentBase(BaseModel):
+    title: str = Field(..., max_length=100)
+    category_name: str = Field(..., max_length=50)
+    total_amount: float
+    installment_amount: float
+    current_installment: int
+    total_installments: int
+    end_date: str
+    account_id: int
+
+class InstallmentCreate(InstallmentBase):
+    pass
+
+class InstallmentResponse(InstallmentBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Schemas para Agregações (Dashboard e Relatórios)
+class MonthlyFlow(BaseModel):
+    month: str
+    income: float
+    outcome: float
+
+class DashboardSummary(BaseModel):
+    total_balance: float
+    total_revenues: float
+    total_expenses: float
+    total_savings: float
+    monthly_flow: List[MonthlyFlow]
+    recent_transactions: List[TransactionResponse]
+    category_distribution: List[CategoryResponse]
+    active_installments_count: int
+    monthly_committed_amount: float
+
+class CategoryReport(BaseModel):
+    name: str
+    value: float
+
+class ReportSummary(BaseModel):
+    total_revenues: float
+    total_expenses: float
+    average_savings: float
+    monthly_comparative: List[MonthlyFlow]
+    top_categories: List[CategoryReport]
+    insights: List[str]
 
