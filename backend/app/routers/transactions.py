@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.database import get_db
@@ -20,7 +20,18 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
             detail="Conta não encontrada."
         )
 
-    # 2. Verifica o tipo da transação e atualiza o saldo
+    # 2. Valida o parcelamento de origem, quando informado
+    if transaction.installment_id is not None:
+        installment = db.query(models.Installment).filter(
+            models.Installment.id == transaction.installment_id
+        ).first()
+        if not installment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parcelamento não encontrado."
+            )
+
+    # 3. Verifica o tipo da transação e atualiza o saldo
     if transaction.type == "SAÍDA":
         account.current_balance -= transaction.amount
     elif transaction.type == "ENTRADA":
@@ -31,16 +42,19 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
             detail="Tipo de transação inválido. Deve ser 'ENTRADA' ou 'SAÍDA'."
         )
 
-    # 3. Instancia a transação
+    # 4. Instancia a transação
     db_transaction = models.Transaction(
+        title=transaction.title,
         type=transaction.type,
         amount=transaction.amount,
         date=transaction.date,
         category=transaction.category,
-        account_id=transaction.account_id
+        is_fixed=transaction.is_fixed,
+        account_id=transaction.account_id,
+        installment_id=transaction.installment_id
     )
 
-    # 4. Salva no banco de dados
+    # 5. Salva no banco de dados
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
@@ -49,4 +63,6 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
 
 @router.get("/", response_model=List[schemas.TransactionResponse])
 def list_transactions(db: Session = Depends(get_db)):
-    return db.query(models.Transaction).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()
+    return db.query(models.Transaction).options(
+        joinedload(models.Transaction.installment)
+    ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()

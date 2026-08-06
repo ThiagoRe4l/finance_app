@@ -1,6 +1,6 @@
 from datetime import date
-from typing import List
-from sqlalchemy import ForeignKey, String, Float, Date, Integer
+from typing import List, Optional
+from sqlalchemy import ForeignKey, String, Float, Date, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,14 +26,22 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
     type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'ENTRADA' ou 'SAÍDA'
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_fixed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    installment_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("installments.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Relação muitos-para-um com Conta
     account: Mapped["Account"] = relationship("Account", back_populates="transactions")
+
+    # Relação muitos-para-um com Parcelamento (opcional)
+    installment: Mapped[Optional["Installment"]] = relationship("Installment")
 
     def __repr__(self) -> str:
         return f"<Transaction {self.type} - {self.amount} on Account {self.account_id}>"

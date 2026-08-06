@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 import datetime
 from typing import List, Optional
 
@@ -16,12 +16,22 @@ class AccountResponse(AccountBase):
     # Configuração moderna para compatibilidade com SQLAlchemy no Pydantic v2
     model_config = ConfigDict(from_attributes=True)
 
+class InstallmentProgress(BaseModel):
+    current_installment: int
+    total_installments: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TransactionCreate(BaseModel):
+    title: str = Field(..., max_length=150, description="Título/descrição da transação")
     type: str = Field(..., description="Tipo de transação: 'ENTRADA' ou 'SAÍDA'")
     amount: float = Field(..., gt=0, description="Valor da transação")
     date: datetime.date = Field(..., description="Data da transação")
     category: str = Field(..., max_length=50, description="Categoria da transação")
+    is_fixed: bool = Field(False, description="Indica se é uma despesa fixa/recorrente")
     account_id: int = Field(..., description="ID da conta bancária relacionada")
+    installment_id: Optional[int] = Field(None, description="ID do parcelamento de origem, se houver")
 
     @field_validator('type')
     @classmethod
@@ -30,13 +40,23 @@ class TransactionCreate(BaseModel):
             return v.upper()
         return v
 
+    @model_validator(mode='after')
+    def check_fixed_and_installment_exclusive(self):
+        if self.installment_id is not None and self.is_fixed:
+            raise ValueError("Uma transação não pode ser fixa e parcelada ao mesmo tempo.")
+        return self
+
 class TransactionResponse(BaseModel):
     id: int
+    title: str
     type: str
     amount: float
     date: datetime.date
     category: str
+    is_fixed: bool
     account_id: int
+    installment_id: Optional[int] = None
+    installment: Optional[InstallmentProgress] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,6 +142,9 @@ class DashboardSummary(BaseModel):
     category_distribution: List[CategoryResponse]
     active_installments_count: int
     monthly_committed_amount: float
+    balance_change_pct: Optional[float] = None
+    expenses_change_pct: Optional[float] = None
+    savings_pct_of_revenue: Optional[float] = None
 
 class CategoryReport(BaseModel):
     name: str

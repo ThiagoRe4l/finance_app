@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import datetime
 from typing import List
@@ -71,8 +71,29 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             outcome=out
         ))
         
+    # 3.1. Variações percentuais exibidas nos cards do dashboard
+    previous_month = monthly_flow[-2]
+
+    expenses_change_pct = None
+    if previous_month.outcome:
+        expenses_change_pct = (total_expenses - previous_month.outcome) / previous_month.outcome * 100
+
+    # Saldo ao fim do mês anterior = saldo atual menos a movimentação líquida deste mês
+    balance_prev_month_end = total_balance - total_savings
+    balance_change_pct = None
+    if balance_prev_month_end:
+        # abs() no denominador: com saldo anterior negativo, a divisão direta inverteria
+        # o sinal e uma economia positiva apareceria como variação negativa.
+        balance_change_pct = total_savings / abs(balance_prev_month_end) * 100
+
+    savings_pct_of_revenue = None
+    if total_revenues:
+        savings_pct_of_revenue = total_savings / total_revenues * 100
+
     # 4. Transações Recentes
-    recent_txs = db.query(models.Transaction).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).limit(7).all()
+    recent_txs = db.query(models.Transaction).options(
+        joinedload(models.Transaction.installment)
+    ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).limit(7).all()
     
     # 5. Distribuição de Categorias
     categories_dist = list_categories(db)
@@ -90,5 +111,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         recent_transactions=recent_txs,
         category_distribution=categories_dist,
         active_installments_count=len(installments),
-        monthly_committed_amount=committed
+        monthly_committed_amount=committed,
+        balance_change_pct=balance_change_pct,
+        expenses_change_pct=expenses_change_pct,
+        savings_pct_of_revenue=savings_pct_of_revenue
     )
