@@ -1,47 +1,20 @@
 import datetime
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db
-from app.main import app
+from tests.conftest import create_category
 
-# Configuração de um banco de dados SQLite limpo em memória para testes
-SQLALCHEMY_DATABASE_URL = "sqlite://"
+# Fixtures `session` e `client` vêm do conftest.py.
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# `category_id` é obrigatório e o banco de teste sobe vazio — a categoria usada
+# pelos helpers precisa existir antes de qualquer transação.
+CATEGORY_ID = {}
 
 
-@pytest.fixture(name="session")
-def session_fixture():
-    Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture(name="client")
-def client_fixture(session):
-    def override_get_db():
-        try:
-            yield session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    del app.dependency_overrides[get_db]
+@pytest.fixture(autouse=True)
+def seed_category(client):
+    CATEGORY_ID["Alimentação"] = create_category(client, name="Alimentação")["id"]
+    return CATEGORY_ID
 
 
 def _month_offset(months_ago: int) -> str:
@@ -70,7 +43,7 @@ def _create_transaction(client, account_id, tx_type, amount, date, title="Movime
         "type": tx_type,
         "amount": amount,
         "date": date,
-        "category": "Alimentação",
+        "category_id": CATEGORY_ID["Alimentação"],
         "account_id": account_id
     })
     assert response.status_code == 201

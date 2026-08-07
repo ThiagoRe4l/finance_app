@@ -1,45 +1,31 @@
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db
-from app.main import app
+from tests.conftest import create_category
 
-# Configuração de um banco de dados SQLite limpo em memória para testes
-SQLALCHEMY_DATABASE_URL = "sqlite://"
+# Fixtures `session` e `client` vêm do conftest.py.
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Com `category_id` obrigatório, toda transação precisa de uma categoria já
+# cadastrada. O banco de teste sobe vazio, então as categorias usadas nos
+# payloads são semeadas aqui e os ids ficam acessíveis por nome.
+CATEGORY_IDS = {}
 
-@pytest.fixture(name="session")
-def session_fixture():
-    # Cria todas as tabelas para a sessão de teste
-    Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine)
+CATEGORIAS_USADAS = [
+    "Alimentação",
+    "Depósito",
+    "Eletrônicos",
+    "Empréstimos",
+    "Moradia",
+    "Salário",
+    "Tarifa",
+]
 
-@pytest.fixture(name="client")
-def client_fixture(session):
-    # Sobrescreve a dependência get_db para usar a nossa sessão de teste limpa
-    def override_get_db():
-        try:
-            yield session
-        finally:
-            pass
-    
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    del app.dependency_overrides[get_db]
+
+@pytest.fixture(autouse=True)
+def seed_categories(client):
+    CATEGORY_IDS.clear()
+    for name in CATEGORIAS_USADAS:
+        CATEGORY_IDS[name] = create_category(client, name=name)["id"]
+    return CATEGORY_IDS
 
 
 def test_transaction_decrements_balance(client):
@@ -58,7 +44,7 @@ def test_transaction_decrements_balance(client):
         "type": "SAÍDA",
         "amount": 200.0,
         "date": "2026-07-25",
-        "category": "Alimentação",
+        "category_id": CATEGORY_IDS["Alimentação"],
         "account_id": account_id
     }
     response_transaction = client.post("/api/transactions", json=transaction_data)
@@ -85,7 +71,7 @@ def test_transaction_account_not_found(client):
         "type": "SAÍDA",
         "amount": 100.0,
         "date": "2026-07-25",
-        "category": "Alimentação",
+        "category_id": CATEGORY_IDS["Alimentação"],
         "account_id": 9999
     }
     response = client.post("/api/transactions/", json=transaction_data)
@@ -109,7 +95,7 @@ def test_transaction_invalid_type(client):
         "type": "EMPRESTIMO",
         "amount": 100.0,
         "date": "2026-07-25",
-        "category": "Empréstimos",
+        "category_id": CATEGORY_IDS["Empréstimos"],
         "account_id": account_id
     }
     response = client.post("/api/transactions/", json=transaction_data)
@@ -133,7 +119,7 @@ def test_transaction_invalid_data_types(client):
         "type": "ENTRADA",
         "amount": "mil reais",
         "date": "2026-07-29",
-        "category": "Salário",
+        "category_id": CATEGORY_IDS["Salário"],
         "account_id": account_id
     }
     response = client.post("/api/transactions", json=transaction_data)
@@ -158,7 +144,7 @@ def test_transaction_negative_or_zero_amount(client):
         "type": "SAÍDA",
         "amount": 0,
         "date": "2026-07-29",
-        "category": "Alimentação",
+        "category_id": CATEGORY_IDS["Alimentação"],
         "account_id": account_id
     }
     response_zero = client.post("/api/transactions", json=transaction_zero)
@@ -170,7 +156,7 @@ def test_transaction_negative_or_zero_amount(client):
         "type": "SAÍDA",
         "amount": -50.0,
         "date": "2026-07-29",
-        "category": "Alimentação",
+        "category_id": CATEGORY_IDS["Alimentação"],
         "account_id": account_id
     }
     response_negative = client.post("/api/transactions", json=transaction_negative)
@@ -193,7 +179,7 @@ def test_transaction_type_case_normalization(client):
         "type": "entrada",
         "amount": 100.0,
         "date": "2026-07-29",
-        "category": "Depósito",
+        "category_id": CATEGORY_IDS["Depósito"],
         "account_id": account_id
     }
     response_entrada = client.post("/api/transactions", json=transaction_entrada)
@@ -209,7 +195,7 @@ def test_transaction_type_case_normalization(client):
         "type": "SaÍdA",
         "amount": 50.0,
         "date": "2026-07-29",
-        "category": "Tarifa",
+        "category_id": CATEGORY_IDS["Tarifa"],
         "account_id": account_id
     }
     response_saida = client.post("/api/transactions", json=transaction_saida)
@@ -229,7 +215,7 @@ def _create_account(client, name="Conta Corrente", initial_balance=1000.0):
 def _create_installment(client, account_id, current=2, total=12):
     response = client.post("/api/installments", json={
         "title": "Notebook Pro",
-        "category_name": "Eletrônicos",
+        "category_id": CATEGORY_IDS["Eletrônicos"],
         "total_amount": 5400.0,
         "installment_amount": 450.0,
         "current_installment": current,
@@ -249,7 +235,7 @@ def test_transaction_requires_title(client):
         "type": "SAÍDA",
         "amount": 100.0,
         "date": "2026-07-29",
-        "category": "Alimentação",
+        "category_id": CATEGORY_IDS["Alimentação"],
         "account_id": account_id
     })
     assert response.status_code == 422
@@ -264,7 +250,7 @@ def test_transaction_linked_to_installment(client):
         "type": "SAÍDA",
         "amount": 450.0,
         "date": "2026-07-29",
-        "category": "Eletrônicos",
+        "category_id": CATEGORY_IDS["Eletrônicos"],
         "account_id": account_id,
         "installment_id": installment_id
     })
@@ -291,7 +277,7 @@ def test_transaction_without_installment_has_null_progress(client):
         "type": "SAÍDA",
         "amount": 2100.0,
         "date": "2026-07-29",
-        "category": "Moradia",
+        "category_id": CATEGORY_IDS["Moradia"],
         "is_fixed": True,
         "account_id": account_id
     })
@@ -313,7 +299,7 @@ def test_transaction_installment_and_fixed_mutually_exclusive(client):
         "type": "SAÍDA",
         "amount": 450.0,
         "date": "2026-07-29",
-        "category": "Eletrônicos",
+        "category_id": CATEGORY_IDS["Eletrônicos"],
         "is_fixed": True,
         "account_id": account_id,
         "installment_id": installment_id
@@ -329,7 +315,7 @@ def test_transaction_installment_not_found(client):
         "type": "SAÍDA",
         "amount": 450.0,
         "date": "2026-07-29",
-        "category": "Eletrônicos",
+        "category_id": CATEGORY_IDS["Eletrônicos"],
         "account_id": account_id,
         "installment_id": 9999
     })

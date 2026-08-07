@@ -28,6 +28,11 @@ def seed_data():
                 {"name": "Educação", "icon_name": "GraduationCap", "budget": 250, "color": "oklch(0.55 0.15 200)"},
                 {"name": "Compras", "icon_name": "ShoppingBag", "budget": 200, "color": "oklch(0.55 0.05 250)"},
                 {"name": "Receita", "icon_name": "Plus", "budget": 0, "color": "oklch(0.94 0.06 155)"},
+                # Com `category_id` obrigatório, categoria que o front exibe e o
+                # seed não tem vira 404 na integração. Estas duas aparecem nos
+                # mocks de transacoes.tsx e parcelamentos.tsx.
+                {"name": "Eletrônicos", "icon_name": "Laptop", "budget": 300, "color": "oklch(0.55 0.12 265)"},
+                {"name": "Móveis", "icon_name": "Sofa", "budget": 150, "color": "oklch(0.58 0.08 85)"},
             ]
             for cat in categories:
                 db.add(Category(**cat))

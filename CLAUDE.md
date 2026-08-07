@@ -20,12 +20,19 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
   * `dashboard.py`: Resumo, métricas e fluxo de caixa.
   * `reports.py`: Relatórios e análises consolidadas.
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
-  `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`.
-  Cada arquivo carrega a própria fixture de SQLite em memória (`StaticPool`) — não há
-  `conftest.py` compartilhado, o setup é duplicado por arquivo.
+  `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
+  `test_category_fk.py`.
+  * **`conftest.py` centraliza as fixtures.** `client`/`session` (SQLite em memória,
+    `StaticPool`) e os helpers `create_category`/`create_account`/`create_transaction`.
+    `test_accounts.py` e `test_investments.py` ainda carregam cópia local do setup — migrar
+    quando forem tocados.
+  * **`fk_session`/`fk_client`** são as fixtures com enforcement de FK ligado. O listener vem
+    de `app.database.enable_sqlite_foreign_keys`, não de um workaround no teste — ligar o
+    PRAGMA só do lado do teste deixaria a suíte verde com a aplicação sem enforcement.
   * ⚠️ **`reports.py` não tem arquivo de teste próprio.** Sua única rota é coberta por
-    `test_reports_overview_smoke`, que mora em `test_dashboard.py` porque existe para
-    detectar quebra de acoplamento com `get_dashboard_summary`.
+    `test_reports_overview_smoke` (`test_dashboard.py`, regressão de acoplamento com
+    `get_dashboard_summary`) e por `test_reports_top_categories_grouped_by_foreign_key`
+    (`test_category_fk.py`).
 
 ### 🎨 Frontend (`/frontend`)
 * **Framework:** React + Vite + TypeScript
@@ -233,23 +240,46 @@ item (problema N+1). As listagens que expõem `installment` usam
 agregação, aí sim monte a resposta. É o caso de `routers/categories.py`, que instancia
 `CategoryResponse(...)` à mão porque `spent` e `txs_count` vêm de `func.sum`/`func.count`.
 
-### Categoria é string solta, não foreign key
+### Categoria é foreign key, não string
 
-*(Registrado retroativamente em 07/08/2026, ao escrever `test_categories.py` — ver "📐 Processo".)*
+**Decisão registrada antes da implementação em 07/08/2026.**
 
-Não existe FK entre transação e categoria. `Transaction.category` e
-`Installment.category_name` são `String`, e `list_categories` agrega comparando **nome com
-nome** (`Transaction.category == cat.name`). Consequências que os testes travam:
+`Transaction.category_id` e `Installment.category_id` são FK **NOT NULL** para `categories.id`,
+com `ondelete="RESTRICT"`. Categoria inexistente retorna **404** no router — mesmo padrão de
+`installment_id`.
 
-* A comparação é **case-sensitive**: `"alimentação"` não soma em `"Alimentação"`.
-* `POST /transactions` **aceita** categoria que não existe na tabela `categories`. A
-  transação não vira erro — ela some silenciosamente da listagem de categorias.
-* `spent` filtra `type == "SAÍDA"`, mas `txs_count` conta a categoria inteira (ENTRADA
+**Alternativa descartada:** manter string e normalizar (lower/trim) na comparação. Resolveria
+só a case-sensitivity e deixaria de pé o caso pior — transação com categoria não cadastrada
+era aceita e sumia da agregação. Normalizar não cria vínculo.
+
+**Impacto no contrato:** `POST /transactions` e `POST /installments` exigem `category_id: int`;
+as responses trocam a string por `category: CategoryRef` aninhado (`id`, `name`, `color`,
+`icon_name`), para o front pintar a badge sem uma segunda chamada.
+
+Pontos que os testes travam (`test_category_fk.py`):
+
+* **`spent` filtra `type == "SAÍDA"`, `txs_count` conta a categoria inteira** (ENTRADA
   incluída). A assimetria é intencional; não "corrija" sem olhar o teste.
+* **O join em `list_categories` é OUTER.** Categoria sem movimento tem que continuar
+  aparecendo zerada — um `INNER JOIN` a faz sumir da listagem e do `category_distribution`
+  do dashboard, que reusa a mesma função.
+* **Validar a FK antes de mutar saldo.** Em `create_transaction` a checagem de categoria vem
+  antes do débito, senão um ID inválido deixa `current_balance` corrompido.
 
-Ou seja: **não existe `category_id` e não existe 404 de categoria inexistente.** O único 404
-por FK nesses dois routers é o de `account_id` em `POST /installments`. Ao introduzir a FK de
-verdade, será preciso migração de dados (as strings existentes) — e a decisão vai aqui antes.
+> A agregação por FK substituiu um loop que rodava duas queries por categoria. Se precisar
+> mexer, é um `GROUP BY` com `CASE` — não volte para o loop.
+
+### Enforcement de foreign key precisa ser ligado explicitamente
+
+O SQLite abre **toda** conexão com `PRAGMA foreign_keys = 0`. Sem isso ligado, os `ondelete`
+declarados nos models são decorativos: o banco aceita linha órfã e ignora
+`CASCADE`/`SET NULL`/`RESTRICT` em silêncio. Foi o estado do projeto até 07/08/2026 — o
+`CASCADE` de `account_id` e o `SET NULL` de `installment_id` nunca foram aplicados.
+
+`app/database.py` expõe `enable_sqlite_foreign_keys(engine)` e o aplica ao engine da
+aplicação. **Todo engine novo precisa passar por ela** — inclusive os de teste. Se você criar
+um engine e esquecer, as FKs voltam a ser decorativas só naquele contexto, que é o tipo de
+divergência que só aparece em produção.
 
 ### Validação de regra de negócio no schema, não no router
 
@@ -359,9 +389,17 @@ Rodar após **qualquer** mudança em `models.py` ou `schemas.py`:
    python3 -c "import sqlite3; print(*sqlite3.connect('database.db').execute('PRAGMA table_info(transactions)'), sep='\n')"
    ```
 
-3. **Conferir o `/docs`.** Suba o servidor e abra `http://localhost:8000/docs` para validar que
-   os campos novos aparecem no schema. O OpenAPI é gerado em runtime — **não** é preciso editar
-   `backend/openapi.json` à mão.
+   > ⚠️ **O reset só é seguro enquanto o banco tiver apenas dados de seed.** Não há Alembic no
+   > projeto: `create_all()` não migra nada. A partir do primeiro dado real, mudança de schema
+   > deixa de ser possível assim — é o gatilho para introduzir migrations.
+
+3. **Regenerar o `openapi.json`.** O arquivo é versionado, então não basta o `/docs` em
+   runtime — mas **nunca** edite à mão:
+   ```bash
+   cd /workspace/backend
+   PYTHONPATH=/workspace/backend .venv/bin/python -c "import json; from app.main import app; json.dump(app.openapi(), open('openapi.json','w',encoding='utf-8'), indent=2, ensure_ascii=False)"
+   ```
+   Confira também o `/docs` com o servidor no ar (`http://localhost:8000/docs`).
 
 4. **Atualizar a seção "Status da Integração"** deste arquivo ao integrar uma tela.
 

@@ -1,113 +1,62 @@
+"""CRUD do router de parcelamentos.
+
+`category_name` (string livre) virou `category_id` (FK). O 404 de categoria
+inexistente e a categoria aninhada na response são testados em
+`test_category_fk.py`; aqui fica o resto do CRUD.
+
+Fixtures vêm do `conftest.py`.
+"""
+
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db
-from app.main import app
-
-# Setup of a clean in-memory SQLite database for testing purposes
-SQLALCHEMY_DATABASE_URL = "sqlite://"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@pytest.fixture(name="session")
-def session_fixture():
-    # Set up tables for the test session
-    Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine)
-
-@pytest.fixture(name="client")
-def client_fixture(session):
-    # Override the get_db dependency to use our clean test database session
-    def override_get_db():
-        try:
-            yield session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    del app.dependency_overrides[get_db]
+from tests.conftest import create_account, create_category, installment_payload
 
 
-def _create_account(client, name="Conta Parcelamentos", initial_balance=10000.0):
-    response = client.post("/api/accounts", json={
-        "name": name,
-        "initial_balance": initial_balance,
-    })
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
-
-
-def _installment_payload(account_id, **overrides):
-    payload = {
-        "title": "Notebook Dell",
-        "category_name": "Eletrônicos",
-        "total_amount": 6000.0,
-        "installment_amount": 500.0,
-        "current_installment": 2,
-        "total_installments": 12,
-        "end_date": "Ago/2026",
-        "account_id": account_id,
-    }
-    payload.update(overrides)
-    return payload
+@pytest.fixture(name="category_id")
+def category_id_fixture(default_category):
+    return default_category["id"]
 
 
 # ---------------------------------------------------------------------------
 # POST /api/installments
 # ---------------------------------------------------------------------------
 
-def test_create_installment(client):
-    account_id = _create_account(client)
-
-    response = client.post("/api/installments/", json=_installment_payload(account_id))
+def test_create_installment(client, default_account, category_id):
+    response = client.post(
+        "/api/installments/", json=installment_payload(default_account, category_id)
+    )
 
     assert response.status_code == 201, response.text
     data = response.json()
     assert data["id"] is not None
     assert data["title"] == "Notebook Dell"
-    assert data["category_name"] == "Eletrônicos"
+    assert data["category_id"] == category_id
     assert data["total_amount"] == 6000.0
     assert data["installment_amount"] == 500.0
     assert data["current_installment"] == 2
     assert data["total_installments"] == 12
     assert data["end_date"] == "Ago/2026"
-    assert data["account_id"] == account_id
+    assert data["account_id"] == default_account
 
 
-def test_create_installment_does_not_touch_account_balance(client):
+def test_create_installment_does_not_touch_account_balance(client, default_account, category_id):
     """Criar o parcelamento é só um registro de acompanhamento — o débito
     acontece quando uma transação é vinculada a ele, não aqui."""
-    account_id = _create_account(client, initial_balance=10000.0)
-
-    client.post("/api/installments/", json=_installment_payload(account_id))
+    client.post("/api/installments/", json=installment_payload(default_account, category_id))
 
     account = client.get("/api/accounts").json()[0]
     assert account["current_balance"] == pytest.approx(10000.0)
 
 
-def test_create_installment_account_not_found(client):
-    response = client.post("/api/installments/", json=_installment_payload(9999))
+def test_create_installment_account_not_found(client, category_id):
+    response = client.post("/api/installments/", json=installment_payload(9999, category_id))
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Conta não encontrada."
 
 
-def test_create_installment_with_invalid_account_persists_nothing(client):
-    client.post("/api/installments/", json=_installment_payload(9999))
+def test_create_installment_with_invalid_account_persists_nothing(client, category_id):
+    client.post("/api/installments/", json=installment_payload(9999, category_id))
 
     listed = client.get("/api/installments/")
     assert listed.status_code == 200
@@ -116,7 +65,7 @@ def test_create_installment_with_invalid_account_persists_nothing(client):
 
 @pytest.mark.parametrize("missing_field", [
     "title",
-    "category_name",
+    "category_id",
     "total_amount",
     "installment_amount",
     "current_installment",
@@ -124,10 +73,9 @@ def test_create_installment_with_invalid_account_persists_nothing(client):
     "end_date",
     "account_id",
 ])
-def test_create_installment_missing_required_fields(client, missing_field):
+def test_create_installment_missing_required_fields(client, default_account, category_id, missing_field):
     """Nenhum campo do InstallmentBase tem default — todos são obrigatórios."""
-    account_id = _create_account(client)
-    payload = _installment_payload(account_id)
+    payload = installment_payload(default_account, category_id)
     del payload[missing_field]
 
     response = client.post("/api/installments/", json=payload)
@@ -136,23 +84,10 @@ def test_create_installment_missing_required_fields(client, missing_field):
     assert any(missing_field in err["loc"] for err in response.json()["detail"])
 
 
-def test_create_installment_title_exceeds_max_length(client):
-    account_id = _create_account(client)
-
+def test_create_installment_title_exceeds_max_length(client, default_account, category_id):
     response = client.post(
         "/api/installments/",
-        json=_installment_payload(account_id, title="A" * 101),  # max_length=100
-    )
-
-    assert response.status_code == 422
-
-
-def test_create_installment_category_name_exceeds_max_length(client):
-    account_id = _create_account(client)
-
-    response = client.post(
-        "/api/installments/",
-        json=_installment_payload(account_id, category_name="A" * 51),  # max_length=50
+        json=installment_payload(default_account, category_id, title="A" * 101),  # max_length=100
     )
 
     assert response.status_code == 422
@@ -164,11 +99,10 @@ def test_create_installment_category_name_exceeds_max_length(client):
     ("current_installment", "duas"),
     ("total_installments", 12.5),
     ("account_id", "abc"),
+    ("category_id", "abc"),
 ])
-def test_create_installment_invalid_data_types(client, field, bad_value):
-    account_id = _create_account(client)
-
-    payload = _installment_payload(account_id)
+def test_create_installment_invalid_data_types(client, default_account, category_id, field, bad_value):
+    payload = installment_payload(default_account, category_id)
     payload[field] = bad_value
 
     response = client.post("/api/installments/", json=payload)
@@ -187,13 +121,14 @@ def test_list_installments_empty(client):
     assert response.json() == []
 
 
-def test_list_installments_returns_all_records(client):
-    account_id = _create_account(client)
-    client.post("/api/installments/", json=_installment_payload(account_id))
-    client.post("/api/installments/", json=_installment_payload(
-        account_id,
+def test_list_installments_returns_all_records(client, default_account, category_id):
+    casa = create_category(client, name="Casa", icon_name="Home", color="oklch(0.45 0.04 235)")
+
+    client.post("/api/installments/", json=installment_payload(default_account, category_id))
+    client.post("/api/installments/", json=installment_payload(
+        default_account,
+        casa["id"],
         title="Geladeira",
-        category_name="Casa",
         total_amount=3000.0,
         installment_amount=250.0,
         current_installment=5,
@@ -211,16 +146,17 @@ def test_list_installments_returns_all_records(client):
     assert by_title["Notebook Dell"]["current_installment"] == 2
     assert by_title["Geladeira"]["installment_amount"] == 250.0
     assert by_title["Geladeira"]["end_date"] == "Dez/2026"
+    assert by_title["Geladeira"]["category"]["name"] == "Casa"
 
 
-def test_list_installments_scoped_across_multiple_accounts(client):
+def test_list_installments_scoped_across_multiple_accounts(client, category_id):
     """`GET /installments` não filtra por conta: devolve a carteira inteira,
     com o account_id preservado em cada item."""
-    account_a = _create_account(client, name="Banco Inter")
-    account_b = _create_account(client, name="Nubank")
+    account_a = create_account(client, name="Banco Inter")
+    account_b = create_account(client, name="Nubank")
 
-    client.post("/api/installments/", json=_installment_payload(account_a, title="Notebook"))
-    client.post("/api/installments/", json=_installment_payload(account_b, title="Celular"))
+    client.post("/api/installments/", json=installment_payload(account_a, category_id, title="Notebook"))
+    client.post("/api/installments/", json=installment_payload(account_b, category_id, title="Celular"))
 
     data = client.get("/api/installments/").json()
 
