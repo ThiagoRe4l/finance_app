@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.database import get_db
@@ -18,10 +18,19 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conta não encontrada."
         )
-        
+
+    category = db.query(models.Category).filter(
+        models.Category.id == installment.category_id
+    ).first()
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Categoria não encontrada."
+        )
+
     new_installment = models.Installment(
         title=installment.title,
-        category_name=installment.category_name,
+        category_id=installment.category_id,
         total_amount=installment.total_amount,
         installment_amount=installment.installment_amount,
         current_installment=installment.current_installment,
@@ -36,4 +45,6 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
 
 @router.get("/", response_model=List[schemas.InstallmentResponse])
 def list_installments(db: Session = Depends(get_db)):
-    return db.query(models.Installment).all()
+    return db.query(models.Installment).options(
+        joinedload(models.Installment.category)
+    ).all()

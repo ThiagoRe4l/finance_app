@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from typing import List
 
 from app.database import get_db
@@ -33,29 +33,43 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 
 @router.get("/", response_model=List[schemas.CategoryResponse])
 def list_categories(db: Session = Depends(get_db)):
-    categories = db.query(models.Category).all()
-    
-    # Para cada categoria, calcula o gasto total e a contagem de transações
-    # Nota: Em um app real, isso seria feito com uma query otimizada ou views
-    response = []
-    for cat in categories:
-        spent = db.query(func.sum(models.Transaction.amount)).filter(
-            models.Transaction.category == cat.name,
-            models.Transaction.type == "SAÍDA"
-        ).scalar() or 0.0
-        
-        count = db.query(func.count(models.Transaction.id)).filter(
-            models.Transaction.category == cat.name
-        ).scalar()
-        
-        response.append(schemas.CategoryResponse(
+    # Uma query agregada só, via FK. A versão anterior comparava strings e
+    # rodava duas queries por categoria (N+1); com `category_id` o banco resolve
+    # tudo em um GROUP BY.
+    #
+    # O join é OUTER de propósito: categoria sem movimento tem que continuar
+    # aparecendo com zeros. Um INNER JOIN a faria sumir da listagem — e do
+    # `category_distribution` do dashboard, que reusa esta função.
+    #
+    # A assimetria entre as duas agregações é intencional: `spent` só considera
+    # SAÍDA (daí o CASE), enquanto `txs_count` conta a categoria inteira,
+    # ENTRADA incluída.
+    rows = db.query(
+        models.Category,
+        func.coalesce(
+            func.sum(
+                case((models.Transaction.type == "SAÍDA", models.Transaction.amount), else_=0.0)
+            ),
+            0.0,
+        ).label("spent"),
+        func.count(models.Transaction.id).label("txs_count"),
+    ).outerjoin(
+        models.Transaction, models.Transaction.category_id == models.Category.id
+    ).group_by(
+        models.Category.id
+    ).order_by(
+        models.Category.id
+    ).all()
+
+    return [
+        schemas.CategoryResponse(
             id=cat.id,
             name=cat.name,
             icon_name=cat.icon_name,
             budget=cat.budget,
             color=cat.color,
             spent=spent,
-            txs_count=count
-        ))
-    
-    return response
+            txs_count=txs_count,
+        )
+        for cat, spent, txs_count in rows
+    ]

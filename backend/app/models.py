@@ -30,7 +30,9 @@ class Transaction(Base):
     type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'ENTRADA' ou 'SAÍDA'
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    category: Mapped[str] = mapped_column(String(50), nullable=False)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     is_fixed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     installment_id: Mapped[Optional[int]] = mapped_column(
@@ -39,6 +41,9 @@ class Transaction(Base):
 
     # Relação muitos-para-um com Conta
     account: Mapped["Account"] = relationship("Account", back_populates="transactions")
+
+    # Relação muitos-para-um com Categoria
+    category: Mapped["Category"] = relationship("Category", back_populates="transactions")
 
     # Relação muitos-para-um com Parcelamento (opcional)
     installment: Mapped[Optional["Installment"]] = relationship("Installment")
@@ -56,6 +61,15 @@ class Category(Base):
     budget: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     color: Mapped[str] = mapped_column(String(50), nullable=False)
 
+    # Relações inversas. Sem cascade de propósito: as FKs são RESTRICT, então
+    # categoria em uso não sai — apagar movimentação junto seria perda de dado.
+    transactions: Mapped[List["Transaction"]] = relationship(
+        "Transaction", back_populates="category"
+    )
+    installments: Mapped[List["Installment"]] = relationship(
+        "Installment", back_populates="category"
+    )
+
     def __repr__(self) -> str:
         return f"<Category {self.name} (Budget: {self.budget})>"
 
@@ -65,7 +79,9 @@ class Installment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
-    category_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     total_amount: Mapped[float] = mapped_column(Float, nullable=False)
     installment_amount: Mapped[float] = mapped_column(Float, nullable=False)
     current_installment: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -75,6 +91,9 @@ class Installment(Base):
 
     # Relação muitos-para-um com Conta
     account: Mapped["Account"] = relationship("Account")
+
+    # Relação muitos-para-um com Categoria
+    category: Mapped["Category"] = relationship("Category", back_populates="installments")
 
     def __repr__(self) -> str:
         return f"<Installment {self.title} ({self.current_installment}/{self.total_installments})>"

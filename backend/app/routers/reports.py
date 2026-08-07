@@ -24,14 +24,18 @@ def get_report_overview(db: Session = Depends(get_db)):
     avg_saving = (total_in - total_out) / len(dash.monthly_flow) if dash.monthly_flow else 0.0
     
     # 3. Maiores categorias (top categories)
-    # Agrupa por categoria e soma valores
+    # Agrupa pela FK e resolve o nome via join — antes agrupava pela string
+    # crua de `Transaction.category`, o que fazia grafias divergentes virarem
+    # linhas separadas no relatório.
     top_cats_query = db.query(
-        models.Transaction.category, 
+        models.Category.name,
         func.sum(models.Transaction.amount).label("total")
+    ).join(
+        models.Transaction, models.Transaction.category_id == models.Category.id
     ).filter(
         models.Transaction.type == "SAÍDA"
     ).group_by(
-        models.Transaction.category
+        models.Category.id
     ).order_by(
         func.sum(models.Transaction.amount).desc()
     ).limit(4).all()

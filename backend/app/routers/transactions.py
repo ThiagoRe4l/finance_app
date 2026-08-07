@@ -20,7 +20,17 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
             detail="Conta não encontrada."
         )
 
-    # 2. Valida o parcelamento de origem, quando informado
+    # 2. Valida a categoria
+    category = db.query(models.Category).filter(
+        models.Category.id == transaction.category_id
+    ).first()
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Categoria não encontrada."
+        )
+
+    # 3. Valida o parcelamento de origem, quando informado
     if transaction.installment_id is not None:
         installment = db.query(models.Installment).filter(
             models.Installment.id == transaction.installment_id
@@ -31,7 +41,9 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
                 detail="Parcelamento não encontrado."
             )
 
-    # 3. Verifica o tipo da transação e atualiza o saldo
+    # 4. Verifica o tipo da transação e atualiza o saldo
+    # Todas as FKs já foram validadas acima — mutar saldo antes disso deixaria
+    # `current_balance` corrompido quando um ID inválido derrubasse a requisição.
     if transaction.type == "SAÍDA":
         account.current_balance -= transaction.amount
     elif transaction.type == "ENTRADA":
@@ -42,19 +54,19 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
             detail="Tipo de transação inválido. Deve ser 'ENTRADA' ou 'SAÍDA'."
         )
 
-    # 4. Instancia a transação
+    # 5. Instancia a transação
     db_transaction = models.Transaction(
         title=transaction.title,
         type=transaction.type,
         amount=transaction.amount,
         date=transaction.date,
-        category=transaction.category,
+        category_id=transaction.category_id,
         is_fixed=transaction.is_fixed,
         account_id=transaction.account_id,
         installment_id=transaction.installment_id
     )
 
-    # 5. Salva no banco de dados
+    # 6. Salva no banco de dados
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
@@ -64,5 +76,6 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
 @router.get("/", response_model=List[schemas.TransactionResponse])
 def list_transactions(db: Session = Depends(get_db)):
     return db.query(models.Transaction).options(
-        joinedload(models.Transaction.installment)
+        joinedload(models.Transaction.installment),
+        joinedload(models.Transaction.category)
     ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()

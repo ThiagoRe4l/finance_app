@@ -92,7 +92,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     # 4. Transações Recentes
     recent_txs = db.query(models.Transaction).options(
-        joinedload(models.Transaction.installment)
+        joinedload(models.Transaction.installment),
+        joinedload(models.Transaction.category)
     ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).limit(7).all()
     
     # 5. Distribuição de Categorias

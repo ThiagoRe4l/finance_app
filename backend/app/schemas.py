@@ -23,12 +23,28 @@ class InstallmentProgress(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CategoryRef(BaseModel):
+    """Categoria aninhada nas responses de transação e parcelamento.
+
+    Carrega `color` e `icon_name` junto do nome para que o front pinte a badge
+    sem uma segunda chamada a /categories. Serialização direta do ORM pela
+    relação — ver "Design Patterns" no CLAUDE.md; toda listagem que expõe este
+    campo precisa de `joinedload`, senão vira N+1.
+    """
+    id: int
+    name: str
+    color: str
+    icon_name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TransactionCreate(BaseModel):
     title: str = Field(..., max_length=150, description="Título/descrição da transação")
     type: str = Field(..., description="Tipo de transação: 'ENTRADA' ou 'SAÍDA'")
     amount: float = Field(..., gt=0, description="Valor da transação")
     date: datetime.date = Field(..., description="Data da transação")
-    category: str = Field(..., max_length=50, description="Categoria da transação")
+    category_id: int = Field(..., description="ID da categoria cadastrada")
     is_fixed: bool = Field(False, description="Indica se é uma despesa fixa/recorrente")
     account_id: int = Field(..., description="ID da conta bancária relacionada")
     installment_id: Optional[int] = Field(None, description="ID do parcelamento de origem, se houver")
@@ -52,7 +68,7 @@ class TransactionResponse(BaseModel):
     type: str
     amount: float
     date: datetime.date
-    category: str
+    category: CategoryRef
     is_fixed: bool
     account_id: int
     installment_id: Optional[int] = None
@@ -109,7 +125,7 @@ class CategoryResponse(CategoryBase):
 
 class InstallmentBase(BaseModel):
     title: str = Field(..., max_length=100)
-    category_name: str = Field(..., max_length=50)
+    category_id: int = Field(..., description="ID da categoria cadastrada")
     total_amount: float
     installment_amount: float
     current_installment: int
@@ -122,6 +138,7 @@ class InstallmentCreate(InstallmentBase):
 
 class InstallmentResponse(InstallmentBase):
     id: int
+    category: CategoryRef
 
     model_config = ConfigDict(from_attributes=True)
 
