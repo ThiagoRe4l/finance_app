@@ -21,7 +21,11 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
   * `reports.py`: Relatórios e análises consolidadas.
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
   `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
-  `test_category_fk.py`.
+  `test_category_fk.py`, `test_fk_cascade.py`.
+  * **`test_fk_cascade.py` testa schema, não ORM.** Os deletes são em SQL cru de propósito:
+    `Account.transactions` tem `cascade="all, delete-orphan"`, então um `session.delete()`
+    apaga as filhas pelo ORM e o teste ficaria verde com o PRAGMA desligado. Verificado: com
+    `enable_sqlite_foreign_keys` neutralizada, 6 dos 7 testes ficam vermelhos.
   * **`conftest.py` centraliza as fixtures.** `client`/`session` (SQLite em memória,
     `StaticPool`) e os helpers `create_category`/`create_account`/`create_transaction`.
     `test_accounts.py` e `test_investments.py` ainda carregam cópia local do setup — migrar
