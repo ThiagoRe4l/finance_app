@@ -19,6 +19,13 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
   * `installments.py`: Compras parceladas.
   * `dashboard.py`: Resumo, métricas e fluxo de caixa.
   * `reports.py`: Relatórios e análises consolidadas.
+* **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
+  `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`.
+  Cada arquivo carrega a própria fixture de SQLite em memória (`StaticPool`) — não há
+  `conftest.py` compartilhado, o setup é duplicado por arquivo.
+  * ⚠️ **`reports.py` não tem arquivo de teste próprio.** Sua única rota é coberta por
+    `test_reports_overview_smoke`, que mora em `test_dashboard.py` porque existe para
+    detectar quebra de acoplamento com `get_dashboard_summary`.
 
 ### 🎨 Frontend (`/frontend`)
 * **Framework:** React + Vite + TypeScript
@@ -29,6 +36,31 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 ---
 
 ## 🧰 Comandos de Execução e Desenvolvimento
+
+### Via docker-compose (forma canônica)
+
+`docker-compose.yml` na raiz formaliza os dois serviços. Não introduz nada novo — são as
+mesmas portas, comandos e caminhos que antes rodavam à mão:
+
+```bash
+docker compose up                       # backend (8000) + frontend (5173)
+docker compose up backend               # só a API
+docker compose run --rm backend pytest  # suíte de testes
+docker compose config --quiet           # valida o arquivo sem subir nada
+```
+
+Duas restrições do arquivo que não são estéticas:
+
+* **`working_dir` do backend tem que ser `/workspace/backend`.** `app/database.py` tem
+  `DATABASE_DIR = "/workspace/backend"` hardcoded; montar em outro caminho cria o SQLite
+  fora do bind mount e os dados somem no `down`.
+* **A porta 8000 tem que ser publicada no host.** Quem chama a API é o browser, usando o
+  `http://localhost:8000/api` hardcoded em `src/lib/api.ts` — não é comunicação
+  container→container. O `depends_on` serve para ordem de subida, não para roteamento.
+
+> Não há Dockerfile: os serviços rodam sobre imagens oficiais (`python:3.11-slim`,
+> `node:22-slim`) e instalam dependências na subida. Só vale extrair um Dockerfile se
+> aparecer passo de build próprio (compilar extensão nativa, etc.).
 
 ### Backend (Na Jaula / Docker)
 ```bash
@@ -52,6 +84,42 @@ npm run build    # build de produção
 npm run lint     # ESLint
 npm run format   # Prettier
 ```
+
+---
+
+## 🧱 Ambiente de Execução e Isolamento
+
+**O que é de fato isolado.** O processo roda em container Docker — verificado por
+`/.dockerenv`, raiz em `overlay` (containerd) e `/sys` + `/proc/sys` montados read-only.
+Dependências (`.venv`, `node_modules`) ficam confinadas e não poluem o sistema hospedeiro.
+Nessa parte, o princípio "Ambiente Confinado (AI Jail)" do `GEMINI.md` está atendido.
+
+### ⚠️ Debt conhecida: o filesystem do projeto **não** é isolado
+
+`/workspace` é um bind mount 9p/drvfs vindo do Windows do host:
+
+```
+C:\ on /workspace type 9p (rw,noatime,aname=drvfs;path=C:\;...)
+```
+
+Todo write em `/workspace` — inclusive `database.db` — vai **direto para o disco do host**.
+O confinamento é de **runtime e dependências**, não de filesystem.
+
+O que isso implica na prática:
+
+* **Comando destrutivo em `/workspace` é irreversível.** Um `rm -rf` equivocado dentro do
+  container apaga arquivo do host; destruir o container não desfaz nada.
+* **I/O via 9p é lento.** Relevante para `node_modules` e para a coleta do pytest.
+* **Permissões Unix são sintéticas** (tudo `root`, `uid=0/gid=0` no mount) — não confie em
+  bits de permissão como proteção.
+
+**Mitigação parcial já em vigor:** o `docker-compose.yml` mantém `venv` e `node_modules` em
+volumes nomeados (`backend-venv`, `frontend-node-modules`), fora do bind mount. Isso resolve
+performance e conflito host↔container, **não** a exposição do código e do banco.
+
+**Correção de verdade fica fora de escopo por ora:** exigiria mover o projeto para um volume
+nomeado ou para o filesystem nativo do WSL2. Enquanto não acontecer, esta seção é o registro
+consciente da limitação — não trate o container como sandbox para operações destrutivas.
 
 ---
 
@@ -136,6 +204,7 @@ Em vez de env vars, a configuração está **hardcoded** — é aqui que se mexe
 | Caminho do SQLite | `backend/app/database.py` (`DATABASE_DIR`/`DATABASE_PATH`) | Caminho absoluto `/workspace/backend` |
 | URL base da API | `frontend/src/lib/api.ts:1` (`API_BASE_URL`) | `http://localhost:8000/api` |
 | Origens CORS | `backend/app/main.py` (`allow_origins`) | Hoje `["*"]`, liberado para desenvolvimento |
+| Portas e caminho dos serviços | `docker-compose.yml` | Espelha os valores acima: `8000`, `5173` e `working_dir: /workspace/backend`. Mudar qualquer um dos três **exige** mudar os dois lados |
 
 > Ao introduzir a primeira variável de ambiente, crie um `.env.example` versionado com os
 > **nomes** das chaves e adicione `.env` ao `.gitignore`. Nunca versione valores ou segredos.
@@ -164,6 +233,24 @@ item (problema N+1). As listagens que expõem `installment` usam
 agregação, aí sim monte a resposta. É o caso de `routers/categories.py`, que instancia
 `CategoryResponse(...)` à mão porque `spent` e `txs_count` vêm de `func.sum`/`func.count`.
 
+### Categoria é string solta, não foreign key
+
+*(Registrado retroativamente em 07/08/2026, ao escrever `test_categories.py` — ver "📐 Processo".)*
+
+Não existe FK entre transação e categoria. `Transaction.category` e
+`Installment.category_name` são `String`, e `list_categories` agrega comparando **nome com
+nome** (`Transaction.category == cat.name`). Consequências que os testes travam:
+
+* A comparação é **case-sensitive**: `"alimentação"` não soma em `"Alimentação"`.
+* `POST /transactions` **aceita** categoria que não existe na tabela `categories`. A
+  transação não vira erro — ela some silenciosamente da listagem de categorias.
+* `spent` filtra `type == "SAÍDA"`, mas `txs_count` conta a categoria inteira (ENTRADA
+  incluída). A assimetria é intencional; não "corrija" sem olhar o teste.
+
+Ou seja: **não existe `category_id` e não existe 404 de categoria inexistente.** O único 404
+por FK nesses dois routers é o de `account_id` em `POST /installments`. Ao introduzir a FK de
+verdade, será preciso migração de dados (as strings existentes) — e a decisão vai aqui antes.
+
 ### Validação de regra de negócio no schema, não no router
 
 Regras que dependem só do payload ficam em `@model_validator(mode="after")` no schema e
@@ -177,9 +264,81 @@ um ID inválido deixaria o `current_balance` corrompido.
 
 ---
 
+## 📐 Processo: decisão de arquitetura **antes** da implementação
+
+**Compromisso assumido. Vale para todo trabalho daqui em diante.**
+
+Toda feature nova que introduza **modelo, endpoint, dependência ou padrão novo** tem sua
+decisão de arquitetura registrada **neste arquivo antes** de a implementação ser pedida.
+Documentação escrita depois do código não conta como decisão registrada — conta como relato.
+
+**Registro mínimo: 3 a 5 linhas, não um RFC.**
+
+1. O que se decidiu.
+2. Qual alternativa foi descartada e por quê.
+3. O impacto no contrato com o frontend (se houver).
+
+**Onde escrever:** decisão de padrão vai em "🧩 Design Patterns do Projeto"; mudança de
+contrato de API vai em "🔌 Status da Integração Frontend ↔ Backend".
+
+### Por que a regra existe
+
+Porque até aqui o projeto fez o contrário, e isso é verificável no git:
+
+* `GEMINI.md` — a "constitution" com o plano técnico — entrou no commit `ab2e67e`, **o mesmo
+  commit** que já trazia `models.py`, `schemas.py`, 3 routers e 3 arquivos de teste. O plano
+  não precedeu o código; nasceu junto.
+* `CLAUDE.md` só apareceu no commit `c827f21`, **8 dias depois do backend** e 3 dias depois
+  dos routers de `categories`/`installments`/`reports`.
+* A seção "🧯 Common Hurdles" descreve problemas **já resolvidos** ("Como foi resolvido:
+  adicionados a `Transaction`..."). É documentação forense — útil, mas não é decisão prévia.
+
+O `GEMINI.md` já declarava o princípio "Anti-Vibe Coding" (*"nenhuma linha de código deve ser
+escrita sem plano técnico aprovado"*). Ele nunca teve mecanismo. Esta seção é o mecanismo.
+
+**Quando a regra não for seguida** — e vai acontecer —, escreva isso explicitamente no
+registro ("documentado retroativamente em DD/MM") em vez de redigir a doc como se fosse
+prévia. Um registro honestamente rotulado como tardio vale mais que um que finge não ser.
+
+### Teste antes da implementação (a partir de 07/08/2026)
+
+**Todo código novo exige teste escrito e aprovado antes da implementação.** Não é mais
+aceitável entregar código com teste retroativo.
+
+O ciclo é:
+
+1. Decisão de arquitetura registrada aqui (regra acima).
+2. **Testes escritos e submetidos para aprovação** — vermelhos, porque a implementação não
+   existe. O vermelho é o entregável desta etapa, não um problema a esconder.
+3. Aprovação explícita dos testes.
+4. Só então a implementação, até o verde.
+
+**O teste vermelho tem que falhar pelo motivo certo.** Antes de submeter, rode e leia a
+mensagem: `assert 422 == 404` porque o campo ainda não existe é sinal válido; `ImportError`
+por typo no nome do arquivo não é. Um teste que falha por erro de digitação não valida nada e
+vai ficar verde pelo motivo errado depois.
+
+**Cuidado com o falso verde na etapa 2.** Teste novo que já passa contra o código antigo em
+geral está testando outra coisa. Ex.: ao escrever `test_category_fk.py`, dois testes passaram
+de cara — porque o POST era rejeitado com 422 pelo contrato *velho*, e a asserção "nada foi
+persistido" se sustentava por acidente. Sinalize esses casos ao submeter em vez de contá-los
+como cobertura.
+
+**A exceção, e como sinalizá-la.** Código com teste escrito depois só é aceitável quando
+**explicitamente rotulado como tal** no momento da entrega — foi o caso de
+`test_categories.py` e `test_installments.py` (06/08/2026), escritos para cobrir routers que
+já existiam há dias. Cobertura retroativa de código legado é trabalho legítimo; o que a regra
+proíbe é escrever código novo hoje e o teste depois, sem dizer.
+
+---
+
 ## ✅ Checklist Pós-Implementação
 
 Rodar após **qualquer** mudança em `models.py` ou `schemas.py`:
+
+0. **A decisão de arquitetura estava registrada antes?** Se estava, confira que o que foi
+   implementado bate com o que foi escrito. Se não estava, registre agora e marque como
+   retroativo — ver "📐 Processo" acima.
 
 1. **Testes verdes (obrigatório):**
    ```bash
