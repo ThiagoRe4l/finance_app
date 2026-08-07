@@ -134,6 +134,93 @@
         }
       }
     },
+    "/api/transactions/{transaction_id}": {
+      "patch": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Update Transaction",
+        "description": "Edição parcial. Estorna o efeito antigo no saldo e aplica o novo.\n\nA ordem aqui não é estética: **toda** validação acontece antes de encostar\nem `current_balance`, mesma regra do `create_transaction`. Um 400 ou 404\ndepois do estorno deixaria o saldo corrompido sem nenhum registro de que\nalgo mudou.",
+        "operationId": "update_transaction_api_transactions__transaction_id__patch",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Transaction Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Delete Transaction",
+        "description": "Exclui a transação e estorna seu efeito no saldo da conta.",
+        "operationId": "delete_transaction_api_transactions__transaction_id__delete",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Transaction Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/investments/": {
       "get": {
         "tags": [
@@ -344,6 +431,93 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/categories/{category_id}": {
+      "patch": {
+        "tags": [
+          "Categories"
+        ],
+        "summary": "Update Category",
+        "description": "Edição parcial. Renomear categoria em uso é permitido (decisão C11).",
+        "operationId": "update_category_api_categories__category_id__patch",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Category Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Categories"
+        ],
+        "summary": "Delete Category",
+        "description": "Exclui a categoria; **409** se ela estiver em uso (decisões C9/C10).\n\nAs duas FKs para `categories.id` são `ondelete=\"RESTRICT\"`, então o banco já\nrecusaria — mas via `IntegrityError`, que sobe como 500. A checagem\nantecipada é o que transforma isso num conflito legível.\n\nOs dois vínculos são verificados: uma categoria pode estar presa a um\nparcelamento **sem ter transação nenhuma**, e olhar só `Transaction`\ndeixaria esse caso escapar para o 500.",
+        "operationId": "delete_category_api_categories__category_id__delete",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Category Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -682,6 +856,61 @@
           "id"
         ],
         "title": "CategoryResponse"
+      },
+      "CategoryUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "icon_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Name"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CategoryUpdate",
+        "description": "Payload parcial do `PATCH /categories/{id}`.\n\n`extra=\"forbid\"` pelo mesmo motivo de `TransactionUpdate`: campo\ndesconhecido tem que falhar barulhento, não ser descartado."
       },
       "DashboardSummary": {
         "properties": {
@@ -1215,6 +1444,96 @@
           "account_id"
         ],
         "title": "TransactionResponse"
+      },
+      "TransactionUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type",
+            "description": "'ENTRADA' ou 'SAÍDA'"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "is_fixed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Fixed"
+          },
+          "installment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Id",
+            "description": "Só aceita null (desvincular) — ver decisão B6"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TransactionUpdate",
+        "description": "Payload parcial do `PATCH /transactions/{id}`.\n\nTodo campo é opcional: o que não vier no corpo não é tocado. O router lê\n`model_dump(exclude_unset=True)` para distinguir \"não enviado\" de \"enviado\ncomo null\" — a diferença importa em `installment_id`, onde `null` é um\npedido explícito de desvínculo.\n\n`account_id` **não existe aqui de propósito** (decisão A3). Com\n`extra=\"forbid\"` a tentativa vira 422; sem ele, o Pydantic descartaria o\ncampo em silêncio e a resposta 200 faria o cliente acreditar que a\ntransação mudou de conta.\n\nA regra `is_fixed` × `installment_id` **não** está neste schema — ver\n`update_transaction` no router. Num payload parcial ela depende do estado\nmesclado com a linha do banco, que o schema não enxerga."
       },
       "ValidationError": {
         "properties": {

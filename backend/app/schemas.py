@@ -62,6 +62,43 @@ class TransactionCreate(BaseModel):
             raise ValueError("Uma transação não pode ser fixa e parcelada ao mesmo tempo.")
         return self
 
+class TransactionUpdate(BaseModel):
+    """Payload parcial do `PATCH /transactions/{id}`.
+
+    Todo campo é opcional: o que não vier no corpo não é tocado. O router lê
+    `model_dump(exclude_unset=True)` para distinguir "não enviado" de "enviado
+    como null" — a diferença importa em `installment_id`, onde `null` é um
+    pedido explícito de desvínculo.
+
+    `account_id` **não existe aqui de propósito** (decisão A3). Com
+    `extra="forbid"` a tentativa vira 422; sem ele, o Pydantic descartaria o
+    campo em silêncio e a resposta 200 faria o cliente acreditar que a
+    transação mudou de conta.
+
+    A regra `is_fixed` × `installment_id` **não** está neste schema — ver
+    `update_transaction` no router. Num payload parcial ela depende do estado
+    mesclado com a linha do banco, que o schema não enxerga.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(None, max_length=150)
+    type: Optional[str] = Field(None, description="'ENTRADA' ou 'SAÍDA'")
+    amount: Optional[float] = Field(None, gt=0)
+    date: Optional[datetime.date] = None
+    category_id: Optional[int] = None
+    is_fixed: Optional[bool] = None
+    installment_id: Optional[int] = Field(
+        None, description="Só aceita null (desvincular) — ver decisão B6"
+    )
+
+    @field_validator('type')
+    @classmethod
+    def normalize_type(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
+
 class TransactionResponse(BaseModel):
     id: int
     title: str
@@ -114,6 +151,20 @@ class CategoryBase(BaseModel):
 
 class CategoryCreate(CategoryBase):
     pass
+
+class CategoryUpdate(BaseModel):
+    """Payload parcial do `PATCH /categories/{id}`.
+
+    `extra="forbid"` pelo mesmo motivo de `TransactionUpdate`: campo
+    desconhecido tem que falhar barulhento, não ser descartado.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = Field(None, max_length=50)
+    icon_name: Optional[str] = Field(None, max_length=50)
+    budget: Optional[float] = None
+    color: Optional[str] = Field(None, max_length=50)
+
 
 class CategoryResponse(CategoryBase):
     id: int

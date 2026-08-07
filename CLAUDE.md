@@ -21,7 +21,11 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
   * `reports.py`: Relatórios e análises consolidadas.
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
   `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
-  `test_category_fk.py`, `test_fk_cascade.py`.
+  `test_category_fk.py`, `test_fk_cascade.py`, `test_transactions_write.py`,
+  `test_categories_write.py`.
+  * **`*_write.py` cobrem PATCH/DELETE (dia 4.1).** Todo teste que espera 404 assere também
+    o `detail`: enquanto a rota não existia, o FastAPI devolvia 404 `"Not Found"` e a
+    asserção de status sozinha ficava verde contra um endpoint ausente.
   * **`test_fk_cascade.py` testa schema, não ORM.** Os deletes são em SQL cru de propósito:
     `Account.transactions` tem `cascade="all, delete-orphan"`, então um `session.delete()`
     apaga as filhas pelo ORM e o teste ficaria verde com o PRAGMA desligado. Verificado: com
@@ -191,10 +195,27 @@ importa `lib/api.ts`** — o cliente HTTP existe mas não tem um único consumid
 | `parcelamentos.tsx` | `GET/POST /api/installments` | ❌ Mockado |
 | `relatorios.tsx` | `GET /api/reports/overview` | ❌ Mockado |
 
-**Lacuna conhecida no cliente:** `lib/api.ts` implementa apenas `get`, `post` e `delete`.
-**Não há `put` nem `patch`** — se alguma tela precisar de edição, o método terá que ser
-adicionado ao objeto `api`. Vale notar que o backend também ainda não expõe rotas de
-atualização (`PUT`/`PATCH`) em nenhum router.
+**Cliente HTTP:** `lib/api.ts` expõe `get`, `post`, `patch` e `delete`. **Não há `put` e não
+deve haver** — ver a decisão em "Operações de escrita". `apiFetch` trata **204 sem corpo**
+(`return undefined as T`); sem isso o `.json()` incondicional rejeitava a promise em toda
+exclusão bem-sucedida. `api.delete` devolve `Promise<void>`, não `Promise<T>`.
+
+**Dia 4.1 — operações de escrita (decidido e implementado em 07/08/2026).** O contrato está
+em "🧩 Design Patterns → Operações de escrita".
+
+| Endpoint | Fatia | Status |
+|---|---|---|
+| `PATCH /api/transactions/{id}` | 4.1 | ✅ implementado |
+| `DELETE /api/transactions/{id}` | 4.1 | ✅ implementado (204) |
+| `PATCH /api/categories/{id}` | 4.1 | ✅ implementado |
+| `DELETE /api/categories/{id}` | 4.1 | ✅ implementado (204 / 409 em uso) |
+| `PATCH /api/installments/{id}` | 4.2 | ⬜ pendente — avanço de `current_installment` |
+
+⚠️ **Nenhuma tela tem afordância de edição ou exclusão hoje** — verificado por busca: não há
+um `onClick` sequer em `routes/` ou `components/dashboard/`, e os botões existentes ("Nova",
+"Filtrar", "Exportar") são inertes. Estes endpoints são backend pronto **antes** da UI, não
+resposta a uma tela que já pede. Não existe tela de contas nem de investimentos — a
+`Sidebar` tem 5 itens e nenhum aponta para elas.
 
 ---
 
@@ -295,6 +316,88 @@ router e retornam **404** (ex.: `installment_id` inexistente).
 **Ordem importa no router:** valide todas as FKs **antes** de mutar saldos. Em
 `create_transaction`, a checagem do parcelamento vem antes do débito/crédito na conta — senão
 um ID inválido deixaria o `current_balance` corrompido.
+
+> ⚠️ **Exceção aberta em 07/08/2026 para os PATCH parciais.** Ver "Operações de escrita"
+> abaixo: num payload parcial o validador de schema deixa de funcionar, e a regra
+> `is_fixed` × `installment_id` migra para o router com status **400**.
+
+### Operações de escrita (PATCH/DELETE) — decisões do dia 4
+
+**Registrado em 07/08/2026, antes da implementação.** Até aqui nenhum router expunha
+`PUT`/`PATCH`/`DELETE`. O dia 4 fecha isso em duas fatias: **4.1 = transactions +
+categories** (bloco de risco, mexe em saldo), **4.2 = installments** (`current_installment`,
+não toca saldo). Contas e investimentos ficam fora — sem tela e sem consumidor previsto.
+
+**Só `PATCH`, nunca `PUT`.** Toda edição de tela é parcial e cada verbo novo custa um método
+em `lib/api.ts`. Alternativa descartada: `PUT` com payload completo — obrigaria o front a
+reenviar campos que ele não editou, e reintroduziria a possibilidade de zerar campo por
+omissão.
+
+**`DELETE` devolve 204 sem corpo.** Isso **quebra o `api.delete` atual**: `apiFetch`
+(`frontend/src/lib/api.ts`) faz `return response.json()` incondicionalmente, e parsear corpo
+vazio rejeita a promise mesmo em sucesso. O ajuste no `apiFetch` faz parte da entrega, não é
+tarefa futura.
+
+#### Saldo: toda escrita que mexe em transação reexecuta o efeito
+
+`create_transaction` faz `current_balance ±= amount`. Logo:
+
+* **`PATCH` estorna o efeito antigo e aplica o novo** — nunca aplica delta sobre o valor já
+  gravado. Editar valor/tipo sem estornar faz o saldo derrapar em silêncio a cada edição, e
+  o erro só aparece meses depois, irreconciliável.
+* **`DELETE` estorna** o efeito da transação apagada.
+* **`type` pode trocar** (ENTRADA↔SAÍDA). É a operação de maior oscilação: `2 × amount`. Tem
+  teste dedicado conferindo o saldo final aritmeticamente, não por sinal.
+* **`account_id` NÃO pode trocar na v1** — mudaria dois saldos numa requisição. Para mover
+  uma transação de conta: apagar e recriar.
+
+#### Transação: o que pode mudar depois de criada
+
+| Campo | Regra |
+|---|---|
+| `title`, `amount`, `date`, `category_id` | livres (`category_id` inexistente → 404) |
+| `is_fixed` | livre |
+| `type` | livre, com estorno + reaplicação |
+| `installment_id` | **só desvincular** (`→ null`). Vincular uma avulsa ou trocar de parcelamento → 400 |
+| `account_id` | rejeitado (**422**, campo não existe no schema de update) |
+
+**`account_id` é 422 por `extra="forbid"`, não por omissão.** Se o schema apenas ignorasse o
+campo, `PATCH {"account_id": 2}` seria aceito com 200 e não faria nada — o cliente acharia
+que moveu a transação. Mesmo raciocínio de `test_legacy_category_string_is_no_longer_accepted`:
+contrato recusado tem que falhar barulhento.
+
+#### Desvio: o validador exclusivo sai do schema e vira 400
+
+`check_fixed_and_installment_exclusive` **não funciona em payload parcial**. `PATCH
+{"is_fixed": true}` numa transação que já tem `installment_id` passa pelo schema, porque o
+payload sozinho parece válido — a regra depende do **estado mesclado** (payload + linha no
+banco), que o schema não enxerga.
+
+Por isso, **só no caminho de update**, a checagem vive no router e retorna **400**. O `POST`
+continua com o validador no schema e **422** — os dois status coexistem de propósito e não
+devem ser uniformizados.
+
+Convenção de status adotada no dia 4:
+
+* **400** — regra de negócio sobre estado mesclado (fixa × parcelada, revincular parcelamento).
+* **404** — FK que não resolve (categoria/transação inexistente).
+* **409** — exclusão bloqueada por referência existente (ver abaixo).
+* **422** — payload malformado ou campo proibido, direto do Pydantic.
+
+#### Exclusão bloqueada é 409, não 500
+
+`ondelete="RESTRICT"` faz o banco levantar `IntegrityError`, que **não tratado dentro de um
+router vira 500** — erro de servidor para um caso de negócio esperado. O router checa a
+referência antes e devolve **409**:
+
+* **Categoria com transação vinculada** → 409.
+* **Categoria usada só por parcelamento**, sem transação nenhuma → 409 também. O `RESTRICT`
+  de `Installment.category_id` pega esse caminho e ele não tinha teste até aqui.
+* **Renomear categoria em uso é livre** — não quebra FK. Reescreve relatório histórico, e
+  isso é aceito.
+
+> `test_category_in_use_cannot_be_deleted` (`test_category_fk.py`) **não** cobre isso: ele
+> deleta via `fk_session` e só prova que o banco recusa. Garantia de dado ≠ contrato de API.
 
 ---
 
