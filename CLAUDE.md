@@ -401,6 +401,63 @@ referência antes e devolve **409**:
 
 ---
 
+## 🧭 Candidatos ao dia 5 — **não decididos**
+
+**Isto não é decisão registrada.** São duas observações levantadas ao revisar a lógica de
+saldo do dia 4.1 (07/08/2026), deixadas explicitamente em aberto porque são **mudança de
+arquitetura, não fix pontual**. Nenhuma das duas é bug: a suíte está verde e o
+comportamento atual está correto. Ambas tratam de *exposição a risco futuro*.
+
+Quem for implementar qualquer uma precisa passar pelo processo normal — decisão registrada
+primeiro, depois teste vermelho, depois código.
+
+### 1. `current_balance` armazenado vs. saldo derivado do ledger
+
+**Observação.** `Account.current_balance` é campo mutável gravado no banco, e cada caminho
+de escrita precisa lembrar de ajustá-lo. Até o dia 4.1 havia **um** (`create_transaction`);
+agora há **três** (`POST`, `PATCH`, `DELETE` de transação). A superfície de erro triplicou
+num único dia.
+
+Os três estão cobertos, mas a proteção é por teste, não por construção: o quarto caminho que
+alguém adicionar — um endpoint de importação, um script de seed, uma transferência entre
+contas — não herda nada e pode gravar transação sem mexer no saldo. O sintoma é silencioso e
+só aparece quando os números já não reconciliam.
+
+**Alternativa a avaliar.** Saldo derivado: `initial_balance + SUM(ENTRADA) − SUM(SAÍDA)`
+sobre as transações da conta, calculado na leitura. Torna o drift **estruturalmente
+impossível** — não há o que esquecer de atualizar. Custo: uma agregação por leitura de conta
+(hoje é um `SELECT` de coluna), e `AccountResponse.current_balance` deixa de vir do ORM
+direto, virando exceção legítima do padrão "serialização direta" (mesma natureza do
+`spent`/`txs_count` de `categories.py`).
+
+**O que decidir:** vale trocar três pontos de escrita disciplinados por um custo de leitura
+recorrente, num app de finanças pessoais onde o volume de transações é baixo.
+
+### 2. `Float` vs. `Numeric`/`Decimal` para valores monetários
+
+**Observação.** Todo valor monetário do projeto é `Float` (`models.py`: `amount`,
+`current_balance`, `initial_balance`, `budget`, `total_amount`, `installment_amount`, mais
+`Investment.current_balance` e `InvestmentHistory.balance` — 8 colunas ao todo) — ou seja,
+ponto flutuante binário, que não representa exatamente frações decimais como `0.1`.
+
+Isso é anterior ao dia 4.1, mas o `PATCH` aumentou a exposição: cada edição faz **duas**
+operações sobre o saldo (estorno + reaplicação) onde antes havia uma. Erro de arredondamento
+não some — acumula na coluna.
+
+⚠️ **Os testes não pegariam isso.** Toda asserção de saldo usa `pytest.approx`, que tolera
+justamente a diferença que um erro de centavo produziria. Não é falha da suíte — comparar
+`Float` com `==` seria frágil pelo motivo oposto —, mas significa que **a suíte verde não é
+evidência de exatidão monetária**.
+
+**Alternativa a avaliar.** `Numeric(12, 2)` no SQLAlchemy + `Decimal` no Pydantic, ou
+armazenar centavos como inteiro. Custo: migração de coluna — e **não há Alembic no projeto**,
+então isso esbarra na mesma restrição do checklist (`create_all()` não faz `ALTER TABLE`).
+Enquanto o banco só tiver dados de seed, o recreate resolve; depois do primeiro dado real,
+esta mudança passa a exigir migrations. **Isso torna o item 2 sensível a prazo, não só a
+prioridade.**
+
+---
+
 ## 📐 Processo: decisão de arquitetura **antes** da implementação
 
 **Compromisso assumido. Vale para todo trabalho daqui em diante.**
