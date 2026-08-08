@@ -187,6 +187,31 @@ class InstallmentBase(BaseModel):
 class InstallmentCreate(InstallmentBase):
     pass
 
+class InstallmentUpdate(BaseModel):
+    """Payload parcial do `PATCH /installments/{id}`.
+
+    `account_id` está fora do schema pela regra geral: IDs de relacionamento
+    central são imutáveis via PATCH em toda a API. Com `extra="forbid"` a
+    tentativa vira 422 em vez de ser descartada em silêncio.
+
+    A trava de `installment_amount`/`total_installments`/`total_amount` **não**
+    está aqui — ver `update_installment` no router. Ela depende de haver
+    transação vinculada e de o valor ter de fato mudado, dois fatos que só o
+    banco conhece.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(None, max_length=100)
+    category_id: Optional[int] = None
+    total_amount: Optional[float] = None
+    installment_amount: Optional[float] = None
+    current_installment: Optional[int] = Field(
+        None, description="Pode exceder total_installments — significa quitado"
+    )
+    total_installments: Optional[int] = None
+    end_date: Optional[str] = Field(None, max_length=20)
+
+
 class InstallmentResponse(InstallmentBase):
     id: int
     category: CategoryRef

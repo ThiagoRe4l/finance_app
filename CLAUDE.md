@@ -22,8 +22,8 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
   `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
   `test_category_fk.py`, `test_fk_cascade.py`, `test_transactions_write.py`,
-  `test_categories_write.py`.
-  * **`*_write.py` cobrem PATCH/DELETE (dia 4.1).** Todo teste que espera 404 assere também
+  `test_categories_write.py`, `test_installments_write.py`.
+  * **`*_write.py` cobrem PATCH/DELETE (dias 4.1 e 4.2).** Todo teste que espera 404 assere também
     o `detail`: enquanto a rota não existia, o FastAPI devolvia 404 `"Not Found"` e a
     asserção de status sozinha ficava verde contra um endpoint ausente.
   * **`test_fk_cascade.py` testa schema, não ORM.** Os deletes são em SQL cru de propósito:
@@ -209,7 +209,8 @@ em "🧩 Design Patterns → Operações de escrita".
 | `DELETE /api/transactions/{id}` | 4.1 | ✅ implementado (204) |
 | `PATCH /api/categories/{id}` | 4.1 | ✅ implementado |
 | `DELETE /api/categories/{id}` | 4.1 | ✅ implementado (204 / 409 em uso) |
-| `PATCH /api/installments/{id}` | 4.2 | ⬜ pendente — avanço de `current_installment` |
+| `PATCH /api/installments/{id}` | 4.2 | ✅ implementado |
+| Agregações do dashboard ignorarem quitados | 4.3 | ⬜ pendente — ver "Dia 4.3" nos patterns |
 
 ⚠️ **Nenhuma tela tem afordância de edição ou exclusão hoje** — verificado por busca: não há
 um `onClick` sequer em `routes/` ou `components/dashboard/`, e os botões existentes ("Nova",
@@ -365,6 +366,65 @@ tarefa futura.
 campo, `PATCH {"account_id": 2}` seria aceito com 200 e não faria nada — o cliente acharia
 que moveu a transação. Mesmo raciocínio de `test_legacy_category_string_is_no_longer_accepted`:
 contrato recusado tem que falhar barulhento.
+
+> **Regra geral (07/08/2026): IDs de relacionamento central são imutáveis via `PATCH` em
+> toda a API.** Vale para `Transaction.account_id` e `Installment.account_id`. Os motivos
+> são diferentes — na transação o veto é concreto (mover mexeria em dois saldos), no
+> parcelamento é uniformidade de contrato, já que ele não toca saldo. A regra é única de
+> propósito: o mesmo campo não deveria mudar de mutabilidade conforme o endpoint. Para
+> mover de conta: excluir e recriar.
+
+#### Parcelamento: o que pode mudar depois de criado (dia 4.2)
+
+| Campo | Regra |
+|---|---|
+| `title`, `end_date`, `category_id` | livres (`category_id` inexistente → 404) |
+| `current_installment` | livre, **inclusive acima de `total_installments`** (= quitado) |
+| `installment_amount`, `total_installments`, `total_amount` | **409** se houver transação vinculada |
+| `account_id` | rejeitado (**422**), pela regra geral acima |
+
+**Avanço de parcela é `PATCH` genérico, não ação dedicada.** Alternativa descartada:
+`POST /installments/{id}/advance`. Seria padrão novo no projeto para um `UPDATE` de uma
+coluna, e exigiria registro de arquitetura próprio sem ganho sobre o `PATCH`.
+
+**`current_installment > total_installments` é estado válido**, não erro. Uma validação
+`current <= total` parece defensiva e quebraria justamente o caso de negócio (parcelamento
+quitado). Não adicione.
+
+**O bloqueio dos três valores é por _mudança_, não por presença do campo.** Reenviar
+`installment_amount: 500.0` quando já é `500.0` passa. Um formulário de edição manda o
+objeto inteiro, então bloquear por presença tornaria a tela inutilizável em qualquer
+parcelamento que já tenha parcela lançada.
+
+**`total_amount` entrou na trava depois.** A decisão original nomeava só
+`installment_amount` e `total_installments`; deixar o terceiro aberto permitiria 12 parcelas
+de 500 com `total_amount` = 9000, e a tela de parcelamentos calcula "Saldo a pagar" a partir
+desses campos — a incoerência apareceria direto na UI.
+
+**409 e não 400** porque o bloqueio vem da *existência de uma linha relacionada*, mesma
+natureza de C9/C10, e não de uma combinação inválida de campos. Isso estende a convenção de
+status de "exclusão bloqueada por referência" para "**escrita** bloqueada por referência".
+
+#### ⬜ Dia 4.3 — pendência aberta: agregações do dashboard ignoram "quitado"
+
+**Não é candidato de dia 5 e não é decisão de arquitetura — é bug latente exposto pela
+D13.** Antes do 4.2 não havia como um parcelamento passar de `total_installments` pela API;
+agora há.
+
+`get_dashboard_summary` (`routers/dashboard.py`) calcula as duas agregações sem filtro
+nenhum:
+
+```python
+installments = db.query(models.Installment).all()
+committed = sum(it.installment_amount for it in installments)
+```
+
+Logo, um parcelamento `13/12` continua contado em `active_installments_count` e em
+`monthly_committed_amount` — dinheiro que já não está comprometido aparece comprometido.
+
+**O que fazer (com teste antes, como sempre):** filtrar
+`current_installment <= total_installments` nas duas agregações. Nenhum teste do 4.2 fixa o
+comportamento atual, de propósito — fixá-lo travaria justamente o que precisa mudar.
 
 #### Desvio: o validador exclusivo sai do schema e vira 400
 

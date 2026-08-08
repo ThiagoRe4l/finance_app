@@ -596,6 +596,59 @@
         }
       }
     },
+    "/api/installments/{installment_id}": {
+      "patch": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Update Installment",
+        "description": "Edição parcial. Não toca saldo — parcelamento nunca tocou.\n\n`current_installment` pode ultrapassar `total_installments`: é o estado\n\"quitado\" (decisão D13), não um erro de validação.",
+        "operationId": "update_installment_api_installments__installment_id__patch",
+        "parameters": [
+          {
+            "name": "installment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Installment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallmentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dashboard/summary": {
       "get": {
         "tags": [
@@ -1146,6 +1199,94 @@
           "category"
         ],
         "title": "InstallmentResponse"
+      },
+      "InstallmentUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "total_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount"
+          },
+          "installment_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Amount"
+          },
+          "current_installment": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Installment",
+            "description": "Pode exceder total_installments — significa quitado"
+          },
+          "total_installments": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Installments"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "InstallmentUpdate",
+        "description": "Payload parcial do `PATCH /installments/{id}`.\n\n`account_id` está fora do schema pela regra geral: IDs de relacionamento\ncentral são imutáveis via PATCH em toda a API. Com `extra=\"forbid\"` a\ntentativa vira 422 em vez de ser descartada em silêncio.\n\nA trava de `installment_amount`/`total_installments`/`total_amount` **não**\nestá aqui — ver `update_installment` no router. Ela depende de haver\ntransação vinculada e de o valor ter de fato mudado, dois fatos que só o\nbanco conhece."
       },
       "InvestmentCreate": {
         "properties": {
