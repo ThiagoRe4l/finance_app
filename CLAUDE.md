@@ -22,7 +22,7 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
   `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
   `test_category_fk.py`, `test_fk_cascade.py`, `test_transactions_write.py`,
-  `test_categories_write.py`, `test_installments_write.py`.
+  `test_categories_write.py`, `test_installments_write.py`, `test_dashboard_installments.py`.
   * **`*_write.py` cobrem PATCH/DELETE (dias 4.1 e 4.2).** Todo teste que espera 404 assere também
     o `detail`: enquanto a rota não existia, o FastAPI devolvia 404 `"Not Found"` e a
     asserção de status sozinha ficava verde contra um endpoint ausente.
@@ -37,6 +37,10 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
   * **`fk_session`/`fk_client`** são as fixtures com enforcement de FK ligado. O listener vem
     de `app.database.enable_sqlite_foreign_keys`, não de um workaround no teste — ligar o
     PRAGMA só do lado do teste deixaria a suíte verde com a aplicação sem enforcement.
+  * **`test_dashboard_installments.py` (dia 4.3)** cobre `active_installments_count` e
+    `monthly_committed_amount`, que não tinham teste nenhum — `test_dashboard.py` nunca
+    exercitou parcelamento. 6 dos 13 são regressão e já passavam antes da mudança;
+    estão rotulados com ✅ no docstring para não serem contados como cobertura nova.
   * ⚠️ **`reports.py` não tem arquivo de teste próprio.** Sua única rota é coberta por
     `test_reports_overview_smoke` (`test_dashboard.py`, regressão de acoplamento com
     `get_dashboard_summary`) e por `test_reports_top_categories_grouped_by_foreign_key`
@@ -210,7 +214,7 @@ em "🧩 Design Patterns → Operações de escrita".
 | `PATCH /api/categories/{id}` | 4.1 | ✅ implementado |
 | `DELETE /api/categories/{id}` | 4.1 | ✅ implementado (204 / 409 em uso) |
 | `PATCH /api/installments/{id}` | 4.2 | ✅ implementado |
-| Agregações do dashboard ignorarem quitados | 4.3 | ⬜ pendente — ver "Dia 4.3" nos patterns |
+| Agregações do dashboard ignorarem quitados | 4.3 | ✅ implementado |
 
 ⚠️ **Nenhuma tela tem afordância de edição ou exclusão hoje** — verificado por busca: não há
 um `onClick` sequer em `routes/` ou `components/dashboard/`, e os botões existentes ("Nova",
@@ -405,26 +409,28 @@ desses campos — a incoerência apareceria direto na UI.
 natureza de C9/C10, e não de uma combinação inválida de campos. Isso estende a convenção de
 status de "exclusão bloqueada por referência" para "**escrita** bloqueada por referência".
 
-#### ⬜ Dia 4.3 — pendência aberta: agregações do dashboard ignoram "quitado"
+#### Dia 4.3 — agregações do dashboard ignoram parcelamento quitado
 
-**Não é candidato de dia 5 e não é decisão de arquitetura — é bug latente exposto pela
-D13.** Antes do 4.2 não havia como um parcelamento passar de `total_installments` pela API;
-agora há.
+**Bug latente exposto pela D13, não decisão de arquitetura.** Antes do 4.2 não havia como um
+parcelamento passar de `total_installments` pela API; o `PATCH` tornou o estado alcançável e
+com ele o defeito virou real. `get_dashboard_summary` agregava sem filtro nenhum, então um
+`13/12` seguia contado em `active_installments_count` e somado em `monthly_committed_amount`
+— dinheiro que já não sai do bolso aparecendo como comprometido.
 
-`get_dashboard_summary` (`routers/dashboard.py`) calcula as duas agregações sem filtro
-nenhum:
+`get_dashboard_summary` (`routers/dashboard.py`) filtra
+`current_installment <= total_installments` nas duas agregações.
 
-```python
-installments = db.query(models.Installment).all()
-committed = sum(it.installment_amount for it in installments)
-```
+⚠️ **O `<=` é a parte frágil.** `current == total` é a **última parcela**, ainda a pagar;
+quitado começa em `total + 1`. Trocar por `<` derruba o mês final de todo parcelamento do
+app, e o número continua parecendo plausível. `test_last_installment_still_counts_as_active`
+existe só para isso.
 
-Logo, um parcelamento `13/12` continua contado em `active_installments_count` e em
-`monthly_committed_amount` — dinheiro que já não está comprometido aparece comprometido.
-
-**O que fazer (com teste antes, como sempre):** filtrar
-`current_installment <= total_installments` nas duas agregações. Nenhum teste do 4.2 fixa o
-comportamento atual, de propósito — fixá-lo travaria justamente o que precisa mudar.
+**O filtro é da métrica, não do recurso.** `GET /installments` continua devolvendo o
+histórico completo, quitados incluídos (decidido no 4.2) — implementá-lo em
+`list_installments` faria o parcelamento sumir da tela em vez de sair do indicador. O 409 de
+`DELETE /categories/{id}` também não olha progresso: `RESTRICT` é integridade referencial,
+"quitado" é conceito de agregação, e misturar os dois reintroduziria o 500 que o C10
+removeu.
 
 #### Desvio: o validador exclusivo sai do schema e vira 400
 

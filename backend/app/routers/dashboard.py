@@ -99,9 +99,23 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     # 5. Distribuição de Categorias
     categories_dist = list_categories(db)
     
-    # 6. Parcelamentos
-    installments = db.query(models.Installment).all()
-    committed = sum(it.installment_amount for it in installments)
+    # 6. Parcelamentos — só os que ainda têm parcela a pagar.
+    #
+    # `current_installment > total_installments` é o estado "quitado" (decisão
+    # D13). Sem este filtro, um parcelamento encerrado seguia contado como ativo
+    # e seu valor seguia aparecendo como dinheiro comprometido no mês.
+    #
+    # O `<=` é a parte frágil: `current == total` é a **última parcela**, ainda
+    # a pagar. Trocar por `<` derruba o mês final de todo parcelamento do app —
+    # e o número continua parecendo plausível. Ver
+    # `test_last_installment_still_counts_as_active`.
+    #
+    # O filtro vale só para estas agregações: `GET /installments` continua
+    # devolvendo o histórico completo, quitados incluídos.
+    active_installments = db.query(models.Installment).filter(
+        models.Installment.current_installment <= models.Installment.total_installments
+    ).all()
+    committed = sum(it.installment_amount for it in active_installments)
     
     return schemas.DashboardSummary(
         total_balance=total_balance,
@@ -111,7 +125,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         monthly_flow=monthly_flow,
         recent_transactions=recent_txs,
         category_distribution=categories_dist,
-        active_installments_count=len(installments),
+        active_installments_count=len(active_installments),
         monthly_committed_amount=committed,
         balance_change_pct=balance_change_pct,
         expenses_change_pct=expenses_change_pct,
