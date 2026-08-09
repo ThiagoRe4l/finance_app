@@ -1,17 +1,18 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 import datetime
+from decimal import Decimal
 from typing import List, Optional
 
 class AccountBase(BaseModel):
     name: str = Field(..., max_length=100, description="Nome da conta bancária")
-    initial_balance: float = Field(0.0, description="Saldo inicial da conta")
+    initial_balance: Decimal = Field(Decimal("0.00"), description="Saldo inicial da conta")
 
 class AccountCreate(AccountBase):
     pass
 
 class AccountResponse(AccountBase):
     id: int
-    current_balance: float
+    current_balance: Decimal
 
     # Configuração moderna para compatibilidade com SQLAlchemy no Pydantic v2
     model_config = ConfigDict(from_attributes=True)
@@ -42,7 +43,7 @@ class CategoryRef(BaseModel):
 class TransactionCreate(BaseModel):
     title: str = Field(..., max_length=150, description="Título/descrição da transação")
     type: str = Field(..., description="Tipo de transação: 'ENTRADA' ou 'SAÍDA'")
-    amount: float = Field(..., gt=0, description="Valor da transação")
+    amount: Decimal = Field(..., gt=0, description="Valor da transação")
     date: datetime.date = Field(..., description="Data da transação")
     category_id: int = Field(..., description="ID da categoria cadastrada")
     is_fixed: bool = Field(False, description="Indica se é uma despesa fixa/recorrente")
@@ -83,7 +84,7 @@ class TransactionUpdate(BaseModel):
 
     title: Optional[str] = Field(None, max_length=150)
     type: Optional[str] = Field(None, description="'ENTRADA' ou 'SAÍDA'")
-    amount: Optional[float] = Field(None, gt=0)
+    amount: Optional[Decimal] = Field(None, gt=0)
     date: Optional[datetime.date] = None
     category_id: Optional[int] = None
     is_fixed: Optional[bool] = None
@@ -103,7 +104,7 @@ class TransactionResponse(BaseModel):
     id: int
     title: str
     type: str
-    amount: float
+    amount: Decimal
     date: datetime.date
     category: CategoryRef
     is_fixed: bool
@@ -116,13 +117,13 @@ class TransactionResponse(BaseModel):
 
 class InvestmentCreate(BaseModel):
     name: str = Field(..., max_length=100, description="Nome do investimento")
-    current_balance: float = Field(..., description="Aporte ou saldo inicial do investimento")
+    current_balance: Decimal = Field(..., description="Aporte ou saldo inicial do investimento")
 
 
 class InvestmentResponse(BaseModel):
     id: int
     name: str
-    current_balance: float
+    current_balance: Decimal
 
     # Configuração moderna para compatibilidade com SQLAlchemy no Pydantic v2
     model_config = ConfigDict(from_attributes=True)
@@ -130,13 +131,13 @@ class InvestmentResponse(BaseModel):
 
 class InvestmentHistoryCreate(BaseModel):
     date: datetime.date = Field(..., description="Data do registro de histórico")
-    balance: float = Field(..., description="Saldo do investimento na data informada")
+    balance: Decimal = Field(..., description="Saldo do investimento na data informada")
 
 
 class InvestmentHistoryResponse(BaseModel):
     id: int
     date: datetime.date
-    balance: float
+    balance: Decimal
     investment_id: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -146,7 +147,7 @@ class InvestmentHistoryResponse(BaseModel):
 class CategoryBase(BaseModel):
     name: str = Field(..., max_length=50, description="Nome da categoria")
     icon_name: str = Field(..., max_length=50, description="Nome do ícone da Lucide")
-    budget: float = Field(0.0, description="Orçamento mensal para a categoria")
+    budget: Decimal = Field(Decimal("0.00"), description="Orçamento mensal para a categoria")
     color: str = Field(..., max_length=50, description="Cor em formato OKLCH ou HEX")
 
 class CategoryCreate(CategoryBase):
@@ -162,13 +163,13 @@ class CategoryUpdate(BaseModel):
 
     name: Optional[str] = Field(None, max_length=50)
     icon_name: Optional[str] = Field(None, max_length=50)
-    budget: Optional[float] = None
+    budget: Optional[Decimal] = None
     color: Optional[str] = Field(None, max_length=50)
 
 
 class CategoryResponse(CategoryBase):
     id: int
-    spent: float = 0.0
+    spent: Decimal = Decimal("0.00")
     txs_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
@@ -177,8 +178,8 @@ class CategoryResponse(CategoryBase):
 class InstallmentBase(BaseModel):
     title: str = Field(..., max_length=100)
     category_id: int = Field(..., description="ID da categoria cadastrada")
-    total_amount: float
-    installment_amount: float
+    total_amount: Decimal
+    installment_amount: Decimal
     current_installment: int
     total_installments: int
     end_date: str
@@ -203,8 +204,8 @@ class InstallmentUpdate(BaseModel):
 
     title: Optional[str] = Field(None, max_length=100)
     category_id: Optional[int] = None
-    total_amount: Optional[float] = None
-    installment_amount: Optional[float] = None
+    total_amount: Optional[Decimal] = None
+    installment_amount: Optional[Decimal] = None
     current_installment: Optional[int] = Field(
         None, description="Pode exceder total_installments — significa quitado"
     )
@@ -222,30 +223,30 @@ class InstallmentResponse(InstallmentBase):
 # Schemas para Agregações (Dashboard e Relatórios)
 class MonthlyFlow(BaseModel):
     month: str
-    income: float
-    outcome: float
+    income: Decimal
+    outcome: Decimal
 
 class DashboardSummary(BaseModel):
-    total_balance: float
-    total_revenues: float
-    total_expenses: float
-    total_savings: float
+    total_balance: Decimal
+    total_revenues: Decimal
+    total_expenses: Decimal
+    total_savings: Decimal
     monthly_flow: List[MonthlyFlow]
     recent_transactions: List[TransactionResponse]
     category_distribution: List[CategoryResponse]
     active_installments_count: int
-    monthly_committed_amount: float
+    monthly_committed_amount: Decimal
     balance_change_pct: Optional[float] = None
     expenses_change_pct: Optional[float] = None
     savings_pct_of_revenue: Optional[float] = None
 
 class CategoryReport(BaseModel):
     name: str
-    value: float
+    value: Decimal
 
 class ReportSummary(BaseModel):
-    total_revenues: float
-    total_expenses: float
+    total_revenues: Decimal
+    total_expenses: Decimal
     average_savings: float
     monthly_comparative: List[MonthlyFlow]
     top_categories: List[CategoryReport]

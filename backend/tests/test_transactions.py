@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 import pytest
 
-from tests.conftest import create_category
+from tests.conftest import money, create_category
 
 # Fixtures `session` e `client` vêm do conftest.py.
 
@@ -53,7 +55,7 @@ def test_transaction_decrements_balance(client):
     
     transaction_res = response_transaction.json()
     assert transaction_res["type"] == "SAÍDA"
-    assert transaction_res["amount"] == 200.0
+    assert money(transaction_res["amount"]) == Decimal("200.00")
     assert transaction_res["account_id"] == account_id
 
     # 3. Faça um novo GET para conferir se o 'current_balance' atualizou para R$ 800
@@ -61,7 +63,7 @@ def test_transaction_decrements_balance(client):
     assert response_get.status_code == 200
     accounts = response_get.json()
     account = next(acc for acc in accounts if acc["id"] == account_id)
-    assert account["current_balance"] == 800.0
+    assert money(account["current_balance"]) == Decimal("800.00")
 
 
 def test_transaction_account_not_found(client):

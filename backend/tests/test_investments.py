@@ -1,3 +1,7 @@
+from decimal import Decimal
+
+from tests.conftest import money
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -56,7 +60,7 @@ def test_create_and_list_investments(client):
     # Valida se o nome e o saldo foram preenchidos corretamente no JSON de resposta
     data_post = response_post.json()
     assert data_post["name"] == "CDB Inter 100% CDI"
-    assert data_post["current_balance"] == 1000.0
+    assert money(data_post["current_balance"]) == Decimal("1000.00")
     assert "id" in data_post
 
     # 2. Faz um GET para '/api/investments'
@@ -75,7 +79,7 @@ def test_create_and_list_investments(client):
         inv for inv in data_get if inv["id"] == data_post["id"]
     )
     assert created_investment["name"] == "CDB Inter 100% CDI"
-    assert created_investment["current_balance"] == 1000.0
+    assert money(created_investment["current_balance"]) == Decimal("1000.00")
 
 
 def test_investment_history_logging(client):
@@ -99,7 +103,7 @@ def test_investment_history_logging(client):
     assert response_history_post.status_code == 201
     
     history_post_data = response_history_post.json()
-    assert history_post_data["balance"] == 1050.0
+    assert money(history_post_data["balance"]) == Decimal("1050.00")
     assert history_post_data["date"] == "2026-07-27"
     assert history_post_data["investment_id"] == investment_id
 
@@ -110,12 +114,12 @@ def test_investment_history_logging(client):
     history_list = response_history_get.json()
     assert isinstance(history_list, list)
     assert len(history_list) >= 1
-    assert history_list[0]["balance"] == 1050.0
+    assert money(history_list[0]["balance"]) == Decimal("1050.00")
 
     # 4. Checa se o saldo do investimento principal foi atualizado de forma atômica para R$ 1050
     response_investments = client.get("/api/investments")
     assert response_investments.status_code == 200
     investments_list = response_investments.json()
     updated_investment = next(inv for inv in investments_list if inv["id"] == investment_id)
-    assert updated_investment["current_balance"] == 1050.0
+    assert money(updated_investment["current_balance"]) == Decimal("1050.00")
 

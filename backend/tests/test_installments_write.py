@@ -33,9 +33,12 @@ campos), status 409, bloqueio por mudança de valor, e `account_id` imutável.
 > CLAUDE.md — nenhum teste daqui fixa esse comportamento, de propósito.
 """
 
+from decimal import Decimal
+
 import pytest
 
 from tests.conftest import (
+    money,
     create_transaction,
     installment_payload,
 )
@@ -69,7 +72,13 @@ def _link_transaction(client, account_id, category_id, installment_id, amount=50
 
 
 def _balance(client):
-    return client.get("/api/accounts").json()[0]["current_balance"]
+    """Saldo da conta como `Decimal` exato.
+
+    Passa pelo `money()` do conftest, que assere que o campo veio como string
+    JSON. Concentrar isso aqui é o que permite as ~20 asserções de saldo deste
+    arquivo compararem com `Decimal("9750.00")` em vez de `pytest.approx`.
+    """
+    return money(client.get("/api/accounts").json()[0]["current_balance"])
 
 
 # ---------------------------------------------------------------------------
@@ -105,8 +114,8 @@ def test_patch_is_partial_and_preserves_untouched_fields(client, default_account
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["title"] == "Notebook Dell"
-    assert data["total_amount"] == pytest.approx(6000.0)
-    assert data["installment_amount"] == pytest.approx(500.0)
+    assert money(data["total_amount"]) == Decimal("6000.00")
+    assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["total_installments"] == 12
     assert data["end_date"] == "Ago/2026"
     assert data["account_id"] == default_account
@@ -281,7 +290,7 @@ def test_blocked_patch_persists_nothing(client, default_account, default_categor
     assert response.status_code == 409
 
     stored = client.get("/api/installments/").json()[0]
-    assert stored["installment_amount"] == pytest.approx(500.0)
+    assert money(stored["installment_amount"]) == Decimal("500.00")
     assert stored["title"] == "Notebook Dell"
 
 
@@ -295,7 +304,7 @@ def test_installment_amount_is_editable_without_linked_transactions(client, defa
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["installment_amount"] == pytest.approx(600.0)
+    assert money(response.json()["installment_amount"]) == Decimal("600.00")
 
 
 def test_total_installments_is_editable_without_linked_transactions(client, default_account, default_category):
@@ -355,7 +364,7 @@ def test_editing_unlocks_after_the_transaction_is_unlinked(client, default_accou
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["installment_amount"] == pytest.approx(600.0)
+    assert money(response.json()["installment_amount"]) == Decimal("600.00")
 
 
 def test_deleting_the_linked_transaction_also_unlocks_editing(client, default_account, default_category):
@@ -422,7 +431,7 @@ def test_total_amount_is_editable_without_linked_transactions(client, default_ac
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["total_amount"] == pytest.approx(9000.0)
+    assert money(response.json()["total_amount"]) == Decimal("9000.00")
 
 
 def test_resending_the_same_total_amount_is_not_blocked(client, default_account, default_category):
@@ -483,4 +492,4 @@ def test_patch_does_not_touch_the_account_balance(client, default_account, defau
         json={"current_installment": 3, "installment_amount": 600.0},
     ).status_code == 200
 
-    assert _balance(client) == pytest.approx(before)
+    assert _balance(client) == before

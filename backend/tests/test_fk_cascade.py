@@ -26,6 +26,8 @@ nem `Installment.transactions`, então lá o ORM emite um DELETE simples e o
 resultado é 100% do banco.
 """
 
+from decimal import Decimal
+
 import datetime
 
 import pytest
@@ -156,7 +158,7 @@ def test_deleting_installment_nulls_the_fk_without_deleting_transactions(fk_sess
 
     tx = fk_session.query(models.Transaction).filter_by(id=tx_id).one()
     assert tx.installment_id is None
-    assert tx.amount == pytest.approx(500.0)
+    assert tx.amount == Decimal("500.00")
     assert tx.account_id == account_id
 
 
@@ -204,7 +206,7 @@ def test_transaction_without_installment_survives_the_set_null(fk_session, fk_cl
 
     tx = fk_session.query(models.Transaction).filter_by(id=avulsa).one()
     assert tx.installment_id is None
-    assert tx.amount == pytest.approx(42.0)
+    assert tx.amount == Decimal("42.00")
 
 
 def test_orphan_installment_id_rejected_at_database_level(fk_session, fk_client):

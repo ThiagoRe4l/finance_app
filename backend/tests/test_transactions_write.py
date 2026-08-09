@@ -20,9 +20,12 @@ Decisões que este arquivo trava (todas registradas no CLAUDE.md em 07/08/2026):
   vira **400** no PATCH, enquanto o POST segue **422**.
 """
 
+from decimal import Decimal
+
 import pytest
 
 from tests.conftest import (
+    money,
     create_category,
     create_transaction,
     installment_payload,
@@ -33,7 +36,13 @@ TRANSACAO_INEXISTENTE = 9999
 
 
 def _balance(client):
-    return client.get("/api/accounts").json()[0]["current_balance"]
+    """Saldo da conta como `Decimal` exato.
+
+    Passa pelo `money()` do conftest, que assere que o campo veio como string
+    JSON. Concentrar isso aqui é o que permite as ~20 asserções de saldo deste
+    arquivo compararem com `Decimal("9750.00")` em vez de `pytest.approx`.
+    """
+    return money(client.get("/api/accounts").json()[0]["current_balance"])
 
 
 def _create_installment(client, account_id, category_id, **overrides):
@@ -75,7 +84,7 @@ def test_patch_is_partial_and_preserves_untouched_fields(client, default_account
 
     assert response.status_code == 200, response.text
     data = response.json()
-    assert data["amount"] == pytest.approx(342.5)
+    assert money(data["amount"]) == Decimal("342.50")
     assert data["date"] == "2026-08-01"
     assert data["type"] == "SAÍDA"
     assert data["category"]["id"] == default_category["id"]
@@ -104,9 +113,9 @@ def test_patch_category_moves_the_aggregation(client, default_account):
     assert response.json()["category"]["name"] == "Transporte"
 
     by_name = {c["name"]: c for c in client.get("/api/categories/").json()}
-    assert by_name["Alimentação"]["spent"] == pytest.approx(0.0)
+    assert money(by_name["Alimentação"]["spent"]) == Decimal("0.00")
     assert by_name["Alimentação"]["txs_count"] == 0
-    assert by_name["Transporte"]["spent"] == pytest.approx(80.0)
+    assert money(by_name["Transporte"]["spent"]) == Decimal("80.00")
     assert by_name["Transporte"]["txs_count"] == 1
 
 
@@ -145,12 +154,12 @@ def test_patch_amount_reverses_the_old_effect_before_applying_the_new(client, de
     sem estornar — daria 9650. Os dois números são distintos de propósito.
     """
     tx = create_transaction(client, default_account, default_category["id"], "SAÍDA", 100.0).json()
-    assert _balance(client) == pytest.approx(9900.0)
+    assert _balance(client) == Decimal("9900.00")
 
     response = client.patch(f"/api/transactions/{tx['id']}", json={"amount": 250.0})
 
     assert response.status_code == 200, response.text
-    assert _balance(client) == pytest.approx(9750.0)
+    assert _balance(client) == Decimal("9750.00")
 
 
 def test_patch_type_saida_to_entrada_swings_balance_by_twice_the_amount(client, default_account, default_category):
@@ -160,23 +169,23 @@ def test_patch_type_saida_to_entrada_swings_balance_by_twice_the_amount(client, 
     não 10000 (estorno sem reaplicação) nem 10300−300 (reaplicação sem estorno).
     """
     tx = create_transaction(client, default_account, default_category["id"], "SAÍDA", 300.0).json()
-    assert _balance(client) == pytest.approx(9700.0)
+    assert _balance(client) == Decimal("9700.00")
 
     response = client.patch(f"/api/transactions/{tx['id']}", json={"type": "ENTRADA"})
 
     assert response.status_code == 200, response.text
     assert response.json()["type"] == "ENTRADA"
-    assert _balance(client) == pytest.approx(10300.0)
+    assert _balance(client) == Decimal("10300.00")
 
 
 def test_patch_type_entrada_to_saida_swings_the_other_way(client, default_account, default_category):
     tx = create_transaction(client, default_account, default_category["id"], "ENTRADA", 300.0).json()
-    assert _balance(client) == pytest.approx(10300.0)
+    assert _balance(client) == Decimal("10300.00")
 
     response = client.patch(f"/api/transactions/{tx['id']}", json={"type": "SAÍDA"})
 
     assert response.status_code == 200, response.text
-    assert _balance(client) == pytest.approx(9700.0)
+    assert _balance(client) == Decimal("9700.00")
 
 
 def test_patch_type_and_amount_together(client, default_account, default_category):
@@ -193,7 +202,7 @@ def test_patch_type_and_amount_together(client, default_account, default_categor
     )
 
     assert response.status_code == 200, response.text
-    assert _balance(client) == pytest.approx(10500.0)
+    assert _balance(client) == Decimal("10500.00")
 
 
 def test_repeated_patches_do_not_drift_the_balance(client, default_account, default_category):
@@ -208,7 +217,7 @@ def test_repeated_patches_do_not_drift_the_balance(client, default_account, defa
         response = client.patch(f"/api/transactions/{tx['id']}", json={"amount": 200.0})
         assert response.status_code == 200, response.text
 
-    assert _balance(client) == pytest.approx(9800.0)
+    assert _balance(client) == Decimal("9800.00")
 
 
 def test_patch_updating_only_the_title_leaves_the_balance_alone(client, default_account, default_category):
@@ -217,7 +226,7 @@ def test_patch_updating_only_the_title_leaves_the_balance_alone(client, default_
     response = client.patch(f"/api/transactions/{tx['id']}", json={"title": "Só o título"})
 
     assert response.status_code == 200, response.text
-    assert _balance(client) == pytest.approx(9850.0)
+    assert _balance(client) == Decimal("9850.00")
 
 
 def test_failed_patch_does_not_corrupt_the_balance(client, default_account, default_category):
@@ -236,7 +245,7 @@ def test_failed_patch_does_not_corrupt_the_balance(client, default_account, defa
 
     assert response.status_code == 404
     assert "categoria" in response.json()["detail"].lower()
-    assert _balance(client) == pytest.approx(before)
+    assert _balance(client) == before
 
 
 # ---------------------------------------------------------------------------
@@ -277,8 +286,8 @@ def test_invalid_type_is_rejected_before_the_balance_is_touched(client, default_
     )
 
     assert response.status_code == 400
-    assert _balance(client) == pytest.approx(before)
-    assert client.get("/api/transactions").json()[0]["amount"] == pytest.approx(100.0)
+    assert _balance(client) == before
+    assert money(client.get("/api/transactions").json()[0]["amount"]) == Decimal("100.00")
 
 
 def test_patch_normalizes_lowercase_type(client, default_account, default_category):
@@ -293,7 +302,7 @@ def test_patch_normalizes_lowercase_type(client, default_account, default_catego
 
     assert response.status_code == 200, response.text
     assert response.json()["type"] == "ENTRADA"
-    assert _balance(client) == pytest.approx(10300.0)
+    assert _balance(client) == Decimal("10300.00")
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +339,8 @@ def test_rejected_account_id_change_leaves_both_balances_alone(client, default_a
     assert response.status_code == 422
 
     by_name = {a["name"]: a for a in client.get("/api/accounts").json()}
-    assert by_name["Conta Principal"]["current_balance"] == pytest.approx(9900.0)
-    assert by_name["Conta Secundária"]["current_balance"] == pytest.approx(500.0)
+    assert money(by_name["Conta Principal"]["current_balance"]) == Decimal("9900.00")
+    assert money(by_name["Conta Secundária"]["current_balance"]) == Decimal("500.00")
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +392,7 @@ def test_unlinking_the_installment_does_not_touch_the_balance(client, default_ac
     response = client.patch(f"/api/transactions/{tx['id']}", json={"installment_id": None})
 
     assert response.status_code == 200, response.text
-    assert _balance(client) == pytest.approx(before)
+    assert _balance(client) == before
 
 
 def test_patch_cannot_link_a_standalone_transaction_to_an_installment(client, default_account, default_category):
@@ -521,31 +530,31 @@ def test_delete_returns_204_without_body(client, default_account, default_catego
 
 def test_delete_reverses_an_expense(client, default_account, default_category):
     tx = create_transaction(client, default_account, default_category["id"], "SAÍDA", 100.0).json()
-    assert _balance(client) == pytest.approx(9900.0)
+    assert _balance(client) == Decimal("9900.00")
 
     assert client.delete(f"/api/transactions/{tx['id']}").status_code == 204
 
-    assert _balance(client) == pytest.approx(10000.0)
+    assert _balance(client) == Decimal("10000.00")
 
 
 def test_delete_reverses_an_income(client, default_account, default_category):
     tx = create_transaction(client, default_account, default_category["id"], "ENTRADA", 500.0).json()
-    assert _balance(client) == pytest.approx(10500.0)
+    assert _balance(client) == Decimal("10500.00")
 
     assert client.delete(f"/api/transactions/{tx['id']}").status_code == 204
 
-    assert _balance(client) == pytest.approx(10000.0)
+    assert _balance(client) == Decimal("10000.00")
 
 
 def test_delete_only_reverses_the_deleted_transaction(client, default_account, default_category):
     """10000 − 100 − 250 = 9650; apagando só a de 100 → 9750."""
     tx = create_transaction(client, default_account, default_category["id"], "SAÍDA", 100.0).json()
     create_transaction(client, default_account, default_category["id"], "SAÍDA", 250.0)
-    assert _balance(client) == pytest.approx(9650.0)
+    assert _balance(client) == Decimal("9650.00")
 
     assert client.delete(f"/api/transactions/{tx['id']}").status_code == 204
 
-    assert _balance(client) == pytest.approx(9750.0)
+    assert _balance(client) == Decimal("9750.00")
     assert len(client.get("/api/transactions").json()) == 1
 
 
@@ -556,7 +565,7 @@ def test_delete_removes_the_value_from_the_category_aggregation(client, default_
     assert client.delete(f"/api/transactions/{tx['id']}").status_code == 204
 
     category = client.get("/api/categories/").json()[0]
-    assert category["spent"] == pytest.approx(10.0)
+    assert money(category["spent"]) == Decimal("10.00")
     assert category["txs_count"] == 1
 
 

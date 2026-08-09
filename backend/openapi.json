@@ -735,10 +735,18 @@
             "description": "Nome da conta bancária"
           },
           "initial_balance": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Initial Balance",
             "description": "Saldo inicial da conta",
-            "default": 0.0
+            "default": "0.00"
           }
         },
         "type": "object",
@@ -756,17 +764,19 @@
             "description": "Nome da conta bancária"
           },
           "initial_balance": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Initial Balance",
             "description": "Saldo inicial da conta",
-            "default": 0.0
+            "default": "0.00"
           },
           "id": {
             "type": "integer",
             "title": "Id"
           },
           "current_balance": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Current Balance"
           }
         },
@@ -793,10 +803,18 @@
             "description": "Nome do ícone da Lucide"
           },
           "budget": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Budget",
             "description": "Orçamento mensal para a categoria",
-            "default": 0.0
+            "default": "0.00"
           },
           "color": {
             "type": "string",
@@ -849,7 +867,8 @@
             "title": "Name"
           },
           "value": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Value"
           }
         },
@@ -875,10 +894,11 @@
             "description": "Nome do ícone da Lucide"
           },
           "budget": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Budget",
             "description": "Orçamento mensal para a categoria",
-            "default": 0.0
+            "default": "0.00"
           },
           "color": {
             "type": "string",
@@ -891,9 +911,10 @@
             "title": "Id"
           },
           "spent": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Spent",
-            "default": 0.0
+            "default": "0.00"
           },
           "txs_count": {
             "type": "integer",
@@ -942,6 +963,10 @@
                 "type": "number"
               },
               {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -968,19 +993,23 @@
       "DashboardSummary": {
         "properties": {
           "total_balance": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Balance"
           },
           "total_revenues": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Revenues"
           },
           "total_expenses": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Expenses"
           },
           "total_savings": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Savings"
           },
           "monthly_flow": {
@@ -1009,7 +1038,8 @@
             "title": "Active Installments Count"
           },
           "monthly_committed_amount": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Committed Amount"
           },
           "balance_change_pct": {
@@ -1086,11 +1116,27 @@
             "description": "ID da categoria cadastrada"
           },
           "total_amount": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Total Amount"
           },
           "installment_amount": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Installment Amount"
           },
           "current_installment": {
@@ -1154,11 +1200,13 @@
             "description": "ID da categoria cadastrada"
           },
           "total_amount": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Amount"
           },
           "installment_amount": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Installment Amount"
           },
           "current_installment": {
@@ -1231,6 +1279,10 @@
                 "type": "number"
               },
               {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -1240,6 +1292,10 @@
             "anyOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -1297,7 +1353,15 @@
             "description": "Nome do investimento"
           },
           "current_balance": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Current Balance",
             "description": "Aporte ou saldo inicial do investimento"
           }
@@ -1318,7 +1382,15 @@
             "description": "Data do registro de histórico"
           },
           "balance": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Balance",
             "description": "Saldo do investimento na data informada"
           }
@@ -1342,7 +1414,8 @@
             "title": "Date"
           },
           "balance": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Balance"
           },
           "investment_id": {
@@ -1370,7 +1443,8 @@
             "title": "Name"
           },
           "current_balance": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Current Balance"
           }
         },
@@ -1389,11 +1463,13 @@
             "title": "Month"
           },
           "income": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Income"
           },
           "outcome": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Outcome"
           }
         },
@@ -1408,11 +1484,13 @@
       "ReportSummary": {
         "properties": {
           "total_revenues": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Revenues"
           },
           "total_expenses": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Expenses"
           },
           "average_savings": {
@@ -1466,8 +1544,16 @@
             "description": "Tipo de transação: 'ENTRADA' ou 'SAÍDA'"
           },
           "amount": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
             "title": "Amount",
             "description": "Valor da transação"
           },
@@ -1532,7 +1618,8 @@
             "title": "Type"
           },
           "amount": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount"
           },
           "date": {
@@ -1617,6 +1704,10 @@
               {
                 "type": "number",
                 "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"

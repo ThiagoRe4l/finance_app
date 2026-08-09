@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from decimal import Decimal
 from sqlalchemy import func, case
 from typing import List
 
@@ -55,9 +56,13 @@ def _aggregated_rows(db: Session, category_id: int | None = None):
         models.Category,
         func.coalesce(
             func.sum(
-                case((models.Transaction.type == "SAÍDA", models.Transaction.amount), else_=0.0)
+                # `Decimal("0.00")` e não `0.0`: literal float aqui faz o
+                # `spent` voltar como float e escapar da conversão sem que
+                # nenhum outro teste perceba — é o caminho da categoria sem
+                # movimento, que não passa pelo `sum`.
+                case((models.Transaction.type == "SAÍDA", models.Transaction.amount), else_=Decimal("0.00"))
             ),
-            0.0,
+            Decimal("0.00"),
         ).label("spent"),
         func.count(models.Transaction.id).label("txs_count"),
     ).outerjoin(

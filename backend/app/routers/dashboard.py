@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import datetime
+from decimal import Decimal
 from typing import List
 
 from app.database import get_db
@@ -13,10 +14,18 @@ router = APIRouter(
     tags=["Dashboard"]
 )
 
+# Dinheiro é Decimal em toda a API. `Decimal("0.00")` e não `Decimal(0)`
+# porque a **escala** faz parte do contrato: o front recebe string e precisa que
+# `"0.00"` seja previsível, inclusive quando a agregação não encontra linha
+# nenhuma. Misturar este fallback com `0.0` float levanta TypeError na primeira
+# subtração — ver `test_money_precision.py`.
+ZERO = Decimal("0.00")
+
+
 @router.get("/summary", response_model=schemas.DashboardSummary)
 def get_dashboard_summary(db: Session = Depends(get_db)):
     # 1. Saldo Total
-    total_balance = db.query(func.sum(models.Account.current_balance)).scalar() or 0.0
+    total_balance = db.query(func.sum(models.Account.current_balance)).scalar() or ZERO
     
     # 2. Receitas e Despesas do mês atual
     today = datetime.date.today()
@@ -25,12 +34,12 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     total_revenues = db.query(func.sum(models.Transaction.amount)).filter(
         models.Transaction.type == "ENTRADA",
         models.Transaction.date >= first_day
-    ).scalar() or 0.0
+    ).scalar() or ZERO
     
     total_expenses = db.query(func.sum(models.Transaction.amount)).filter(
         models.Transaction.type == "SAÍDA",
         models.Transaction.date >= first_day
-    ).scalar() or 0.0
+    ).scalar() or ZERO
     
     total_savings = total_revenues - total_expenses
     
@@ -57,13 +66,13 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             models.Transaction.type == "ENTRADA",
             models.Transaction.date >= m_start,
             models.Transaction.date < m_end
-        ).scalar() or 0.0
+        ).scalar() or ZERO
         
         out = db.query(func.sum(models.Transaction.amount)).filter(
             models.Transaction.type == "SAÍDA",
             models.Transaction.date >= m_start,
             models.Transaction.date < m_end
-        ).scalar() or 0.0
+        ).scalar() or ZERO
         
         monthly_flow.append(schemas.MonthlyFlow(
             month=month_names[target_month-1], 
@@ -76,7 +85,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     expenses_change_pct = None
     if previous_month.outcome:
-        expenses_change_pct = (total_expenses - previous_month.outcome) / previous_month.outcome * 100
+        expenses_change_pct = float((total_expenses - previous_month.outcome) / previous_month.outcome * 100)
 
     # Saldo ao fim do mês anterior = saldo atual menos a movimentação líquida deste mês
     balance_prev_month_end = total_balance - total_savings
@@ -84,11 +93,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     if balance_prev_month_end:
         # abs() no denominador: com saldo anterior negativo, a divisão direta inverteria
         # o sinal e uma economia positiva apareceria como variação negativa.
-        balance_change_pct = total_savings / abs(balance_prev_month_end) * 100
+        balance_change_pct = float(total_savings / abs(balance_prev_month_end) * 100)
 
     savings_pct_of_revenue = None
     if total_revenues:
-        savings_pct_of_revenue = total_savings / total_revenues * 100
+        savings_pct_of_revenue = float(total_savings / total_revenues * 100)
 
     # 4. Transações Recentes
     recent_txs = db.query(models.Transaction).options(
@@ -115,7 +124,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     active_installments = db.query(models.Installment).filter(
         models.Installment.current_installment <= models.Installment.total_installments
     ).all()
-    committed = sum(it.installment_amount for it in active_installments)
+    committed = sum((it.installment_amount for it in active_installments), ZERO)
     
     return schemas.DashboardSummary(
         total_balance=total_balance,

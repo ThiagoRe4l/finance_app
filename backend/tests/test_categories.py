@@ -7,9 +7,11 @@ comportamento que a foreign key define. Aqui fica o que é do CRUD em si.
 Fixtures vêm do `conftest.py`.
 """
 
+from decimal import Decimal
+
 import pytest
 
-from tests.conftest import create_category
+from tests.conftest import money, create_category
 
 
 # ---------------------------------------------------------------------------
@@ -22,10 +24,10 @@ def test_create_category(client):
     assert data["id"] is not None
     assert data["name"] == "Alimentação"
     assert data["icon_name"] == "UtensilsCrossed"
-    assert data["budget"] == 800.0
+    assert money(data["budget"]) == Decimal("800.00")
     assert data["color"] == "oklch(0.6 0.15 155)"
     # Categoria recém-criada nunca tem movimento agregado
-    assert data["spent"] == 0.0
+    assert money(data["spent"]) == Decimal("0.00")
     assert data["txs_count"] == 0
 
 
@@ -38,7 +40,7 @@ def test_create_category_budget_defaults_to_zero(client):
     })
 
     assert response.status_code == 201
-    assert response.json()["budget"] == 0.0
+    assert money(response.json()["budget"]) == Decimal("0.00")
 
 
 def test_create_duplicate_category_name(client):
@@ -113,5 +115,5 @@ def test_list_categories_without_transactions_returns_zeroed_aggregates(client):
     data = response.json()
     assert len(data) == 2
     for category in data:
-        assert category["spent"] == 0.0
+        assert money(category["spent"]) == Decimal("0.00")
         assert category["txs_count"] == 0

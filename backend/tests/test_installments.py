@@ -7,9 +7,11 @@ inexistente e a categoria aninhada na response são testados em
 Fixtures vêm do `conftest.py`.
 """
 
+from decimal import Decimal
+
 import pytest
 
-from tests.conftest import create_account, create_category, installment_payload
+from tests.conftest import money, create_account, create_category, installment_payload
 
 
 @pytest.fixture(name="category_id")
@@ -31,8 +33,8 @@ def test_create_installment(client, default_account, category_id):
     assert data["id"] is not None
     assert data["title"] == "Notebook Dell"
     assert data["category_id"] == category_id
-    assert data["total_amount"] == 6000.0
-    assert data["installment_amount"] == 500.0
+    assert money(data["total_amount"]) == Decimal("6000.00")
+    assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["current_installment"] == 2
     assert data["total_installments"] == 12
     assert data["end_date"] == "Ago/2026"
@@ -45,7 +47,7 @@ def test_create_installment_does_not_touch_account_balance(client, default_accou
     client.post("/api/installments/", json=installment_payload(default_account, category_id))
 
     account = client.get("/api/accounts").json()[0]
-    assert account["current_balance"] == pytest.approx(10000.0)
+    assert money(account["current_balance"]) == Decimal("10000.00")
 
 
 def test_create_installment_account_not_found(client, category_id):
@@ -144,7 +146,7 @@ def test_list_installments_returns_all_records(client, default_account, category
 
     by_title = {i["title"]: i for i in data}
     assert by_title["Notebook Dell"]["current_installment"] == 2
-    assert by_title["Geladeira"]["installment_amount"] == 250.0
+    assert money(by_title["Geladeira"]["installment_amount"]) == Decimal("250.00")
     assert by_title["Geladeira"]["end_date"] == "Dez/2026"
     assert by_title["Geladeira"]["category"]["name"] == "Casa"
 

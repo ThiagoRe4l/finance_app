@@ -10,6 +10,8 @@ versão local (fixture de módulo tem precedência sobre a do conftest); a
 migração deles acontece junto da implementação.
 """
 
+from decimal import Decimal
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -99,6 +101,30 @@ def fk_client_fixture(fk_session):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     del app.dependency_overrides[get_db]
+
+
+# ---------------------------------------------------------------------------
+# Dinheiro
+# ---------------------------------------------------------------------------
+
+def money(raw) -> Decimal:
+    """Valor monetário devolvido pela API, como `Decimal` exato.
+
+    Assere que o campo veio como **string** JSON. Com `Numeric(12, 2)` no
+    SQLAlchemy e `Decimal` no Pydantic, dinheiro é serializado como string —
+    decisão registrada no CLAUDE.md, e a restrição que a integração do front
+    vai ter que respeitar.
+
+    A checagem de tipo é o que dá valor ao helper. Se um campo regredir para
+    `float`, o teste falha **aqui**, com o tipo errado na mensagem, em vez de
+    numa comparação numérica onde `Decimal("0.30") == 0.30` daria `False` por
+    um motivo obscuro — ou pior, onde o epsilon passaria despercebido.
+    """
+    assert isinstance(raw, str), (
+        f"campo monetário deveria ser string JSON (Decimal), veio "
+        f"{type(raw).__name__}: {raw!r}"
+    )
+    return Decimal(raw)
 
 
 # ---------------------------------------------------------------------------

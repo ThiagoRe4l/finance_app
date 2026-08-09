@@ -1,8 +1,10 @@
+from decimal import Decimal
+
 import datetime
 
 import pytest
 
-from tests.conftest import create_category
+from tests.conftest import money, create_category
 
 # Fixtures `session` e `client` vêm do conftest.py.
 
@@ -126,14 +128,15 @@ def test_reports_overview_smoke(client):
     data = response.json()
 
     # Totais agregados sobre os 6 meses do fluxo mensal
-    assert data["total_revenues"] == pytest.approx(1000.0)
-    assert data["total_expenses"] == pytest.approx(500.0)
+    assert money(data["total_revenues"]) == Decimal("1000.00")
+    assert money(data["total_expenses"]) == Decimal("500.00")
     assert data["average_savings"] == pytest.approx(500.0 / 6)
 
     # O comparativo mensal reflete a mesma janela de 6 meses do dashboard
     assert len(data["monthly_comparative"]) == 6
 
-    assert data["top_categories"] == [{"name": "Alimentação", "value": 500.0}]
+    assert [c["name"] for c in data["top_categories"]] == ["Alimentação"]
+    assert money(data["top_categories"][0]["value"]) == Decimal("500.00")
 
     assert isinstance(data["insights"], list)
     assert all(isinstance(i, str) for i in data["insights"])

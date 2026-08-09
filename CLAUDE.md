@@ -22,7 +22,8 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 * **Suíte de testes (`tests/`):** `test_accounts.py`, `test_investments.py`,
   `test_transactions.py`, `test_dashboard.py`, `test_categories.py`, `test_installments.py`,
   `test_category_fk.py`, `test_fk_cascade.py`, `test_transactions_write.py`,
-  `test_categories_write.py`, `test_installments_write.py`, `test_dashboard_installments.py`.
+  `test_categories_write.py`, `test_installments_write.py`, `test_dashboard_installments.py`,
+  `test_money_precision.py`.
   * **`*_write.py` cobrem PATCH/DELETE (dias 4.1 e 4.2).** Todo teste que espera 404 assere também
     o `detail`: enquanto a rota não existia, o FastAPI devolvia 404 `"Not Found"` e a
     asserção de status sozinha ficava verde contra um endpoint ausente.
@@ -41,6 +42,14 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
     `monthly_committed_amount`, que não tinham teste nenhum — `test_dashboard.py` nunca
     exercitou parcelamento. 6 dos 13 são regressão e já passavam antes da mudança;
     estão rotulados com ✅ no docstring para não serem contados como cobertura nova.
+  * **`test_money_precision.py` (08/08/2026)** cobre o contrato de dinheiro como `Decimal`:
+    os 4 fallbacks `or 0.0`/`coalesce` forçados em tabela vazia (cenário que nenhum teste
+    exercitava — os outros arquivos sempre criam conta e transação antes), a escala de 2
+    casas, e os casos de precisão (0,10 + 0,20; 100× R$ 0,01; 20 PATCHes seguidos).
+  * **`money()` no `conftest.py`** é o helper de asserção monetária: converte para `Decimal`
+    **e assere que o campo veio como string JSON**. A checagem de tipo é o que dá valor a
+    ele — sem ela o teste passaria por acidente, porque `Decimal(342.5) == Decimal("342.50")`
+    é `True` (compara por valor, ignora escala).
   * ⚠️ **`reports.py` não tem arquivo de teste próprio.** Sua única rota é coberta por
     `test_reports_overview_smoke` (`test_dashboard.py`, regressão de acoplamento com
     `get_dashboard_summary`) e por `test_reports_top_categories_grouped_by_foreign_key`
@@ -199,6 +208,10 @@ importa `lib/api.ts`** — o cliente HTTP existe mas não tem um único consumid
 | `parcelamentos.tsx` | `GET/POST /api/installments` | ❌ Mockado |
 | `relatorios.tsx` | `GET /api/reports/overview` | ❌ Mockado |
 
+> 🚧 **Dinheiro chega como string.** Ver "Design Patterns → Dinheiro é `Decimal`". Nenhuma
+> tela foi integrada ainda, então o custo é zero hoje e cresce a cada tela — mas os mocks
+> assumem `number` e vão precisar de `parseFloat`/`Number()` antes de formatar ou somar.
+
 **Cliente HTTP:** `lib/api.ts` expõe `get`, `post`, `patch` e `delete`. **Não há `put` e não
 deve haver** — ver a decisão em "Operações de escrita". `apiFetch` trata **204 sem corpo**
 (`return undefined as T`); sem isso o `.json()` incondicional rejeitava a promise em toda
@@ -298,6 +311,46 @@ Pontos que os testes travam (`test_category_fk.py`):
 
 > A agregação por FK substituiu um loop que rodava duas queries por categoria. Se precisar
 > mexer, é um `GROUP BY` com `CASE` — não volte para o loop.
+
+### Dinheiro é `Decimal`, nunca `float`
+
+**Decidido e implementado em 08/08/2026.** As 8 colunas monetárias usam o alias `MONEY =
+Numeric(12, 2)` (`models.py`); os campos correspondentes em `schemas.py` são `Decimal`.
+
+⚠️ **O que isso resolve, com precisão.** O SQLite **não** tem tipo decimal nativo: `NUMERIC`
+é só afinidade e o valor é gravado como `REAL` (verificado — `typeof()` devolve `real`). O
+ganho é a conversão float→`Decimal` **na leitura**, quantizada na escala, que absorve o
+epsilon antes de o valor chegar a uma comparação ou ao JSON. **Não é armazenamento exato** —
+exatidão real exigiria centavos como `Integer`, descartado por contaminar o tipo de todo
+campo monetário da API.
+
+**Contrato: dinheiro é string no JSON.** O Pydantic v2 serializa `Decimal` como string —
+`{"amount": "342.50"}`, não `342.5`. É o default, não configuração.
+
+> 🚧 **Restrição para a integração do front.** Toda resposta monetária precisa ser parseada
+> antes de formatar ou somar. `formatBRL`/`Intl.NumberFormat` e as reduções que estão nos
+> mocks (`items.reduce((s, i) => s + i.installment, 0)`) **não funcionam direto sobre
+> string**. Vale para `amount`, `current_balance`, `initial_balance`, `budget`, `spent`,
+> `total_amount`, `installment_amount`, `income`/`outcome`, `value` e os `total_*` do
+> dashboard.
+
+**Percentuais e médias continuam `float`**: `balance_change_pct`, `expenses_change_pct`,
+`savings_pct_of_revenue` e `average_savings`. São razões, não dinheiro — divisão em `Decimal`
+gera dízima de 28 dígitos e obrigaria a arredondar arbitrariamente. Os routers fazem
+`float(...)` explícito na saída desses três.
+
+**A escala faz parte do contrato.** Os fallbacks são `Decimal("0.00")`, não `Decimal(0)` nem
+`0.0` — inclusive o `coalesce`/`case` de `categories.py`, que é o caminho da categoria sem
+movimento. Duas razões:
+
+* `"0.00"` previsível é o que torna a string parseável sem caso especial no front.
+* Misturar `Decimal` com `float 0.0` levanta **TypeError**, não devolve número errado. E o
+  erro **não** aparece quando as duas pontas caem no fallback (`0.0 - 0.0` é válido) — só no
+  caso misto, tipo "mês em que só entrou salário". `test_money_precision.py` força cada
+  combinação.
+
+`sum()` sobre `Decimal` precisa de `start` explícito (`sum(..., ZERO)`): sem ele, uma
+sequência vazia devolve `int 0` e a conta seguinte volta a misturar tipos.
 
 ### Enforcement de foreign key precisa ser ligado explicitamente
 
@@ -499,7 +552,10 @@ direto, virando exceção legítima do padrão "serialização direta" (mesma na
 **O que decidir:** vale trocar três pontos de escrita disciplinados por um custo de leitura
 recorrente, num app de finanças pessoais onde o volume de transações é baixo.
 
-### 2. `Float` vs. `Numeric`/`Decimal` para valores monetários
+### 2. ✅ `Float` → `Numeric`/`Decimal` — **resolvido em 08/08/2026**
+
+> Implementado. O registro abaixo fica como histórico da decisão; o contrato em vigor está
+> em "🧩 Design Patterns → Dinheiro é `Decimal`".
 
 **Observação.** Todo valor monetário do projeto é `Float` (`models.py`: `amount`,
 `current_balance`, `initial_balance`, `budget`, `total_amount`, `installment_amount`, mais
@@ -515,12 +571,37 @@ justamente a diferença que um erro de centavo produziria. Não é falha da suí
 `Float` com `==` seria frágil pelo motivo oposto —, mas significa que **a suíte verde não é
 evidência de exatidão monetária**.
 
-**Alternativa a avaliar.** `Numeric(12, 2)` no SQLAlchemy + `Decimal` no Pydantic, ou
-armazenar centavos como inteiro. Custo: migração de coluna — e **não há Alembic no projeto**,
-então isso esbarra na mesma restrição do checklist (`create_all()` não faz `ALTER TABLE`).
-Enquanto o banco só tiver dados de seed, o recreate resolve; depois do primeiro dado real,
-esta mudança passa a exigir migrations. **Isso torna o item 2 sensível a prazo, não só a
-prioridade.**
+**Decidido em 08/08/2026: `Numeric(12, 2)` + `Decimal` no Pydantic, nas 8 colunas.**
+
+⚠️ **Correção de uma imprecisão registrada aqui antes.** A versão anterior desta seção dizia
+que `Decimal` "eliminaria o risco de erro de centavo acumulado". **Não elimina, no SQLite.**
+Verificado empiricamente (SQLAlchemy 2.0.51 / SQLite 3.40.1): o SQLite não tem tipo decimal
+nativo, `NUMERIC` é só afinidade, e o valor é gravado como `REAL` — `typeof()` devolve
+`real`. O que o SQLAlchemy faz é **converter float→Decimal na leitura, quantizando na escala
+declarada**.
+
+Ou seja, o que se ganha é **arredondamento na leitura absorvendo o epsilon**, não
+armazenamento exato. Na prática resolve o problema observável — `0.30000000000000004` nunca
+chega ao JSON nem a uma comparação — porque o erro de ponto flutuante é menor que meio
+centavo e some no arredondamento para 2 casas. Exatidão real de armazenamento só viria com
+**centavos como `Integer`** (verificado: `typeof=integer`, `SUM` exato), descartado por
+contaminar o tipo de todo campo monetário na API e forçar conversão em toda fronteira.
+
+**Impacto no contrato:** o Pydantic v2 serializa `Decimal` como **string** JSON —
+`{"amount": "342.50"}`, não `342.5`. Não é configuração, é o default. Restrição registrada
+para a integração do front: **toda resposta monetária vem como string e precisa ser parseada
+antes de formatar ou somar**. `formatBRL`/`Intl.NumberFormat` e as reduções dos mocks
+(`items.reduce((s, i) => s + i.installment, 0)`) não funcionam direto sobre string.
+
+Percentuais e médias (`balance_change_pct`, `expenses_change_pct`,
+`savings_pct_of_revenue`, `average_savings`) **continuam `float`** — são razões, não
+dinheiro; divisão em `Decimal` gera dízima de 28 dígitos e obrigaria a arredondar
+arbitrariamente.
+
+Custo: migração de coluna — e **não há Alembic no projeto**, então isso esbarra na mesma
+restrição do checklist (`create_all()` não faz `ALTER TABLE`). Enquanto o banco só tiver
+dados de seed, o recreate resolve; depois do primeiro dado real, passaria a exigir
+migrations. **Foi o que tornou este item sensível a prazo** e o motivo de ser feito agora.
 
 ---
 

@@ -31,9 +31,11 @@ Estão marcados com ✅ no docstring. Não conte como cobertura nova — conte c
 rede de proteção para a mudança.
 """
 
+from decimal import Decimal
+
 import pytest
 
-from tests.conftest import create_transaction, installment_payload
+from tests.conftest import money, create_transaction, installment_payload
 
 
 def _create_installment(client, account_id, category_id, current, total,
@@ -73,7 +75,7 @@ def test_paid_off_installment_does_not_add_to_the_committed_amount(client, defau
         current=13, total=12, installment_amount=500.0,
     )
 
-    assert _summary(client)["monthly_committed_amount"] == pytest.approx(0.0)
+    assert money(_summary(client)["monthly_committed_amount"]) == Decimal("0.00")
 
 
 def test_installment_far_past_the_end_is_also_excluded(client, default_account, default_category):
@@ -82,7 +84,7 @@ def test_installment_far_past_the_end_is_also_excluded(client, default_account, 
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
-    assert summary["monthly_committed_amount"] == pytest.approx(0.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("0.00")
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +105,7 @@ def test_last_installment_still_counts_as_active(client, default_account, defaul
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 1
-    assert summary["monthly_committed_amount"] == pytest.approx(500.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("500.00")
 
 
 def test_first_installment_counts_as_active(client, default_account, default_category):
@@ -115,7 +117,7 @@ def test_first_installment_counts_as_active(client, default_account, default_cat
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 1
-    assert summary["monthly_committed_amount"] == pytest.approx(500.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("500.00")
 
 
 def test_installment_in_progress_counts_normally(client, default_account, default_category):
@@ -127,7 +129,7 @@ def test_installment_in_progress_counts_normally(client, default_account, defaul
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 1
-    assert summary["monthly_committed_amount"] == pytest.approx(450.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("450.00")
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ def test_only_active_installments_reach_the_aggregations(client, default_account
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 3
-    assert summary["monthly_committed_amount"] == pytest.approx(450.0 + 500.0 + 120.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("1070.00")
 
 
 def test_all_paid_off_zeroes_both_aggregations(client, default_account, default_category):
@@ -166,14 +168,14 @@ def test_all_paid_off_zeroes_both_aggregations(client, default_account, default_
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
-    assert summary["monthly_committed_amount"] == pytest.approx(0.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("0.00")
 
 
 def test_no_installments_at_all(client, default_account, default_category):
     """✅ **Já passa hoje** — o filtro não pode quebrar o caso vazio."""
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
-    assert summary["monthly_committed_amount"] == pytest.approx(0.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("0.00")
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +202,7 @@ def test_advancing_past_the_end_removes_it_from_the_aggregations(client, default
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
-    assert summary["monthly_committed_amount"] == pytest.approx(0.0)
+    assert money(summary["monthly_committed_amount"]) == Decimal("0.00")
 
 
 def test_the_filter_does_not_leak_into_the_installments_listing(client, default_account, default_category):
@@ -244,7 +246,7 @@ def test_the_filter_does_not_touch_the_transactions_of_a_paid_off_installment(cl
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
     assert len(summary["recent_transactions"]) == 1
-    assert summary["category_distribution"][0]["spent"] == pytest.approx(500.0)
+    assert money(summary["category_distribution"][0]["spent"]) == Decimal("500.00")
 
 
 def test_paid_off_installment_still_blocks_its_category_deletion(client, default_account, default_category):

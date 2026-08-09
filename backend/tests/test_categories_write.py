@@ -24,9 +24,12 @@ para um caso de negócio esperado. `test_category_in_use_cannot_be_deleted`
 passar por router. É a diferença entre garantia de dado e contrato de API.
 """
 
+from decimal import Decimal
+
 import pytest
 
 from tests.conftest import (
+    money,
     create_category,
     create_transaction,
     installment_payload,
@@ -52,8 +55,8 @@ def test_patch_budget(client, default_category):
     response = client.patch(f"/api/categories/{default_category['id']}", json={"budget": 1500.0})
 
     assert response.status_code == 200, response.text
-    assert response.json()["budget"] == pytest.approx(1500.0)
-    assert client.get("/api/categories/").json()[0]["budget"] == pytest.approx(1500.0)
+    assert money(response.json()["budget"]) == Decimal("1500.00")
+    assert money(client.get("/api/categories/").json()[0]["budget"]) == Decimal("1500.00")
 
 
 def test_patch_is_partial_and_preserves_untouched_fields(client, default_category):
@@ -97,7 +100,7 @@ def test_patch_name_of_a_category_in_use_is_allowed(client, default_account, def
 
     top = client.get("/api/reports/overview").json()["top_categories"]
     assert top[0]["name"] == "Supermercado"
-    assert top[0]["value"] == pytest.approx(120.0)
+    assert money(top[0]["value"]) == Decimal("120.00")
 
 
 def test_patch_preserves_the_aggregates(client, default_account, default_category):
@@ -114,7 +117,7 @@ def test_patch_preserves_the_aggregates(client, default_account, default_categor
 
     assert response.status_code == 200, response.text
     data = response.json()
-    assert data["spent"] == pytest.approx(200.0)
+    assert money(data["spent"]) == Decimal("200.00")
     assert data["txs_count"] == 2
 
 
@@ -142,7 +145,7 @@ def test_patch_renaming_to_its_own_name_is_not_a_conflict(client, default_catego
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["budget"] == pytest.approx(1200.0)
+    assert money(response.json()["budget"]) == Decimal("1200.00")
 
 
 def test_patch_nonexistent_category_returns_404(client):
@@ -163,8 +166,8 @@ def test_patch_budget_reaches_the_dashboard_distribution(client, default_account
     ).status_code == 200
 
     distribution = client.get("/api/dashboard/summary").json()["category_distribution"]
-    assert distribution[0]["budget"] == pytest.approx(2500.0)
-    assert distribution[0]["spent"] == pytest.approx(120.0)
+    assert money(distribution[0]["budget"]) == Decimal("2500.00")
+    assert money(distribution[0]["spent"]) == Decimal("120.00")
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +249,7 @@ def test_delete_only_removes_the_targeted_category(client, default_account):
 
     remaining = _categories_by_id(client)
     assert list(remaining) == [mantida["id"]]
-    assert remaining[mantida["id"]]["spent"] == pytest.approx(50.0)
+    assert money(remaining[mantida["id"]]["spent"]) == Decimal("50.00")
 
 
 def test_delete_nonexistent_category_returns_404(client):

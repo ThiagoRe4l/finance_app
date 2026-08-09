@@ -15,6 +15,8 @@ arquivos de origem e substituídos aqui:
   → `test_create_installment_with_nonexistent_category_returns_404`
 """
 
+from decimal import Decimal
+
 import datetime
 
 import pytest
@@ -22,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import models
 from tests.conftest import (
+    money,
     create_account,
     create_category,
     create_transaction,
@@ -66,13 +69,13 @@ def test_nonexistent_category_does_not_corrupt_balance(client, default_account):
     categoria rodar depois do débito, um ID inválido deixa `current_balance`
     corrompido e o erro só aparece muito depois.
     """
-    before = client.get("/api/accounts").json()[0]["current_balance"]
+    before = money(client.get("/api/accounts").json()[0]["current_balance"])
 
     response = create_transaction(client, default_account, CATEGORIA_INEXISTENTE, amount=250.0)
     assert response.status_code == 404
 
-    after = client.get("/api/accounts").json()[0]["current_balance"]
-    assert after == pytest.approx(before)
+    after = money(client.get("/api/accounts").json()[0]["current_balance"])
+    assert after == before
 
 
 def test_nonexistent_category_persists_no_transaction(client, default_account):
@@ -179,7 +182,7 @@ def test_spent_sums_only_expenses_but_count_includes_all(client, default_account
 
     category = client.get("/api/categories/").json()[0]
 
-    assert category["spent"] == pytest.approx(250.5)
+    assert money(category["spent"]) == Decimal("250.50")
     assert category["txs_count"] == 3
 
 
@@ -193,9 +196,9 @@ def test_aggregates_are_isolated_per_category(client, default_account):
 
     by_name = {c["name"]: c for c in client.get("/api/categories/").json()}
 
-    assert by_name["Alimentação"]["spent"] == pytest.approx(200.0)
+    assert money(by_name["Alimentação"]["spent"]) == Decimal("200.00")
     assert by_name["Alimentação"]["txs_count"] == 1
-    assert by_name["Transporte"]["spent"] == pytest.approx(100.0)
+    assert money(by_name["Transporte"]["spent"]) == Decimal("100.00")
     assert by_name["Transporte"]["txs_count"] == 2
 
 
@@ -216,7 +219,7 @@ def test_category_without_transactions_has_zero_aggregates(client, default_accou
 
     assert len(data) == 3
     lazer_row = next(c for c in data if c["id"] == lazer["id"])
-    assert lazer_row["spent"] == 0.0
+    assert money(lazer_row["spent"]) == Decimal("0.00")
     assert lazer_row["txs_count"] == 0
 
 
@@ -235,9 +238,9 @@ def test_no_transaction_can_be_orphaned_from_aggregation(client, default_account
     create_transaction(client, default_account, alimentacao["id"], "SAÍDA", 86.4)
 
     categories = client.get("/api/categories/").json()
-    total_spent = sum(c["spent"] for c in categories)
+    total_spent = sum(money(c["spent"]) for c in categories)
 
-    assert total_spent == pytest.approx(342.5 + 28.9 + 86.4)
+    assert total_spent == Decimal("457.80")
 
 
 def test_categories_with_different_casing_are_distinct_rows(client, default_account):
@@ -257,8 +260,8 @@ def test_categories_with_different_casing_are_distinct_rows(client, default_acco
 
     by_id = {c["id"]: c for c in client.get("/api/categories/").json()}
 
-    assert by_id[maiuscula["id"]]["spent"] == pytest.approx(300.0)
-    assert by_id[minuscula["id"]]["spent"] == pytest.approx(999.0)
+    assert money(by_id[maiuscula["id"]]["spent"]) == Decimal("300.00")
+    assert money(by_id[minuscula["id"]]["spent"]) == Decimal("999.00")
 
 
 # ---------------------------------------------------------------------------
@@ -276,10 +279,9 @@ def test_reports_top_categories_grouped_by_foreign_key(client, default_account):
 
     data = client.get("/api/reports/overview").json()
 
-    assert data["top_categories"] == [
-        {"name": "Moradia", "value": pytest.approx(2100.0)},
-        {"name": "Alimentação", "value": pytest.approx(342.5)},
-    ]
+    assert [c["name"] for c in data["top_categories"]] == ["Moradia", "Alimentação"]
+    assert money(data["top_categories"][0]["value"]) == Decimal("2100.00")
+    assert money(data["top_categories"][1]["value"]) == Decimal("342.50")
 
 
 def test_dashboard_distribution_follows_the_same_join(client, default_account, default_category):
@@ -288,7 +290,7 @@ def test_dashboard_distribution_follows_the_same_join(client, default_account, d
     data = client.get("/api/dashboard/summary").json()
 
     distribution = {c["name"]: c for c in data["category_distribution"]}
-    assert distribution["Alimentação"]["spent"] == pytest.approx(120.0)
+    assert money(distribution["Alimentação"]["spent"]) == Decimal("120.00")
     assert distribution["Alimentação"]["txs_count"] == 1
 
 

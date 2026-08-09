@@ -1,3 +1,7 @@
+from decimal import Decimal
+
+from tests.conftest import money
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -53,8 +57,8 @@ def test_create_and_list_accounts(client):
     
     data_post = response_post.json()
     assert data_post["name"] == "Conta de Teste"
-    assert data_post["initial_balance"] == 1500.0
-    assert data_post["current_balance"] == 1500.0
+    assert money(data_post["initial_balance"]) == Decimal("1500.00")
+    assert money(data_post["current_balance"]) == Decimal("1500.00")
     assert "id" in data_post
 
     # 2. Try to list bank accounts (GET to /api/accounts)
@@ -68,7 +72,7 @@ def test_create_and_list_accounts(client):
     # Check that the newly created account is present in the list
     created_account = next(acc for acc in data_get if acc["id"] == data_post["id"])
     assert created_account["name"] == "Conta de Teste"
-    assert created_account["current_balance"] == 1500.0
+    assert money(created_account["current_balance"]) == Decimal("1500.00")
 
 
 def test_create_duplicate_account_name(client):

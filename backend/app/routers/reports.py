@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import datetime
+from decimal import Decimal
 from typing import List
 
 from app.database import get_db
@@ -19,9 +20,14 @@ def get_report_overview(db: Session = Depends(get_db)):
     dash = get_dashboard_summary(db)
     
     # 2. Calcula receitas totais e despesas totais dos últimos 6 meses
-    total_in = sum(f.income for f in dash.monthly_flow)
-    total_out = sum(f.outcome for f in dash.monthly_flow)
-    avg_saving = (total_in - total_out) / len(dash.monthly_flow) if dash.monthly_flow else 0.0
+    # `start` Decimal: sem ele uma lista vazia devolveria `int 0` e a
+    # subtração abaixo misturaria os tipos.
+    total_in = sum((f.income for f in dash.monthly_flow), Decimal("0.00"))
+    total_out = sum((f.outcome for f in dash.monthly_flow), Decimal("0.00"))
+
+    # `average_savings` é média, não dinheiro: a divisão por 6 gera dízima e o
+    # campo continua `float` no schema. O `:,.2f` abaixo funciona nos dois tipos.
+    avg_saving = float(total_in - total_out) / len(dash.monthly_flow) if dash.monthly_flow else 0.0
     
     # 3. Maiores categorias (top categories)
     # Agrupa pela FK e resolve o nome via join — antes agrupava pela string
