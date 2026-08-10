@@ -65,6 +65,17 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 
 ## 🧰 Comandos de Execução e Desenvolvimento
 
+> ## 🚦 Qual comando usar — leia antes de subir qualquer coisa
+>
+> **Para acessar a API do browser (Windows/host): só `docker compose up backend` serve.**
+> É o único caminho que publica a porta 8000 no host.
+>
+> **Para rodar algo dentro do container (pytest, script, checagem rápida):** os comandos
+> manuais das seções abaixo servem, e são mais rápidos.
+>
+> Os dois blocos coexistem de propósito, mas resolvem problemas diferentes. Confundi-los
+> custou uma sessão inteira de depuração em 10/08/2026 — ver "Common Hurdles → 3".
+
 ### Via docker-compose (forma canônica)
 
 `docker-compose.yml` na raiz formaliza os dois serviços. Não introduz nada novo — são as
@@ -90,18 +101,30 @@ Duas restrições do arquivo que não são estéticas:
 > `node:22-slim`) e instalam dependências na subida. Só vale extrair um Dockerfile se
 > aparecer passo de build próprio (compilar extensão nativa, etc.).
 
-### Backend (Na Jaula / Docker)
+### Backend — comandos manuais (**só dentro do container**)
+
 ```bash
-# Navegar até a pasta do backend
 cd /workspace/backend
 
-# Subir o servidor de desenvolvimento FastAPI
-.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0
-
-# Rodar a suíte de testes automatizados (OBRIGATÓRIO MANTER VERDE)
+# Suíte de testes (OBRIGATÓRIO MANTER VERDE) — este é o uso legítimo daqui.
 .venv/bin/pytest
 
+# Servidor de desenvolvimento. ⚠️ NÃO torna a API acessível do host — ver abaixo.
+.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0
 ```
+
+> ⚠️ **`--host 0.0.0.0` não publica a porta.** Ele faz o uvicorn escutar em todas as
+> interfaces **de dentro** do container — necessário, mas só metade. Publicar a porta no
+> host é decidido na **criação** do container (`-p 8000:8000`), e não há como adicionar
+> isso a um container já em execução.
+>
+> Rodar este comando num container sem o mapeamento dá um servidor que responde
+> normalmente por dentro (`curl localhost:8000` local devolve 200) e é **invisível do
+> Windows** — `curl` do host falha com *exit 7, failed to connect*. O sintoma não parece
+> de rede: parece bug de CORS ou de frontend.
+>
+> **Para acessar do browser, use `docker compose up backend`.** Só ele cria o container
+> com `ports: - "8000:8000"`.
 
 ### Frontend (`/frontend`)
 ```bash
@@ -109,9 +132,37 @@ cd /workspace/frontend
 
 npm run dev      # servidor de desenvolvimento (Vite, --host)
 npm run build    # build de produção
+npm run test     # testes unitários (runner nativo do Node)
 npm run lint     # ESLint
 npm run format   # Prettier
 ```
+
+### ⚠️ Testes do frontend: runner nativo do Node, **não** Vitest
+
+**Decidido em 10/08/2026.** `npm run test` roda
+`node --experimental-strip-types --test`, sem dependência nova.
+
+**Vitest não roda neste container.** O `node_modules` foi instalado pelo Windows — há
+`@esbuild/win32-x64/esbuild.exe` e só binários `rollup-win32-*`. O esbuild recusa
+explicitamente executar em outra plataforma, e o Vitest depende do pipeline do Vite.
+Reinstalar a partir do Linux trocaria esses binários e quebraria o `npm run dev` do host,
+porque `/workspace` é o mesmo `C:\` — é a mesma debt de bind mount registrada em
+"Ambiente de Execução". `docker compose` resolveria (mantém `node_modules` em volume
+nomeado), mas o Docker não está disponível **dentro** do container onde o agente roda.
+
+Consequências práticas:
+
+* **Só função pura tem teste.** Componente React continua sem cobertura — mesmo estado de
+  antes, agora com o motivo registrado.
+* **Import relativo em código testado precisa de extensão explícita** (`./money.ts`). O
+  resolver ESM do Node não a infere; o Vite resolve das duas formas e
+  `allowImportingTsExtensions` já está ligado no `tsconfig.json`.
+* `npm run test` sem argumento: o runner descobre `*.test.ts` recursivamente e já ignora
+  `node_modules`. Sem glob no comando, funciona igual em `cmd`, PowerShell e `sh`.
+
+> 🔓 **Decisão em aberto:** quando aparecer a primeira necessidade real de teste de
+> componente, decidir entre rodar Vitest no Windows (aceitando quebrar o ciclo
+> teste-vermelho-primeiro só nesse caso) ou investigar como viabilizá-lo no container.
 
 ---
 
@@ -208,9 +259,33 @@ importa `lib/api.ts`** — o cliente HTTP existe mas não tem um único consumid
 | `parcelamentos.tsx` | `GET/POST /api/installments` | ❌ Mockado |
 | `relatorios.tsx` | `GET /api/reports/overview` | ❌ Mockado |
 
-> 🚧 **Dinheiro chega como string.** Ver "Design Patterns → Dinheiro é `Decimal`". Nenhuma
-> tela foi integrada ainda, então o custo é zero hoje e cresce a cada tela — mas os mocks
-> assumem `number` e vão precisar de `parseFloat`/`Number()` antes de formatar ou somar.
+> 🚧 **Dinheiro chega como string.** Ver "Design Patterns → Dinheiro é `Decimal`". Os mocks
+> assumem `number`; a conversão está centralizada em `src/lib/money.ts` (`parseMoney` /
+> `formatBRL`), que substitui as 5 cópias de `formatBRL`/`formatCurrency` que existiam
+> espalhadas pelas rotas.
+
+> ⚠️ **Converter string→`number` no front reintroduz o float que o backend eliminou.**
+> `number` é IEEE 754, igual ao `float` que saiu do banco — `parseMoney("0.10") +
+> parseMoney("0.20")` dá `0.30000000000000004`. Há um teste em `money.test.ts` que fixa
+> isso, rotulado como limitação deliberada.
+>
+> Aceitável para **exibir**, que é todo o uso da tela de Transações. **Não** é aceitável
+> para **somar no cliente**, e é exatamente o que os mocks de `parcelamentos.tsx`
+> (`items.reduce((s, i) => s + i.installment, 0)`) e `relatorios.tsx` fazem. A resposta
+> provável quando essas telas forem integradas é **usar os totais que o dashboard já
+> devolve prontos** (`monthly_committed_amount`, `total_revenues`, `total_expenses`,
+> `average_savings`) em vez de somar no front. Decidir quando chegar lá — não agora.
+
+**Derivação de rótulo é do front, e vive num lugar só.** `src/lib/transactions.ts` expõe
+`deriveTransactionLabel` e `signedAmount`. A API devolve dados crus (`type`, `is_fixed`,
+`installment`) e não duplica apresentação; antes disso a mesma regra existia em duas
+versões divergentes — `routes/transacoes.tsx` com a grafia final e
+`components/dashboard/Transactions.tsx` com slug minúsculo sem acento e uma tabela
+`typeLabel` própria.
+
+Precedência decidida em 10/08/2026: **ENTRADA sempre vence**. Entrada fixa ou parcelada
+colapsa para "Receita" **sem meta** — exibir "Receita 2/12" sugeriria parcela a pagar, o
+oposto do que uma entrada é. Aceito como v1.
 
 **Cliente HTTP:** `lib/api.ts` expõe `get`, `post`, `patch` e `delete`. **Não há `put` e não
 deve haver** — ver a decisão em "Operações de escrita". `apiFetch` trata **204 sem corpo**
@@ -768,3 +843,45 @@ testpaths = tests
 
 Agora `.venv/bin/pytest` roda direto, sem `PYTHONPATH`. Se o erro voltar, confirme que o
 `pytest.ini` existe e que você está executando a partir de `/workspace/backend`.
+
+### 3. API "no ar" mas inacessível do Windows (`curl` exit 7)
+
+**Sintoma:** o uvicorn sobe sem erro, loga `Uvicorn running on http://0.0.0.0:8000`, e
+`curl http://localhost:8000/...` **de dentro do container** devolve 200. Do Windows, o
+mesmo `curl` falha com *exit code 7 — failed to connect*, e o browser não carrega nada.
+
+Parece erro de CORS ou de frontend. Não é: não há rota de rede até o processo.
+
+**Causa:** o servidor foi iniciado **à mão dentro de um container que não publica a porta
+8000**. `--host 0.0.0.0` resolve o binding *interno* — o processo escuta em todas as
+interfaces do container —, mas publicar no host é decidido na criação do container
+(`-p 8000:8000`) e **não pode ser adicionado depois**. Um container sem esse mapeamento dá
+um servidor perfeitamente funcional e completamente inalcançável de fora.
+
+Agrava o diagnóstico o fato de o container do agente ser **outro** container, não o
+serviço `backend` do compose. Lá dentro não há `docker` nem `/var/run/docker.sock`, então
+nem dá para inspecionar ou corrigir o mapeamento de dentro.
+
+**Como confirmar em 10 segundos:**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/health  # dentro: 200
+hostname; hostname -i                    # é o container do compose ou outro?
+which docker; ls /var/run/docker.sock    # ambos ausentes => container do agente
+```
+
+**Correção:** subir pelo compose, do host:
+
+```
+docker compose up backend
+```
+
+**Risco a evitar:** não deixe os dois rodando. O container do agente e o do compose montam
+o **mesmo** `backend/database.db` pelo bind mount, e dois processos escrevendo o mesmo
+arquivo SQLite sobre 9p é corrupção esperando acontecer — num arquivo que fica no disco do
+host.
+
+> Ocorrido em 10/08/2026, durante a integração da tela de Transações. A restrição já estava
+> escrita em dois lugares (o comentário do `ports:` no `docker-compose.yml` e a seção
+> "Via docker-compose") e ainda assim o comando manual foi escolhido, porque a seção
+> "Backend" o apresentava sem ressalva. A ressalva agora está lá.

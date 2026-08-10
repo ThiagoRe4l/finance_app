@@ -1,4 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 
 import appCss from "../styles.css?url";
 
@@ -64,5 +66,29 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  /*
+   * O `QueryClient` nasce dentro do componente, não em escopo de módulo. Isto
+   * roda em TanStack Start, que renderiza no servidor: um cliente em escopo de
+   * módulo seria compartilhado entre requisições e vazaria o cache de um
+   * usuário para outro.
+   */
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            // O backend é local e os dados mudam por ação do próprio usuário;
+            // refetch a cada foco de janela só geraria requisição à toa.
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+        },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Outlet />
+    </QueryClientProvider>
+  );
 }
