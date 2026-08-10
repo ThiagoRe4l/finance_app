@@ -33,6 +33,8 @@ rede de proteção para a mudança.
 
 from decimal import Decimal
 
+import datetime
+
 import pytest
 
 from tests.conftest import money, create_transaction, installment_payload
@@ -237,7 +239,7 @@ def test_the_filter_does_not_touch_the_transactions_of_a_paid_off_installment(cl
         "title": "Parcela 12",
         "type": "SAÍDA",
         "amount": 500.0,
-        "date": "2026-08-07",
+        "date": datetime.date.today().isoformat(),
         "category_id": default_category["id"],
         "account_id": default_account,
         "installment_id": installment["id"],

@@ -27,6 +27,7 @@ Todos vermelhos, e a maioria falha no `money()` — o campo vem como `float` em
 vez de string. Os de precisão (0.1 + 0.2, acúmulo) falham no valor.
 """
 
+import datetime
 from decimal import Decimal
 
 import pytest
@@ -42,7 +43,7 @@ def _account(client, name="Conta Principal", initial_balance="10000.00"):
     return response.json()["id"]
 
 
-def _tx(client, account_id, category_id, tx_type, amount, date="2026-08-07",
+def _tx(client, account_id, category_id, tx_type, amount, date=None,
         title="Lançamento"):
     """Envia o valor como **string** de propósito.
 
@@ -50,7 +51,11 @@ def _tx(client, account_id, category_id, tx_type, amount, date="2026-08-07",
     testar precisão, a entrada precisa ser exata — e a API aceita as duas formas.
     """
     response = client.post("/api/transactions", json={
-        "title": title, "type": tx_type, "amount": amount, "date": date,
+        # Data de hoje: as agregações recortam o mês corrente, então data
+        # literal aqui passaria no mês em que foi escrita e ficaria vermelha na
+        # virada. Ver `test_monthly_scope.py`.
+        "title": title, "type": tx_type, "amount": amount,
+        "date": date or datetime.date.today().isoformat(),
         "category_id": category_id, "account_id": account_id,
     })
     assert response.status_code == 201, response.text

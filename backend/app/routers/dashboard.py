@@ -8,6 +8,7 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.routers.categories import list_categories
+from app.periods import current_month_bounds, month_bounds
 
 router = APIRouter(
     prefix="/dashboard",
@@ -28,17 +29,25 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     total_balance = db.query(func.sum(models.Account.current_balance)).scalar() or ZERO
     
     # 2. Receitas e Despesas do mês atual
+    #
+    # Intervalo semiaberto, o mesmo do laço abaixo e o mesmo de
+    # `_aggregated_rows`. Antes daqui só havia o piso (`>= first_day`), sem teto:
+    # um lançamento datado no futuro — parcela agendada, boleto a vencer —
+    # contava neste total e não contava na barra do mesmo mês do `monthly_flow`,
+    # dois números divergentes lado a lado na tela.
     today = datetime.date.today()
-    first_day = today.replace(day=1)
-    
+    first_day, next_month = current_month_bounds()
+
     total_revenues = db.query(func.sum(models.Transaction.amount)).filter(
         models.Transaction.type == "ENTRADA",
-        models.Transaction.date >= first_day
+        models.Transaction.date >= first_day,
+        models.Transaction.date < next_month
     ).scalar() or ZERO
     
     total_expenses = db.query(func.sum(models.Transaction.amount)).filter(
         models.Transaction.type == "SAÍDA",
-        models.Transaction.date >= first_day
+        models.Transaction.date >= first_day,
+        models.Transaction.date < next_month
     ).scalar() or ZERO
     
     total_savings = total_revenues - total_expenses
@@ -56,11 +65,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             target_month += 12
             target_year -= 1
             
-        m_start = datetime.date(target_year, target_month, 1)
-        if target_month == 12:
-            m_end = datetime.date(target_year + 1, 1, 1)
-        else:
-            m_end = datetime.date(target_year, target_month + 1, 1)
+        m_start, m_end = month_bounds(target_year, target_month)
             
         inc = db.query(func.sum(models.Transaction.amount)).filter(
             models.Transaction.type == "ENTRADA",

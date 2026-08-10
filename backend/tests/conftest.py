@@ -10,6 +10,7 @@ versão local (fixture de módulo tem precedência sobre a do conftest); a
 migração deles acontece junto da implementação.
 """
 
+import datetime
 from decimal import Decimal
 
 import pytest
@@ -153,7 +154,20 @@ def create_account(client, name="Conta Principal", initial_balance=10000.0):
 
 
 def create_transaction(client, account_id, category_id, tx_type="SAÍDA",
-                       amount=100.0, date="2026-08-07", title="Lançamento"):
+                       amount=100.0, date=None, title="Lançamento"):
+    """Cria uma transação. `date` omitido = **hoje**.
+
+    O default era `"2026-08-07"` fixo. Depois que as agregações passaram a
+    recortar o mês corrente (ver "Agregação de categoria é do mês corrente" no
+    CLAUDE.md), data literal virou bomba-relógio: os ~20 asserts de `spent`
+    pendurados neste helper passariam em agosto/2026 e ficariam vermelhos em
+    setembro, sem ninguém tocar em código.
+
+    Teste que precise de data específica deve derivá-la de
+    `datetime.date.today()`, não escrever um literal.
+    """
+    if date is None:
+        date = datetime.date.today().isoformat()
     return client.post("/api/transactions", json={
         "title": title,
         "type": tx_type,

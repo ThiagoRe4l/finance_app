@@ -276,6 +276,31 @@ importa `lib/api.ts`** — o cliente HTTP existe mas não tem um único consumid
 > devolve prontos** (`monthly_committed_amount`, `total_revenues`, `total_expenses`,
 > `average_savings`) em vez de somar no front. Decidir quando chegar lá — não agora.
 
+### 🎭 Os mocks são cenografia do Lovable, não especificação
+
+**Registrado em 10/08/2026, ao mapear o Dashboard.** As telas nasceram no Lovable, a partir
+de um design com **dados fictícios e estáticos**, sem lastro em cálculo nenhum. Isso não é
+detalhe histórico: é a lente correta para mapear as telas que faltam.
+
+Dois achados concretos do Dashboard mostram o padrão:
+
+* **`CategoryBars.percent` é internamente inconsistente.** Testadas as duas fórmulas
+  plausíveis: sobre o total de despesas, "Moradia" (67%) e "Alimentação" (40%) batem, mas
+  "Transporte" daria 15% e o mock diz 25. Sobre o orçamento não bate nenhum. Não existe
+  fórmula a recuperar — os números foram escolhidos porque ficam bem no gráfico.
+* **O bloco "Fixas vs Variáveis"** (`R$ 2.205,90 / 71%` vs `R$ 914,60 / 29%`) não tem
+  origem em dado nenhum, nem no front nem na API.
+
+> **Regra ao mapear as próximas telas — `relatorios.tsx` principalmente:** número "bonito"
+> que não fecha com uma fórmula clara é **decorativo**, não feature perdida. Não trate como
+> spec que o backend esqueceu de implementar, e não tente adivinhar a intenção original —
+> ela não existe. Manter, remover ou formalizar como dado real é decisão nossa, tomada
+> agora, e vai no registro como qualquer outra.
+
+`relatorios.tsx` é o caso mais exposto: tem 4 "Insights" em texto corrido
+(`"Sua economia cresceu +18%"`, `"Despesas fixas representam 71%"`) que são exatamente esse
+tipo de número.
+
 **Derivação de rótulo é do front, e vive num lugar só.** `src/lib/transactions.ts` expõe
 `deriveTransactionLabel` e `signedAmount`. A API devolve dados crus (`type`, `is_fixed`,
 `installment`) e não duplica apresentação; antes disso a mesma regra existia em duas
@@ -286,6 +311,17 @@ versões divergentes — `routes/transacoes.tsx` com a grafia final e
 Precedência decidida em 10/08/2026: **ENTRADA sempre vence**. Entrada fixa ou parcelada
 colapsa para "Receita" **sem meta** — exibir "Receita 2/12" sugeriria parcela a pagar, o
 oposto do que uma entrada é. Aceito como v1.
+
+⚠️ **Barra final: casa com o padrão da rota declarada, não "sempre use barra".** O
+FastAPI responde **307** quando o caminho não bate exatamente, e cada redirect custa um
+round-trip:
+
+| Rota no router | Chamada correta | A errada |
+|---|---|---|
+| `@router.get("/")` (coleção) | `/transactions/`, `/categories/`, `/installments/` | sem barra → 307 |
+| `@router.get("/summary")` | `/dashboard/summary` | **com** barra → 307 |
+
+A suíte do backend não pega isso: o `TestClient` segue redirect em silêncio.
 
 **Cliente HTTP:** `lib/api.ts` expõe `get`, `post`, `patch` e `delete`. **Não há `put` e não
 deve haver** — ver a decisão em "Operações de escrita". `apiFetch` trata **204 sem corpo**
@@ -426,6 +462,43 @@ movimento. Duas razões:
 
 `sum()` sobre `Decimal` precisa de `start` explícito (`sum(..., ZERO)`): sem ele, uma
 sequência vazia devolve `int 0` e a conta seguinte volta a misturar tipos.
+
+### Agregação de categoria é do **mês corrente**, não acumulada
+
+**Decidido em 10/08/2026, antes da implementação.** Corrige bug de produção, não só
+inconsistência nova.
+
+**O defeito.** `_aggregated_rows` (`categories.py`) fazia `outerjoin` em `Transaction` sem
+filtro de data: `spent` e `txs_count` eram acumulados de todos os tempos. Mas `budget` é
+**orçamento mensal** (está no próprio `Field(description=...)`), e `categorias.tsx` desenha
+`spent / budget`. Consequência: a barra de progresso só cresce, e depois de alguns meses
+**toda** categoria aparece permanentemente estourada. Já estava entregue e já valia para o
+`PATCH` de budget do dia 4.1.
+
+No dashboard o mesmo dado divergia de `total_expenses`, que é do mês — verificado: 900 no
+mês passado + 100 neste dava `spent: "1000.00"` contra `total_expenses: "100.00"`, e uma
+participação de 1000%.
+
+**A correção.** `_aggregated_rows` filtra `[primeiro_dia_do_mês, primeiro_dia_do_mês_seguinte)`.
+`txs_count` acompanha o mesmo recorte. Mês corrente fixo — sem `?month=`, que seria
+superfície de API nova sem consumidor pedindo.
+
+**O teto que faltava.** `total_revenues`/`total_expenses` usavam `date >= first_day` **sem
+limite superior**, então contavam lançamento datado no futuro (parcela agendada, boleto a
+vencer). O laço do `monthly_flow` sempre usou o intervalo semiaberto correto. Verificado:
+uma transação do mês seguinte dava `total_expenses: "500.00"` e
+`monthly_flow[-1].outcome: "0.00"` — dois números divergentes na mesma tela. Os três passam
+a usar o mesmo recorte semiaberto.
+
+**Mudança de contrato:** `GET /api/categories/` → `spent` e `txs_count` deixam de ser
+acumulados. Consumidores hoje: o dashboard e `categorias.tsx` (ainda mockada).
+
+⚠️ **A suíte tinha uma bomba-relógio que esta fatia desarma.** `conftest.create_transaction`
+usava `date="2026-08-07"` fixo — 15 usos em 7 arquivos, 20 asserções sobre `spent`. Com o
+filtro de mês, essas asserções passariam em agosto/2026 e ficariam vermelhas em setembro,
+**sem ninguém tocar em código**. O default passou a ser a data de hoje. Teste que precise de
+data específica deve derivá-la de `datetime.date.today()`, no padrão que
+`test_dashboard.py::_month_offset` já usava.
 
 ### Enforcement de foreign key precisa ser ligado explicitamente
 
@@ -592,6 +665,56 @@ referência antes e devolve **409**:
 
 > `test_category_in_use_cannot_be_deleted` (`test_category_fk.py`) **não** cobre isso: ele
 > deleta via `fk_session` e só prova que o banco recusa. Garantia de dado ≠ contrato de API.
+
+---
+
+## 🧭 Itens futuros — **não decididos**
+
+**Sem prazo. Nenhum é bug: a suíte está verde e o comportamento atual está correto.** Cada
+um se resolve quando aparecer motivo concreto para investir, e passa pelo processo normal —
+decisão registrada, teste vermelho, implementação.
+
+| Item | Onde está registrado |
+|---|---|
+| Bloco "Fixas vs Variáveis" do Dashboard | aqui, item 0 |
+| Mecanismo contra teste dependente de data | aqui, item 0.1 |
+| Vitest para teste de componente | "Testes do frontend: runner nativo do Node" |
+| Saldo derivado do ledger | "Candidatos ao dia 5", item 1 |
+
+### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
+
+**Decidido em 10/08/2026.** O bloco existia em `index.tsx` com valores inventados
+(`R$ 2.205,90 / 71%` vs `R$ 914,60 / 29%`) e **nenhum dado correspondente na API**.
+`DashboardSummary` não devolve a divisão fixa/variável das despesas.
+
+Removido na integração do Dashboard. Calcular no front a partir de `recent_transactions`
+seria errado — são 7 itens, não o mês.
+
+Se voltar, é **fatia de backend**: dois `func.sum` sobre `Transaction.amount` filtrando por
+`is_fixed`, dois campos novos em `DashboardSummary`, com decisão registrada e teste antes.
+Não é urgente e não tem consumidor pedindo.
+
+### 0.1. Não há mecanismo contra teste que depende do mês em que roda
+
+**Levantado em 10/08/2026**, ao introduzir o recorte mensal das agregações.
+
+Data literal num teste que assere `spent`/`txs_count`/`total_expenses` passa no mês em que
+foi escrita e fica vermelha na virada, sem ninguém tocar em código. A suíte tinha exatamente
+isso (`conftest.create_transaction` com `date="2026-08-07"` fixo, 15 usos em 7 arquivos) e
+foi corrigida — mas **a proteção hoje é convenção, não mecanismo**: nada impede o próximo
+teste de reintroduzir o problema, e ele passaria por semanas antes de quebrar sozinho.
+
+Duas saídas possíveis, nenhuma decidida:
+
+* **Relógio controlável** (`freezegun`, `time-machine`) e um teste que rode as agregações com
+  a data adiantada. Dependência nova.
+* **Fixture `autouse`** que rejeite data literal em teste que assere agregação. Sem
+  dependência, mas é heurística sobre o código do próprio teste.
+
+> Tentei construir a verificação com um plugin de relógio falso durante a implementação da
+> fatia e não fechou — a instrumentação ficou mais frágil que o que ela verificava. A
+> auditoria foi feita estaticamente (cruzando "arquivo tem data literal" com "função assere
+> campo filtrado por mês"), que funciona uma vez mas não protege o futuro.
 
 ---
 

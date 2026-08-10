@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from decimal import Decimal
-from sqlalchemy import func, case
+from sqlalchemy import func, case, and_
 from typing import List
 
 from app.database import get_db
 from app import models, schemas
+from app.periods import current_month_bounds
 
 router = APIRouter(
     prefix="/categories",
@@ -51,7 +52,19 @@ def _aggregated_rows(db: Session, category_id: int | None = None):
     listagem sem montar uma segunda query — se o update respondesse com o objeto
     ORM puro, `spent`/`txs_count` cairiam nos defaults `0.0`/`0` do schema e a
     tela piscaria zerada até o próximo GET.
+
+    **O recorte é do mês corrente**, alinhado com `total_expenses` do dashboard.
+    `budget` é orçamento mensal, então `spent` acumulado fazia a barra de
+    `categorias.tsx` só crescer e toda categoria aparecer estourada depois de
+    alguns meses.
+
+    ⚠️ **O filtro de data vai na condição do `ON`, não num `WHERE`.** Num
+    `WHERE`, a linha sem transação no mês vira `NULL` e é descartada — a
+    categoria sumiria da listagem inteira, e junto do `category_distribution` do
+    dashboard, que reusa `list_categories`.
     """
+    month_start, month_end = current_month_bounds()
+
     query = db.query(
         models.Category,
         func.coalesce(
@@ -66,7 +79,12 @@ def _aggregated_rows(db: Session, category_id: int | None = None):
         ).label("spent"),
         func.count(models.Transaction.id).label("txs_count"),
     ).outerjoin(
-        models.Transaction, models.Transaction.category_id == models.Category.id
+        models.Transaction,
+        and_(
+            models.Transaction.category_id == models.Category.id,
+            models.Transaction.date >= month_start,
+            models.Transaction.date < month_end,
+        ),
     )
 
     if category_id is not None:
