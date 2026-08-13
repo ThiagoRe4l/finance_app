@@ -164,6 +164,22 @@ Consequências práticas:
 > componente, decidir entre rodar Vitest no Windows (aceitando quebrar o ciclo
 > teste-vermelho-primeiro só nesse caso) ou investigar como viabilizá-lo no container.
 
+⚠️ **Primeiro caso concreto, não hipotético (13/08/2026).** Na validação visual do
+Dashboard, "Despesas +325,8%" exibia seta **↘**. O `MetricCard` decidia o ícone a partir de
+`tone`, que codifica *bom/ruim* e não *subiu/desceu* — e Despesas é o único card em que os
+dois divergem, porque gasto subindo é ruim. O mock nunca expôs isso: trazia despesa em queda
+(`-7.1%`) marcada como negativa, onde "para baixo" e "ruim" coincidiam por acidente do dado
+fictício.
+
+A correção extraiu `trendFromDelta` (função pura, coberta pelo runner atual) e separou as
+duas props. Mas **o bug nasceu na ligação das props em JSX**, que é exatamente onde a
+cobertura de hoje não alcança: `trendFromDelta` e `formatDelta` estavam certos isoladamente;
+errado era o `tone={...}` do `index.tsx`. Nenhum teste possível hoje pegaria isso.
+
+Ou seja: o argumento para Vitest deixou de ser "um dia vamos precisar" e passou a ter um
+defeito real que chegou à tela. Continua sem decisão — mas quem for decidir tem agora um
+caso, não uma hipótese.
+
 ---
 
 ## 🧱 Ambiente de Execução e Isolamento

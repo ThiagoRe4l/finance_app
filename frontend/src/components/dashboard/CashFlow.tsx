@@ -1,14 +1,28 @@
-const months = [
-  { m: "Mai", in: 7800, out: 4200 },
-  { m: "Jun", in: 8100, out: 3850 },
-  { m: "Jul", in: 7950, out: 4500 },
-  { m: "Ago", in: 8300, out: 3200 },
-  { m: "Set", in: 8200, out: 3400 },
-  { m: "Out", in: 8450, out: 3120 },
-];
+import { parseMoney } from "@/lib/money";
 
-export function CashFlow() {
-  const max = Math.max(...months.flatMap((m) => [m.in, m.out]));
+export interface MonthlyFlow {
+  month: string;
+  income: string;
+  outcome: string;
+}
+
+/*
+ * Apresentacional: recebe `monthly_flow` do dashboard pronto. A API já devolve
+ * exatamente 6 meses, na ordem, com os meses vazios preenchidos com "0.00" —
+ * não há o que completar aqui.
+ */
+export function CashFlow({ months }: { months: MonthlyFlow[] }) {
+  const bars = months.map((m) => ({
+    month: m.month,
+    income: parseMoney(m.income),
+    outcome: parseMoney(m.outcome),
+  }));
+
+  // `Math.max` sobre as strings da API funcionaria por coerção, mas altura de
+  // barra a partir de coerção implícita em campo monetário é justamente o que
+  // se evita desde a migração para `Decimal`. O parse é explícito acima.
+  const max = Math.max(...bars.flatMap((b) => [b.income, b.outcome]), 0);
+
   return (
     <section className="bg-card p-8 rounded-2xl border border-border shadow-sm">
       <div className="flex items-center justify-between mb-8">
@@ -26,19 +40,19 @@ export function CashFlow() {
         </div>
       </div>
       <div className="flex items-end gap-6 h-48">
-        {months.map((mo) => (
-          <div key={mo.m} className="flex-1 flex flex-col items-center gap-2">
+        {bars.map((bar, i) => (
+          <div key={`${bar.month}-${i}`} className="flex-1 flex flex-col items-center gap-2">
             <div className="flex items-end gap-1 h-40 w-full justify-center">
               <div
                 className="w-3 rounded-t bg-primary transition-all"
-                style={{ height: `${(mo.in / max) * 100}%` }}
+                style={{ height: max > 0 ? `${(bar.income / max) * 100}%` : "0%" }}
               />
               <div
                 className="w-3 rounded-t bg-border transition-all"
-                style={{ height: `${(mo.out / max) * 100}%` }}
+                style={{ height: max > 0 ? `${(bar.outcome / max) * 100}%` : "0%" }}
               />
             </div>
-            <span className="text-xs text-muted-foreground">{mo.m}</span>
+            <span className="text-xs text-muted-foreground">{bar.month}</span>
           </div>
         ))}
       </div>
