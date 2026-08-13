@@ -532,6 +532,28 @@
         }
       }
     },
+    "/api/installments/summary": {
+      "get": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Get Installments Summary",
+        "description": "Totais do cabeçalho da tela de parcelamentos.\n\nOs três números numa requisição só. `active_count` e\n`monthly_committed_amount` repetem valores do dashboard, mas vêm da mesma\nfunção — não de uma segunda implementação da regra de \"ativo\".",
+        "operationId": "get_installments_summary_api_installments_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/installments/": {
       "get": {
         "tags": [
@@ -1231,6 +1253,12 @@
           },
           "category": {
             "$ref": "#/components/schemas/CategoryRef"
+          },
+          "remaining_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Amount",
+            "description": "Quanto ainda falta pagar: parcela × parcelas restantes"
           }
         },
         "type": "object",
@@ -1244,9 +1272,36 @@
           "end_date",
           "account_id",
           "id",
-          "category"
+          "category",
+          "remaining_amount"
         ],
         "title": "InstallmentResponse"
+      },
+      "InstallmentSummary": {
+        "properties": {
+          "active_count": {
+            "type": "integer",
+            "title": "Active Count"
+          },
+          "monthly_committed_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Committed Amount"
+          },
+          "remaining_total_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Total Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_count",
+          "monthly_committed_amount",
+          "remaining_total_amount"
+        ],
+        "title": "InstallmentSummary",
+        "description": "Totais do cabeçalho da tela de parcelamentos.\n\nEndpoint próprio em vez de campos novos em `DashboardSummary`: a tela\nprecisa dos três números e faria duas requisições — uma delas ao resumo do\ndashboard, que não é o assunto dela. Ver a decisão no CLAUDE.md.\n\n`active_count` e `monthly_committed_amount` repetem valores que\n`DashboardSummary` também expõe, mas vêm da **mesma função**\n(`app/installment_metrics.py`), não de uma segunda implementação."
       },
       "InstallmentUpdate": {
         "properties": {

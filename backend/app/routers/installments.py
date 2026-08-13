@@ -4,11 +4,55 @@ from typing import List
 
 from app.database import get_db
 from app import models, schemas
+from app import installment_metrics
 
 router = APIRouter(
     prefix="/installments",
     tags=["Installments"]
 )
+
+def _to_response(installment: models.Installment) -> schemas.InstallmentResponse:
+    """Monta a resposta com o campo derivado `remaining_amount`.
+
+    **Exceção declarada ao padrão de serialização direta do ORM** — mesma
+    natureza de `spent`/`txs_count` em `categories.py`: o valor não existe no
+    model, é calculado. Concentrar aqui evita que os três caminhos que devolvem
+    um parcelamento (POST, GET, PATCH) calculem cada um do seu jeito.
+    """
+    return schemas.InstallmentResponse(
+        id=installment.id,
+        title=installment.title,
+        category_id=installment.category_id,
+        total_amount=installment.total_amount,
+        installment_amount=installment.installment_amount,
+        current_installment=installment.current_installment,
+        total_installments=installment.total_installments,
+        end_date=installment.end_date,
+        account_id=installment.account_id,
+        category=installment.category,
+        remaining_amount=installment_metrics.remaining_amount(installment),
+    )
+
+
+# ⚠️ Declarado **antes** das rotas com `{installment_id}`: o path
+# `/installments/summary` casa com aquele padrão, e o FastAPI tentaria converter
+# "summary" em int. Ver `test_summary_route_is_not_shadowed_by_an_id_route`.
+@router.get("/summary", response_model=schemas.InstallmentSummary)
+def get_installments_summary(db: Session = Depends(get_db)):
+    """Totais do cabeçalho da tela de parcelamentos.
+
+    Os três números numa requisição só. `active_count` e
+    `monthly_committed_amount` repetem valores do dashboard, mas vêm da mesma
+    função — não de uma segunda implementação da regra de "ativo".
+    """
+    active = installment_metrics.active_installments(db)
+
+    return schemas.InstallmentSummary(
+        active_count=len(active),
+        monthly_committed_amount=installment_metrics.monthly_committed(active),
+        remaining_total_amount=installment_metrics.remaining_total(active),
+    )
+
 
 @router.post("/", response_model=schemas.InstallmentResponse, status_code=status.HTTP_201_CREATED)
 def create_installment(installment: schemas.InstallmentCreate, db: Session = Depends(get_db)):
@@ -41,13 +85,14 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
     db.add(new_installment)
     db.commit()
     db.refresh(new_installment)
-    return new_installment
+    return _to_response(new_installment)
 
 @router.get("/", response_model=List[schemas.InstallmentResponse])
 def list_installments(db: Session = Depends(get_db)):
-    return db.query(models.Installment).options(
+    installments = db.query(models.Installment).options(
         joinedload(models.Installment.category)
     ).all()
+    return [_to_response(it) for it in installments]
 
 
 # Os três valores que descrevem o contrato financeiro da compra. Depois que uma
@@ -115,4 +160,4 @@ def update_installment(
     db.commit()
     db.refresh(installment)
 
-    return installment
+    return _to_response(installment)

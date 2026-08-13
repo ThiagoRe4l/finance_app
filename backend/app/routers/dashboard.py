@@ -9,6 +9,7 @@ from app.database import get_db
 from app import models, schemas
 from app.routers.categories import list_categories
 from app.periods import current_month_bounds, month_bounds
+from app import installment_metrics
 
 router = APIRouter(
     prefix="/dashboard",
@@ -115,21 +116,14 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     
     # 6. Parcelamentos — só os que ainda têm parcela a pagar.
     #
-    # `current_installment > total_installments` é o estado "quitado" (decisão
-    # D13). Sem este filtro, um parcelamento encerrado seguia contado como ativo
-    # e seu valor seguia aparecendo como dinheiro comprometido no mês.
-    #
-    # O `<=` é a parte frágil: `current == total` é a **última parcela**, ainda
-    # a pagar. Trocar por `<` derruba o mês final de todo parcelamento do app —
-    # e o número continua parecendo plausível. Ver
-    # `test_last_installment_still_counts_as_active`.
+    # A regra de "ativo" vive em `app/installment_metrics.py`, compartilhada com
+    # `GET /installments/summary`. Duplicá-la aqui é como o `<=` viraria `<` de
+    # um lado só, e a mesma métrica passaria a ter dois valores no mesmo app.
     #
     # O filtro vale só para estas agregações: `GET /installments` continua
     # devolvendo o histórico completo, quitados incluídos.
-    active_installments = db.query(models.Installment).filter(
-        models.Installment.current_installment <= models.Installment.total_installments
-    ).all()
-    committed = sum((it.installment_amount for it in active_installments), ZERO)
+    active_installments = installment_metrics.active_installments(db)
+    committed = installment_metrics.monthly_committed(active_installments)
     
     return schemas.DashboardSummary(
         total_balance=total_balance,

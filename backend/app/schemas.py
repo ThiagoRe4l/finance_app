@@ -216,8 +216,27 @@ class InstallmentUpdate(BaseModel):
 class InstallmentResponse(InstallmentBase):
     id: int
     category: CategoryRef
+    remaining_amount: Decimal = Field(
+        ..., description="Quanto ainda falta pagar: parcela × parcelas restantes"
+    )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InstallmentSummary(BaseModel):
+    """Totais do cabeçalho da tela de parcelamentos.
+
+    Endpoint próprio em vez de campos novos em `DashboardSummary`: a tela
+    precisa dos três números e faria duas requisições — uma delas ao resumo do
+    dashboard, que não é o assunto dela. Ver a decisão no CLAUDE.md.
+
+    `active_count` e `monthly_committed_amount` repetem valores que
+    `DashboardSummary` também expõe, mas vêm da **mesma função**
+    (`app/installment_metrics.py`), não de uma segunda implementação.
+    """
+    active_count: int
+    monthly_committed_amount: Decimal
+    remaining_total_amount: Decimal
 
 
 # Schemas para Agregações (Dashboard e Relatórios)

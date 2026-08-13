@@ -626,6 +626,52 @@ desses campos — a incoerência apareceria direto na UI.
 natureza de C9/C10, e não de uma combinação inválida de campos. Isso estende a convenção de
 status de "exclusão bloqueada por referência" para "**escrita** bloqueada por referência".
 
+#### `GET /api/installments/summary` — totais da tela de parcelamentos
+
+**Decidido em 13/08/2026, antes da implementação.**
+
+A tela precisa de três números no topo: parcelamentos ativos, comprometido/mês e saldo a
+pagar. Os dois primeiros já existiam em `DashboardSummary`; o terceiro não existia em lugar
+nenhum e o mock o calculava somando no cliente.
+
+**Endpoint próprio, não campo novo no dashboard.** Alternativa descartada: pendurar
+`remaining_total_amount` em `DashboardSummary` e a tela de parcelamentos buscar o resumo do
+dashboard. Funcionaria, mas deixaria a tela com duas requisições e leria mal — tela de
+parcelamentos consultando o resumo geral para preencher o próprio cabeçalho. Com endpoint
+próprio é uma requisição e o contrato do dashboard não incha.
+
+**Alternativa também descartada: somar no front** com aritmética de centavos inteiros. Era
+mais barata (uma função pura, zero backend), mas espalharia a regra de negócio — "saldo a
+pagar é parcela × parcelas restantes" — para o cliente, enquanto `monthly_committed_amount`
+já vive no servidor. Metade da conta de cada lado é pior que qualquer um dos dois inteiro.
+
+**`app/installment_metrics.py` centraliza a regra**, no mesmo espírito de `periods.py`:
+`dashboard.py` e o router novo compartilham a definição de "ativo"
+(`current_installment <= total_installments`) em vez de duplicá-la. Duplicar é como o `<=`
+frágil do 4.3 viraria `<` num dos dois lados sem ninguém notar.
+
+**`remaining_amount` entra em `InstallmentResponse` como campo derivado**, e é **exceção
+declarada ao padrão de serialização direta do ORM** — mesmo tratamento de `spent`/`txs_count`
+em `categories.py`. Fórmula: `installment_amount × (total_installments - current_installment + 1)`,
+com a contagem de parcelas limitada a `[0, total_installments]`.
+
+O `+1` é coerente com a D13: `current` é a parcela **ainda a pagar**, então 2/12 tem 11 pela
+frente. Para quitado (13/12) a conta dá zero naturalmente, sem caso especial.
+
+⚠️ **Ordem de rotas.** `@router.get("/summary")` tem que vir **antes** de qualquer
+`GET /{installment_id}` que venha a existir, senão o FastAPI tenta converter `"summary"` em
+`int` e devolve 422. Hoje não há `GET` por id, mas o teste que assere 200 no `/summary` é o
+que pega isso quando houver.
+
+#### Correção junto: `percent` da tela de parcelamentos
+
+O mock calculava `percent = current / total` ("% pago") e `remaining = parcela × (total -
+current + 1)` no mesmo card. Os dois discordam sobre o que `current` significa: o primeiro
+assume as `current` parcelas já pagas, o segundo assume que a `current` ainda vai ser paga.
+Em 2/12: "17% pago" ao lado de 11 parcelas restantes de 12.
+
+Pela D13 a segunda leitura é a correta. `percent` passa a ser `(current - 1) / total`.
+
 #### Dia 4.3 — agregações do dashboard ignoram parcelamento quitado
 
 **Bug latente exposto pela D13, não decisão de arquitetura.** Antes do 4.2 não havia como um
