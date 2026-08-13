@@ -269,5 +269,8 @@ class ReportSummary(BaseModel):
     average_savings: float
     monthly_comparative: List[MonthlyFlow]
     top_categories: List[CategoryReport]
-    insights: List[str]
+    # `insights` foi removido em 13/08/2026: frase pronta em português é
+    # apresentação, e o backend não duplica lógica de apresentação (padrão do
+    # dia 3). A tela monta o único insight com lastro — parcelamentos — a partir
+    # de `GET /installments/summary`. Ver o registro no CLAUDE.md.
 

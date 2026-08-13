@@ -138,5 +138,6 @@ def test_reports_overview_smoke(client):
     assert [c["name"] for c in data["top_categories"]] == ["Alimentação"]
     assert money(data["top_categories"][0]["value"]) == Decimal("500.00")
 
-    assert isinstance(data["insights"], list)
-    assert all(isinstance(i, str) for i in data["insights"])
+    # `insights` foi removido do contrato em 13/08/2026 — texto pronto é
+    # apresentação. O teste de que o campo não volta vive em `test_reports.py`.
+    assert "insights" not in data

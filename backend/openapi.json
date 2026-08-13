@@ -1565,13 +1565,6 @@
             },
             "type": "array",
             "title": "Top Categories"
-          },
-          "insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Insights"
           }
         },
         "type": "object",
@@ -1580,8 +1573,7 @@
           "total_expenses",
           "average_savings",
           "monthly_comparative",
-          "top_categories",
-          "insights"
+          "top_categories"
         ],
         "title": "ReportSummary"
       },

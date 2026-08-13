@@ -516,6 +516,43 @@ filtro de mês, essas asserções passariam em agosto/2026 e ficariam vermelhas 
 data específica deve derivá-la de `datetime.date.today()`, no padrão que
 `test_dashboard.py::_month_offset` já usava.
 
+### `insights` sai do contrato da API — texto é apresentação
+
+**Decidido em 13/08/2026, antes da implementação.** Mudança de contrato, feita junto da
+integração da tela de Relatórios.
+
+**Por quê.** `ReportSummary.insights: List[str]` devolvia **frases prontas em português**,
+montadas no servidor. Isso contraria o padrão firmado no dia 3 — *o backend expõe dados
+crus e não duplica lógica de apresentação* —, que foi exatamente a regra que tirou o rótulo
+Fixa/Variável/Parcelada do backend e o pôs em `lib/transactions.ts`. Idioma, redação e
+formatação são do front.
+
+**Três defeitos concretos, todos em produção**, encontrados na auditoria:
+
+* **O insight de "Moradia" mentia.** Era condicionado à *presença* da categoria no top 4, não
+  a ela ser a maior. Verificado com Moradia em **último lugar** com R$ 1,00: a API afirmava
+  "Despesas com Moradia representam a maior fatia do seu orçamento".
+* **Formatação em locale errado.** `f"R$ {avg_saving:,.2f}"` produz `R$ 1,915.94` — vírgula
+  de milhar e ponto decimal, formato americano, num app em português.
+* **O `else` era conselho genérico** (*"Mantenha o foco em reduzir gastos variáveis"*), sem
+  dado nenhum por trás.
+
+**Dos 4 insights do mock, só 1 tinha lastro:** o de parcelamentos. Os outros três eram
+decoração — "economia cresceu +18% nos últimos 3 meses" (não existe janela de 3 meses),
+"despesas fixas representam 71%" (é o "Fixas vs Variáveis" já removido do Dashboard) e
+"Alimentação 17% acima da média trimestral" (não existe média trimestral por categoria).
+
+E os textos do mock **nunca tiveram relação** com os que a API devolvia: eram 4 de um lado e
+3 outros do outro, e o front ignorava o campo.
+
+**O que fica.** A tela monta o insight de parcelamentos a partir de
+`GET /api/installments/summary` (`active_count`, `monthly_committed_amount`), em função pura
+testável — mesmo padrão de `formatDelta`. A tela de Relatórios passa a consumir dois
+endpoints.
+
+**Impacto no contrato:** `GET /api/reports/overview` deixa de devolver `insights`. Único
+consumidor era `relatorios.tsx`, que ignorava o campo.
+
 ### `top_categories` do relatório usa a mesma janela do resto do relatório
 
 **Decidido em 13/08/2026, antes da implementação.** Bug em produção, encontrado na

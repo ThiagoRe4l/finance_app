@@ -279,3 +279,47 @@ def test_overview_route_has_no_trailing_slash(client):
     """
     assert client.get("/api/reports/overview", follow_redirects=False).status_code == 200
     assert client.get("/api/reports/overview/", follow_redirects=False).status_code == 307
+
+
+# ---------------------------------------------------------------------------
+# `insights` sai do contrato (13/08/2026)
+# ---------------------------------------------------------------------------
+
+def test_overview_no_longer_returns_insights(client, default_account, default_category):
+    """Texto pronto em português é apresentação, e apresentação é do front.
+
+    Mesmo padrão que tirou o rótulo Fixa/Variável/Parcelada do backend no dia 3.
+    Dos 4 insights do mock só um tinha lastro (parcelamentos), e a tela passa a
+    montá-lo a partir de `GET /installments/summary`.
+    """
+    _tx(client, default_account, default_category["id"], "ENTRADA", "1000.00")
+
+    assert "insights" not in _overview(client)
+
+
+def test_the_moradia_insight_is_gone(client, default_account):
+    """O defeito que motivou a remoção, travado como regressão.
+
+    A frase era condicionada à **presença** de "Moradia" no top 4, não a ela ser
+    a maior. Com Moradia em último lugar com R$ 1,00, a API afirmava que ela era
+    "a maior fatia do seu orçamento".
+    """
+    for nome, valor in [("Alimentação", "5000.00"), ("Moradia", "1.00")]:
+        cat = create_category(client, name=nome, icon_name="Home", color="x")
+        _tx(client, default_account, cat["id"], amount=valor)
+
+    corpo = str(_overview(client))
+
+    assert "maior fatia" not in corpo
+    assert "Moradia representam" not in corpo
+
+
+def test_no_preformatted_currency_text_in_the_payload(client, default_account, default_category):
+    """`f"R$ {avg_saving:,.2f}"` produzia `R$ 1,915.94` — formato americano.
+
+    Nenhum "R$" deve sobrar na resposta: dinheiro sai como string numérica
+    (`"1915.94"`) e quem formata é o `formatBRL` do front.
+    """
+    _tx(client, default_account, default_category["id"], "ENTRADA", "11495.67")
+
+    assert "R$" not in str(_overview(client))

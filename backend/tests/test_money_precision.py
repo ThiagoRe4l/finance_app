@@ -368,17 +368,12 @@ def test_reports_top_categories_are_money_typed(client, default_account, default
     assert money(top[0]["value"]) == Decimal("2100.00")
 
 
-def test_reports_insight_string_still_formats(client, default_account, default_category):
-    """✅ **Já passa hoje.** `f"R$ {avg_saving:,.2f}"` — o `:,.2f` precisa continuar funcionando.
-
-    Funciona em `Decimal`, mas quebra se `avg_saving` virar string em vez de
-    número. É a única formatação de dinheiro que sobrou no backend.
-    """
-    _tx(client, default_account, default_category["id"], "ENTRADA", "1000.00")
-
-    insights = client.get("/api/reports/overview").json()["insights"]
-
-    assert insights[0].startswith("Sua economia média mensal é de R$ ")
+# `test_reports_insight_string_still_formats` foi **removido** em 13/08/2026,
+# não enfraquecido: ele cobria o `f"R$ {avg_saving:,.2f}"` do backend, e essa
+# formatação deixou de existir junto com o campo `insights`. Era, aliás, um dos
+# defeitos que motivaram a remoção — `:,.2f` produz `R$ 1,915.94`, formato
+# americano, num app em português. O locale correto agora é responsabilidade do
+# `formatBRL` no front, coberto em `money.test.ts`.
 
 
 # ---------------------------------------------------------------------------

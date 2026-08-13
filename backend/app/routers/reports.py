@@ -62,18 +62,10 @@ def get_report_overview(db: Session = Depends(get_db)):
         for row in top_cats_query
     ]
     
-    # 4. Insights (Mockados para o protótipo, mas baseados em dados reais se possível)
-    insights = [
-        f"Sua economia média mensal é de R$ {avg_saving:,.2f}.",
-        "Despesas com Moradia representam a maior fatia do seu orçamento." if any(c.name == "Moradia" for c in top_categories) else "Mantenha o foco em reduzir gastos variáveis.",
-        f"Você possui {dash.active_installments_count} parcelamentos ativos."
-    ]
-    
     return schemas.ReportSummary(
         total_revenues=total_in,
         total_expenses=total_out,
         average_savings=avg_saving,
         monthly_comparative=dash.monthly_flow,
-        top_categories=top_categories,
-        insights=insights
+        top_categories=top_categories
     )
