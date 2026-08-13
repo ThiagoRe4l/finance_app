@@ -31,9 +31,13 @@ import assert from "node:assert/strict";
 import {
   Car,
   CircleDashed,
+  CircleDollarSign,
   GraduationCap,
   Home,
+  PiggyBank,
+  TrendingUp,
   UtensilsCrossed,
+  Wallet,
 } from "lucide-react";
 
 import { FALLBACK_ICON, resolveCategoryIcon } from "./category-icons.ts";
@@ -52,6 +56,19 @@ const SEED_ICON_NAMES = [
   "Sofa",
 ];
 
+/**
+ * Vocabulário de dinheiro, acrescentado em 13/08/2026.
+ *
+ * Motivo concreto: a categoria `Receita` do seed vem com `icon_name: "Plus"` e
+ * `color: "oklch(0.94 0.06 155)"` — lightness 0,94, quase branco, contra as
+ * demais entre 0,45 e 0,65. O `color` pinta o traço do ícone **e** o fundo da
+ * caixinha, então um `Plus` de traço fino ficava ilegível.
+ *
+ * As quatro entram juntas porque o custo é o mesmo e elas cobrem o vocabulário
+ * que deve reaparecer em categorias novas de receita/poupança.
+ */
+const MONEY_ICON_NAMES = ["Wallet", "CircleDollarSign", "PiggyBank", "TrendingUp"];
+
 test("resolve os nomes conhecidos para o componente certo", () => {
   assert.equal(resolveCategoryIcon("Home"), Home);
   assert.equal(resolveCategoryIcon("UtensilsCrossed"), UtensilsCrossed);
@@ -69,6 +86,29 @@ test("todos os ícones do seed resolvem sem cair no fallback", () => {
       resolveCategoryIcon(name),
       FALLBACK_ICON,
       `"${name}" está no seed do backend mas não no mapa de ícones`,
+    );
+  }
+});
+
+test("resolve os ícones de dinheiro para o componente certo", () => {
+  assert.equal(resolveCategoryIcon("Wallet"), Wallet);
+  assert.equal(resolveCategoryIcon("CircleDollarSign"), CircleDollarSign);
+  assert.equal(resolveCategoryIcon("PiggyBank"), PiggyBank);
+  assert.equal(resolveCategoryIcon("TrendingUp"), TrendingUp);
+});
+
+test("nenhum ícone de dinheiro cai no fallback", () => {
+  /*
+   * Regressão do modo de falha silencioso: `icon_name` é string livre, então um
+   * `PATCH` para um nome fora do mapa é **aceito pela API** e a tela mostra o
+   * ícone genérico sem nada no console. Este teste é o que garante que um
+   * `PATCH {"icon_name": "Wallet"}` renderiza a carteira, e não o `CircleDashed`.
+   */
+  for (const name of MONEY_ICON_NAMES) {
+    assert.notEqual(
+      resolveCategoryIcon(name),
+      FALLBACK_ICON,
+      `"${name}" foi acrescentado ao vocabulário mas não ao mapa de ícones`,
     );
   }
 });

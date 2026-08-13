@@ -19,15 +19,19 @@
 import {
   Car,
   CircleDashed,
+  CircleDollarSign,
   Gamepad2,
   GraduationCap,
   HeartPulse,
   Home,
   Laptop,
+  PiggyBank,
   Plus,
   ShoppingBag,
   Sofa,
+  TrendingUp,
   UtensilsCrossed,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,8 +41,8 @@ import {
  */
 export const FALLBACK_ICON: LucideIcon = CircleDashed;
 
-/** Os `icon_name` que o seed do backend produz (`app/init_db.py`). */
 const ICONS: Record<string, LucideIcon> = {
+  // Os `icon_name` que o seed do backend produz (`app/init_db.py`).
   Car,
   Gamepad2,
   GraduationCap,
@@ -49,6 +53,15 @@ const ICONS: Record<string, LucideIcon> = {
   ShoppingBag,
   Sofa,
   UtensilsCrossed,
+
+  // Vocabulário de dinheiro (13/08/2026). A categoria `Receita` do seed usava
+  // `Plus` — traço fino — com `color: "oklch(0.94 …)"`, quase branco, que pinta
+  // o ícone e o fundo da caixinha: ilegível. As quatro entram juntas porque
+  // devem reaparecer em categorias novas de receita/poupança.
+  CircleDollarSign,
+  PiggyBank,
+  TrendingUp,
+  Wallet,
 };
 
 export function resolveCategoryIcon(iconName: string): LucideIcon {
