@@ -263,17 +263,34 @@ de dashboard (`CashFlow`, `CategoryBars`, `Transactions`) e como valores literai
 
 > **Manter esta seção atualizada conforme a integração avançar tela por tela.**
 
-**Estado atual: nenhuma tela integrada.** O backend está pronto e alinhado, mas o frontend
-ainda consome 100% de dados mockados. Verificado por busca: **nenhum componente ou rota
-importa `lib/api.ts`** — o cliente HTTP existe mas não tem um único consumidor.
+**Estado atual: as 5 telas integradas em leitura.** Nenhum mock de dado sobrou nas rotas.
+Escrita (criar/editar/excluir) segue fora — os botões "Nova", "Filtrar" e "Exportar"
+continuam inertes, e nenhuma tela tem afordância de edição.
 
-| Tela / Rota | Endpoint correspondente | Status |
+| Tela / Rota | Endpoint(s) | Status |
 |---|---|---|
-| `index.tsx` (Dashboard) | `GET /api/dashboard/summary` | ❌ Mockado |
-| `transacoes.tsx` | `GET/POST /api/transactions` | ❌ Mockado |
-| `categorias.tsx` | `GET/POST /api/categories` | ❌ Mockado |
-| `parcelamentos.tsx` | `GET/POST /api/installments` | ❌ Mockado |
-| `relatorios.tsx` | `GET /api/reports/overview` | ❌ Mockado |
+| `index.tsx` (Dashboard) | `GET /dashboard/summary` | ✅ leitura |
+| `transacoes.tsx` | `GET /transactions/` | ✅ leitura |
+| `categorias.tsx` | `GET /categories/` | ✅ leitura |
+| `parcelamentos.tsx` | `GET /installments/` + `/installments/summary` | ✅ leitura |
+| `relatorios.tsx` | `GET /reports/overview` + `/installments/summary` | ✅ leitura |
+
+**Nenhuma soma monetária sobrou no front.** O último `reduce` sobre valores da API saiu com
+a tela de Relatórios. Todo total exibido vem pronto do servidor — foi a resposta prática
+para a restrição do float registrada em "Dinheiro é `Decimal`".
+
+**Funções puras compartilhadas** (`src/lib/`, todas com teste no runner nativo do Node):
+
+| Módulo | Responsabilidade |
+|---|---|
+| `money.ts` | `parseMoney`/`formatBRL` — ponto único de conversão |
+| `date.ts` | `formatShortDate` — parse manual, `new Date(ISO)` erra o dia em fuso negativo |
+| `transactions.ts` | rótulo Fixa/Variável/Parcelada/Receita + `signedAmount` |
+| `dashboard.ts` | `formatDelta`, `trendFromDelta`, `toDistribution` |
+| `categories.ts` | `categoryProgress` — percentual real × largura clampada |
+| `category-icons.ts` | `icon_name` → componente lucide, com fallback |
+| `installments.ts` | `installmentProgress` — pagas = `current - 1` |
+| `reports.ts` | `buildReportInsights` — decide o que exibir, e se exibe |
 
 > 🚧 **Dinheiro chega como string.** Ver "Design Patterns → Dinheiro é `Decimal`". Os mocks
 > assumem `number`; a conversão está centralizada em `src/lib/money.ts` (`parseMoney` /
