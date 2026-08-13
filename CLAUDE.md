@@ -516,6 +516,32 @@ filtro de mês, essas asserções passariam em agosto/2026 e ficariam vermelhas 
 data específica deve derivá-la de `datetime.date.today()`, no padrão que
 `test_dashboard.py::_month_offset` já usava.
 
+### `top_categories` do relatório usa a mesma janela do resto do relatório
+
+**Decidido em 13/08/2026, antes da implementação.** Bug em produção, encontrado na
+auditoria de `reports.py` durante o mapeamento da tela de Relatórios.
+
+**O defeito.** `get_report_overview` monta `total_revenues`/`total_expenses` somando os 6
+meses de `monthly_flow`, mas `top_cats_query` filtra apenas `type == "SAÍDA"` — **sem
+recorte de data**. As duas metades do mesmo relatório falavam de períodos diferentes.
+
+Verificado: com R$ 9.000 gastos há 13 meses e R$ 850 nos últimos 6,
+`total_expenses` = `"850.00"` e `top_categories[0].value` = `"9050.00"`. A "maior categoria"
+sozinha valendo 10× o total de despesas do período, lado a lado na mesma tela.
+
+É o mesmo defeito de `_aggregated_rows` corrigido em 10/08 — sobreviveu aqui porque
+**`reports.py` nunca teve arquivo de teste próprio**.
+
+**A correção.** `top_cats_query` passa a usar a janela dos últimos 6 meses, a mesma do
+`monthly_flow`, via `periods.trailing_months_bounds(6)`. O recorte volta a ser semiaberto,
+`[primeiro dia de 5 meses atrás, primeiro dia do mês seguinte)`.
+
+**A lacuna estrutural também fecha:** a fatia cria `tests/test_reports.py`. Até aqui a única
+rota de `reports.py` era coberta de raspão por dois testes que moram em outros arquivos.
+
+**Invariante que o teste trava:** a soma de `top_categories` não pode passar de
+`total_expenses`. Com 4 categorias ou menos, é igualdade.
+
 ### Enforcement de foreign key precisa ser ligado explicitamente
 
 O SQLite abre **toda** conexão com `PRAGMA foreign_keys = 0`. Sem isso ligado, os `ondelete`

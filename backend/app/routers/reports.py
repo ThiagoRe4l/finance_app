@@ -8,6 +8,7 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.routers.dashboard import get_dashboard_summary
+from app.periods import trailing_months_bounds
 
 router = APIRouter(
     prefix="/reports",
@@ -33,13 +34,23 @@ def get_report_overview(db: Session = Depends(get_db)):
     # Agrupa pela FK e resolve o nome via join — antes agrupava pela string
     # crua de `Transaction.category`, o que fazia grafias divergentes virarem
     # linhas separadas no relatório.
+    #
+    # ⚠️ O recorte de data é a parte que faltava. Sem ele, `top_categories`
+    # somava o histórico inteiro enquanto os totais acima somavam 6 meses — a
+    # maior categoria chegava a valer 10× o total de despesas do período, lado a
+    # lado na mesma tela. Mesmo defeito de `_aggregated_rows`, corrigido em
+    # 10/08; sobreviveu aqui porque `reports.py` não tinha teste próprio.
+    window_start, window_end = trailing_months_bounds(len(dash.monthly_flow))
+
     top_cats_query = db.query(
         models.Category.name,
         func.sum(models.Transaction.amount).label("total")
     ).join(
         models.Transaction, models.Transaction.category_id == models.Category.id
     ).filter(
-        models.Transaction.type == "SAÍDA"
+        models.Transaction.type == "SAÍDA",
+        models.Transaction.date >= window_start,
+        models.Transaction.date < window_end
     ).group_by(
         models.Category.id
     ).order_by(

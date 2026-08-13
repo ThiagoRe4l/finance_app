@@ -27,3 +27,26 @@ def month_bounds(year: int, month: int) -> tuple[datetime.date, datetime.date]:
 def current_month_bounds() -> tuple[datetime.date, datetime.date]:
     today = datetime.date.today()
     return month_bounds(today.year, today.month)
+
+
+def trailing_months_bounds(months: int) -> tuple[datetime.date, datetime.date]:
+    """Janela semiaberta cobrindo os últimos `months` meses, **incluindo o corrente**.
+
+    `trailing_months_bounds(6)` devolve `[primeiro dia de 5 meses atrás,
+    primeiro dia do mês seguinte)` — exatamente o intervalo que o laço do
+    `monthly_flow` percorre bucket a bucket.
+
+    Existe para o relatório: `total_revenues`/`total_expenses` vinham da soma
+    dos 6 buckets, mas `top_categories` não tinha recorte nenhum, e as duas
+    metades do mesmo relatório falavam de períodos diferentes.
+    """
+    today = datetime.date.today()
+    month = today.month - (months - 1)
+    year = today.year
+    while month <= 0:
+        month += 12
+        year -= 1
+
+    start, _ = month_bounds(year, month)
+    _, end = current_month_bounds()
+    return start, end
