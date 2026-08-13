@@ -25,7 +25,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { formatInstallmentsInsight } from "./reports.ts";
+import { buildReportInsights, formatInstallmentsInsight } from "./reports.ts";
 
 const NBSP = " ";  // espaço não-quebrável — o que o Intl usa
 
@@ -78,4 +78,52 @@ test("formata milhares na convenção pt-BR", () => {
 test("valor monetário inválido falha visível", () => {
   // Propaga o throw de `parseMoney`, como o resto do front.
   assert.throws(() => formatInstallmentsInsight(2, "abc"), /valor monetário/i);
+});
+
+
+// ---------------------------------------------------------------------------
+// buildReportInsights — o que a seção "Insights" mostra, e se mostra
+// ---------------------------------------------------------------------------
+//
+// A decisão de exibir ou esconder a seção precisa morar numa função pura: no
+// componente ela seria JSX, fora do alcance do runner — exatamente onde nasceu
+// o bug do `tone`/`trend` no MetricCard.
+//
+// Hoje a lista tem no máximo um item. Quando outro insight ganhar lastro (o
+// "Fixas vs Variáveis" é o candidato registrado no backlog), ele entra aqui e
+// os testes abaixo continuam descrevendo a regra.
+
+test("devolve o insight de parcelamentos quando há algum ativo", () => {
+  const insights = buildReportInsights({ activeCount: 2, monthlyCommitted: "530.00" });
+
+  assert.equal(insights.length, 1);
+  assert.match(insights[0], /2 parcelamentos ativos/);
+});
+
+test("lista vazia quando nenhum insight tem lastro", () => {
+  /*
+   * Sem parcelamento ativo não sobra nada — os outros três textos do mock eram
+   * decoração e foram removidos. Lista vazia é o sinal para o componente
+   * esconder a seção inteira, em vez de desenhar um card vazio.
+   */
+  assert.deepEqual(buildReportInsights({ activeCount: 0, monthlyCommitted: "0.00" }), []);
+});
+
+test("o singular chega até a lista", () => {
+  const [insight] = buildReportInsights({ activeCount: 1, monthlyCommitted: "450.00" });
+
+  assert.match(insight, /1 parcelamento ativo /);
+});
+
+test("nunca devolve entrada nula ou vazia", () => {
+  /*
+   * O componente vai iterar direto sobre o retorno. Um `null` no meio da lista
+   * renderizaria um item em branco — pior que não ter a seção.
+   */
+  for (const count of [0, 1, 5]) {
+    const insights = buildReportInsights({ activeCount: count, monthlyCommitted: "100.00" });
+    for (const insight of insights) {
+      assert.ok(insight && insight.trim().length > 0, `item vazio com activeCount=${count}`);
+    }
+  }
 });

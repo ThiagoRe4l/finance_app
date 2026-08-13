@@ -43,3 +43,30 @@ export function formatInstallmentsInsight(
   const plural = activeCount === 1 ? "parcelamento ativo" : "parcelamentos ativos";
   return `Você tem ${activeCount} ${plural} comprometendo ${formatBRL(monthlyCommitted)} por mês.`;
 }
+
+
+export interface InstallmentsTotals {
+  activeCount: number;
+  monthlyCommitted: string;
+}
+
+/**
+ * Os insights que a tela exibe — hoje, no máximo um.
+ *
+ * Devolver uma lista (e não um valor único) é o que permite ao componente
+ * esconder a seção inteira com `length === 0`, em vez de desenhar um card
+ * vazio. A decisão de mostrar/esconder fica aqui, em função pura: no JSX ela
+ * ficaria fora do alcance do runner de testes — que foi exatamente onde nasceu
+ * o bug do `tone`/`trend` no `MetricCard`.
+ *
+ * O mock tinha quatro itens; três eram decoração sem dado por trás. Quando o
+ * "Fixas vs Variáveis" ganhar backend (item 0 do backlog), ele entra nesta
+ * lista e nada mais precisa mudar no componente.
+ */
+export function buildReportInsights(totals: InstallmentsTotals): string[] {
+  const insights = [
+    formatInstallmentsInsight(totals.activeCount, totals.monthlyCommitted),
+  ];
+
+  return insights.filter((insight): insight is string => insight !== null);
+}
