@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, CreditCard } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, CreditCard, AlertCircle, RotateCw, CheckCircle2 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+import { formatBRL } from "@/lib/money";
+import {
+  installmentProgress,
+  type Installment,
+  type InstallmentsSummary,
+} from "@/lib/installments";
 
 export const Route = createFileRoute("/parcelamentos")({
   head: () => ({
@@ -13,25 +22,177 @@ export const Route = createFileRoute("/parcelamentos")({
   component: ParcelamentosPage,
 });
 
-const items = [
-  { title: "Notebook Pro", category: "Eletrônicos", total: 5400, installment: 450, current: 2, total_installments: 12, end: "Ago/2026" },
-  { title: "Curso Online", category: "Educação", total: 720, installment: 120, current: 3, total_installments: 6, end: "Jan/2026" },
-  { title: "Sofá Retrátil", category: "Móveis", total: 660, installment: 55, current: 5, total_installments: 12, end: "Mai/2026" },
-];
+// Coleção precisa da barra; `/summary` é rota específica e não pode ter.
+const INSTALLMENTS_ENDPOINT = "/installments/";
+const SUMMARY_ENDPOINT = "/installments/summary";
 
-const formatBRL = (n: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+function ErrorBanner({ message, onRetry, isRetrying }: {
+  message: string;
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Não foi possível carregar os parcelamentos</p>
+          <p className="text-xs text-muted-foreground mt-1">{message}</p>
+        </div>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
+      >
+        <RotateCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+        {isRetrying ? "Tentando..." : "Tentar novamente"}
+      </button>
+    </div>
+  );
+}
+
+function TotalCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function LoadingTotals() {
+  return (
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+          <Skeleton className="h-3 w-32 mb-3" />
+          <Skeleton className="h-7 w-28" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function LoadingCards() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+            </div>
+            <Skeleton className="h-8 w-40" />
+          </div>
+          <Skeleton className="h-1.5 w-full rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InstallmentCard({ installment }: { installment: Installment }) {
+  const progress = installmentProgress(
+    installment.current_installment,
+    installment.total_installments,
+  );
+
+  return (
+    <div
+      className={`bg-card p-6 rounded-2xl border border-border shadow-sm ${
+        progress.isPaidOff ? "opacity-70" : ""
+      }`}
+    >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
+            <CreditCard className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">{installment.title}</p>
+              {/*
+                Quitado ganha marcador em vez de sumir da listagem: cada card é
+                informação discreta, diferente do widget de distribuição do
+                Dashboard, onde a barra zerada não diria nada.
+              */}
+              {progress.isPaidOff && (
+                <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[oklch(0.94_0.06_155)] text-[oklch(0.45_0.15_155)]">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Quitado
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {installment.category.name} · termina em {installment.end_date}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-8">
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Parcela</p>
+            <p className="text-sm font-medium tabular-nums">
+              {formatBRL(installment.installment_amount)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Restante</p>
+            {/* Vem pronto do backend — o front não recalcula. */}
+            <p className="text-sm font-medium tabular-nums">
+              {formatBRL(installment.remaining_amount)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+          <span>
+            Parcela {installment.current_installment} de {installment.total_installments}
+          </span>
+          <span>{progress.percent.toFixed(0)}% pago</span>
+        </div>
+        <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all"
+            style={{ width: `${progress.percent}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ParcelamentosPage() {
-  const monthlyTotal = items.reduce((s, i) => s + i.installment, 0);
-  const remainingTotal = items.reduce((s, i) => s + i.installment * (i.total_installments - i.current + 1), 0);
+  const list = useQuery({
+    queryKey: ["installments"],
+    queryFn: () => api.get<Installment[]>(INSTALLMENTS_ENDPOINT),
+  });
+  const summary = useQuery({
+    queryKey: ["installments", "summary"],
+    queryFn: () => api.get<InstallmentsSummary>(SUMMARY_ENDPOINT),
+  });
+
+  const isPending = list.isPending || summary.isPending;
+  const isError = list.isError || summary.isError;
+  const error = list.error ?? summary.error;
+  const isFetching = list.isFetching || summary.isFetching;
+
+  const retry = () => {
+    list.refetch();
+    summary.refetch();
+  };
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
       <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
         <PageHeader
-          eyebrow="Outubro · 2025"
+          eyebrow="Mês corrente"
           title="Parcelamentos"
           description="Compras parceladas em aberto e impacto mensal no orçamento."
           action={
@@ -41,61 +202,54 @@ function ParcelamentosPage() {
           }
         />
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Comprometido/mês</p>
-            <p className="text-2xl font-semibold tabular-nums">{formatBRL(monthlyTotal)}</p>
-          </div>
-          <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Saldo a pagar</p>
-            <p className="text-2xl font-semibold tabular-nums">{formatBRL(remainingTotal)}</p>
-          </div>
-          <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Parcelamentos ativos</p>
-            <p className="text-2xl font-semibold tabular-nums">{items.length}</p>
-          </div>
-        </section>
+        {isError ? (
+          <ErrorBanner
+            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            onRetry={retry}
+            isRetrying={isFetching}
+          />
+        ) : isPending ? (
+          <>
+            <LoadingTotals />
+            <LoadingCards />
+          </>
+        ) : (
+          <>
+            {/*
+              Os três totais vêm de `GET /installments/summary` — nenhum é
+              somado no cliente. "Comprometido" e "Ativos" excluem quitados; o
+              mock somava a listagem inteira e inflava os dois.
+            */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <TotalCard
+                label="Comprometido/mês"
+                value={formatBRL(summary.data.monthly_committed_amount)}
+              />
+              <TotalCard
+                label="Saldo a pagar"
+                value={formatBRL(summary.data.remaining_total_amount)}
+              />
+              <TotalCard
+                label="Parcelamentos ativos"
+                value={String(summary.data.active_count)}
+              />
+            </section>
 
-        <div className="space-y-4">
-          {items.map((it) => {
-            const percent = (it.current / it.total_installments) * 100;
-            const remaining = it.installment * (it.total_installments - it.current + 1);
-            return (
-              <div key={it.title} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                      <CreditCard className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{it.title}</p>
-                      <p className="text-xs text-muted-foreground">{it.category} · termina em {it.end}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-8">
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Parcela</p>
-                      <p className="text-sm font-medium tabular-nums">{formatBRL(it.installment)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Restante</p>
-                      <p className="text-sm font-medium tabular-nums">{formatBRL(remaining)}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                    <span>Parcela {it.current} de {it.total_installments}</span>
-                    <span>{percent.toFixed(0)}% pago</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
+            {list.data.length === 0 ? (
+              <div className="bg-card rounded-2xl border border-border shadow-sm px-6 py-16 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Nenhum parcelamento cadastrado ainda.
+                </p>
               </div>
-            );
-          })}
-        </div>
+            ) : (
+              <div className="space-y-4">
+                {list.data.map((installment) => (
+                  <InstallmentCard key={installment.id} installment={installment} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </main>
     </div>
   );
