@@ -2,6 +2,8 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Toaster } from "@/components/ui/sonner";
+
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -88,6 +90,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/*
+        Feedback de sucesso das ações de escrita. Fica no root porque toda tela
+        vai precisar — sem ele, um POST bem-sucedido não dá sinal nenhum ao
+        usuário além da lista mudando.
+      */}
+      <Toaster position="top-right" richColors />
       <Outlet />
     </QueryClientProvider>
   );

@@ -309,6 +309,62 @@ para a restrição do float registrada em "Dinheiro é `Decimal`".
 > devolve prontos** (`monthly_committed_amount`, `total_revenues`, `total_expenses`,
 > `average_savings`) em vez de somar no front. Decidir quando chegar lá — não agora.
 
+### ✍️ Escrita pela UI — decisões do dia 6 (14/08/2026)
+
+Os endpoints de escrita existem desde o dia 4 e nunca tiveram consumidor. Esta fase liga os
+botões que estavam inertes desde a geração no Lovable. Ordem: **Categorias primeiro** — é o
+formulário mais simples que cobre criar/editar/excluir inteiro e exercita o 409, virando o
+molde para os outros.
+
+**Validação com `zod` + `react-hook-form`.** Nenhuma dependência nova: `zod ^3.25`,
+`react-hook-form ^7.71`, `@hookform/resolvers`, `date-fns`, `react-day-picker` e os
+componentes `form`/`dialog`/`alert-dialog`/`select`/`calendar` já estavam instalados e
+**nunca foram usados** — o Lovable os trouxe junto do shadcn. O schema fica em função pura,
+testável no runner nativo do Node, e o componente só consome.
+
+**`<Toaster />` montado no `__root.tsx`.** Sem ele, um POST bem-sucedido não dá sinal nenhum
+ao usuário além da lista mudando.
+
+**Parcelamento: não prever trava, tratar o 409 que vier.** O `PATCH` recusa mudança em
+`installment_amount`/`total_installments`/`total_amount` quando há transação lançada, mas a
+API **não expõe** se há. Em vez de adivinhar, o formulário deixa editar livre e transforma o
+409 em mensagem inline nos campos citados no `detail`.
+
+**409 de categoria em uso: mensagem genérica.** `GET /categories/` devolve `txs_count` do
+**mês corrente**, não o total, então a UI não consegue dizer quantas transações bloqueiam.
+Usa o `detail` que o backend já manda; campo novo na API fica para quando incomodar.
+
+#### 🚧 Debt: `account_id` sem seletor
+
+`POST /transactions` e `POST /installments` exigem `account_id`, mas **não existe tela de
+contas** — a `Sidebar` tem 5 itens e nenhum aponta para elas, e só há `POST`/`GET
+/accounts`, sem edição nem exclusão.
+
+Decidido: **os formulários usam a primeira conta de `GET /accounts`**, sem seletor. Funciona
+hoje porque o seed cria exatamente uma ("Conta Principal").
+
+⚠️ **Quebra silenciosamente com duas contas** — os lançamentos iriam todos para a primeira,
+sem o usuário perceber. O gatilho para resolver é a criação da segunda conta, não uma data.
+Resolver significa: tela de contas, seletor no formulário, e provavelmente `PATCH`/`DELETE`
+de conta (hoje inexistentes).
+
+#### ⬜ Fatia futura: `DELETE /api/installments/{id}`
+
+**Não existe.** Verificado no `openapi.json`: parcelamentos têm `POST`, `GET`, `PATCH` e
+`/summary`. O dia 4 entregou só o `PATCH`, conscientemente.
+
+Fora do escopo da fase de escrita. Quando entrar, a decisão pendente é o destino das
+transações vinculadas: o `SET NULL` do `installment_id` já está testado **no banco**
+(`test_fk_cascade.py`), mas nunca virou contrato de API — e a tela precisaria dizer ao
+usuário que os lançamentos sobrevivem sem o vínculo.
+
+#### ⬜ Dívida conhecida: sem paginação
+
+"Buscar" e "Filtrar" em Transações são **client-side**, sobre o array já carregado — a API
+não precisa mudar. Mas `GET /transactions/` devolve tudo, sem `limit`/`offset` em lugar
+nenhum da API. Com centenas de lançamentos a tela carrega todos a cada visita. Não é
+problema hoje; é o gatilho para paginação depois.
+
 ### 🎭 Os mocks são cenografia do Lovable, não especificação
 
 **Registrado em 10/08/2026, ao mapear o Dashboard.** As telas nasceram no Lovable, a partir

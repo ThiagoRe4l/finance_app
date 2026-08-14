@@ -53,3 +53,48 @@ export function formatBRL(value: string | number): string {
 
   return BRL.format(parsed);
 }
+
+
+// Convenção pt-BR: grupos de milhar separados por ponto, vírgula decimal com
+// até 2 casas. O primeiro grupo tem 1–3 dígitos.
+const BR_MONEY = /^(-?)(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/;
+
+/**
+ * Texto digitado pelo usuário → decimal canônico para a API (`"1500.50"`).
+ *
+ * Caminho inverso de `formatBRL`. Devolve `null` em entrada inválida ou vazia —
+ * quem decide o default de campo vazio é o schema do formulário, não o parser:
+ * campo obrigatório em branco tem que virar erro de validação, não R$ 0,00
+ * calado.
+ *
+ * É string de ponta a ponta. Passar por `number` no meio reintroduziria o
+ * ponto flutuante que o backend eliminou.
+ *
+ * ⚠️ **`"1500.50"` é recusado, não interpretado.** Em pt-BR o ponto é milhar,
+ * então lê-lo assim daria `150050` — erro de duas ordens de grandeza, e
+ * silencioso. Mas quem cola de planilha em inglês espera `1500,50`. Como as
+ * duas leituras são plausíveis, a entrada é recusada com mensagem em vez de
+ * virar outro número. `"1.500"` é grupo de milhar válido e passa.
+ */
+export function parseMoneyInput(text: string): string | null {
+  if (typeof text !== "string") {
+    return null;
+  }
+
+  // "R$ 1.500,50" colado de outro lugar é comum demais para recusar.
+  const cleaned = text.replace(/R\$/gi, "").replace(/\s/g, "").trim();
+  if (cleaned === "") {
+    return null;
+  }
+
+  const match = BR_MONEY.exec(cleaned);
+  if (!match) {
+    return null;
+  }
+
+  const [, sign, integerPart, decimalPart = ""] = match;
+  const integer = integerPart.replace(/\./g, "");
+  const cents = decimalPart.padEnd(2, "0");
+
+  return `${sign}${integer}.${cents}`;
+}

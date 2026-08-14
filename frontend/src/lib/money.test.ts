@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { formatBRL, parseMoney } from "./money.ts";
+import { formatBRL, parseMoney, parseMoneyInput } from "./money.ts";
 
 // `Intl` separa símbolo e valor com espaço não-quebrável (U+00A0), não com
 // espaço comum. Escrever o literal direto faria o teste falhar por um caractere
@@ -134,4 +134,78 @@ test("formatBRL rejeita number não finito em vez de exibir 'R$ NaN'", () => {
   assert.throws(() => formatBRL(Number.NaN), /valor monetário/i);
   assert.throws(() => formatBRL(Number.POSITIVE_INFINITY), /valor monetário/i);
   assert.throws(() => formatBRL(Number.NEGATIVE_INFINITY), /valor monetário/i);
+});
+
+
+// ---------------------------------------------------------------------------
+// parseMoneyInput — o que o usuário digita → o que a API recebe
+// ---------------------------------------------------------------------------
+//
+// Caminho inverso de `formatBRL`: o formulário coleta texto em convenção
+// pt-BR e a API espera string decimal canônica (`"1500.50"`). Precisa ser
+// string até o fim — converter para `number` no meio reintroduziria o float
+// que o backend eliminou.
+
+test("aceita número simples", () => {
+  assert.equal(parseMoneyInput("1500"), "1500.00");
+  assert.equal(parseMoneyInput("0"), "0.00");
+});
+
+test("vírgula é o separador decimal", () => {
+  assert.equal(parseMoneyInput("1500,5"), "1500.50");
+  assert.equal(parseMoneyInput("1500,50"), "1500.50");
+  assert.equal(parseMoneyInput("0,01"), "0.01");
+});
+
+test("ponto é separador de milhar", () => {
+  assert.equal(parseMoneyInput("1.500"), "1500.00");
+  assert.equal(parseMoneyInput("1.500,50"), "1500.50");
+  assert.equal(parseMoneyInput("1.234.567,89"), "1234567.89");
+});
+
+test("ignora espaços e o símbolo da moeda", () => {
+  // Colar "R$ 1.500,50" de outro lugar é comum demais para recusar.
+  assert.equal(parseMoneyInput("  R$ 1.500,50 "), "1500.50");
+});
+
+test("⚠️ recusa ponto como decimal em vez de adivinhar", () => {
+  /*
+   * `"1500.50"` é ambíguo: em pt-BR o ponto é milhar, mas quem cola de uma
+   * planilha em inglês espera 1500,50. Interpretar como milhar daria
+   * **150050** — erro de duas ordens de grandeza, silencioso.
+   *
+   * `1.500` é grupo de milhar válido (3 dígitos) e passa; `1500.50` não é
+   * agrupamento válido e é recusado com mensagem, em vez de virar outro
+   * número. Decisão minha na escrita do teste — se preferir aceitar as duas
+   * convenções, este é o teste que muda.
+   */
+  assert.equal(parseMoneyInput("1500.50"), null);
+  assert.equal(parseMoneyInput("1.50"), null);
+});
+
+test("entrada vazia devolve null, não zero", () => {
+  // Quem decide o default é o schema do formulário, não o parser: campo
+  // obrigatório vazio tem que virar erro de validação, não R$ 0,00 calado.
+  assert.equal(parseMoneyInput(""), null);
+  assert.equal(parseMoneyInput("   "), null);
+});
+
+test("recusa texto que não é número", () => {
+  assert.equal(parseMoneyInput("abc"), null);
+  assert.equal(parseMoneyInput("1500,"), null);
+  assert.equal(parseMoneyInput("1500,123"), null);  // mais de 2 casas
+  assert.equal(parseMoneyInput("--5"), null);
+});
+
+test("aceita negativo — quem proíbe é o schema do campo", () => {
+  /*
+   * `budget` não pode ser negativo e `amount` tem `gt=0` no backend, mas isso
+   * é regra de cada campo. O parser converte; a validação é do zod.
+   */
+  assert.equal(parseMoneyInput("-1.500,50"), "-1500.50");
+});
+
+test("o resultado alimenta parseMoney sem perda", () => {
+  // Fecha o ciclo: o que sai daqui é exatamente o que a API devolveria.
+  assert.equal(parseMoney(parseMoneyInput("1.234.567,89")!), 1234567.89);
 });

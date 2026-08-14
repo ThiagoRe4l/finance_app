@@ -64,6 +64,18 @@ const ICONS: Record<string, LucideIcon> = {
   Wallet,
 };
 
+/**
+ * Nomes suportados, para o seletor do formulário e para o schema.
+ *
+ * Deriva do próprio mapa: acrescentar um ícone acima o torna selecionável e
+ * válido sem tocar em mais nada.
+ */
+export const CATEGORY_ICON_NAMES = Object.keys(ICONS);
+
+export function isKnownCategoryIcon(iconName: string): boolean {
+  return typeof iconName === "string" && iconName in ICONS;
+}
+
 export function resolveCategoryIcon(iconName: string): LucideIcon {
   if (typeof iconName !== "string" || iconName === "") {
     return FALLBACK_ICON;
