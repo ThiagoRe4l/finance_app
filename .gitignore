@@ -16,6 +16,7 @@ htmlcov/
 node_modules/
 dist/
 .eslintcache
+.tanstack/
 
 # Environment variables
 .env
