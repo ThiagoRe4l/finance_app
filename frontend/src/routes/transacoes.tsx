@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Filter, Search, AlertCircle, RotateCw } from "lucide-react";
+import { useState } from "react";
+import { Plus, Search, AlertCircle, RotateCw, Pencil, Trash2 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,8 @@ import {
   type Transaction,
   type TransactionLabel,
 } from "@/lib/transactions";
+import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
+import { DeleteTransactionDialog } from "@/components/transactions/DeleteTransactionDialog";
 
 export const Route = createFileRoute("/transacoes")({
   head: () => ({
@@ -44,7 +47,8 @@ function TableHeader() {
       <div className="col-span-4">Descrição</div>
       <div className="col-span-2">Categoria</div>
       <div className="col-span-2">Tipo</div>
-      <div className="col-span-3 text-right">Valor</div>
+      <div className="col-span-2 text-right">Valor</div>
+      <div className="col-span-1" />
     </div>
   );
 }
@@ -58,9 +62,10 @@ function LoadingRows() {
           <Skeleton className="col-span-4 h-4 w-40" />
           <Skeleton className="col-span-2 h-4 w-24" />
           <Skeleton className="col-span-2 h-5 w-20 rounded-full" />
-          <div className="col-span-3 flex justify-end">
+          <div className="col-span-2 flex justify-end">
             <Skeleton className="h-4 w-24" />
           </div>
+          <div className="col-span-1" />
         </div>
       ))}
     </>
@@ -93,21 +98,29 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
   );
 }
 
-function EmptyState() {
+function EmptyState({ hasSearch }: { hasSearch: boolean }) {
   return (
     <div className="px-6 py-16 text-center">
-      <p className="text-sm text-muted-foreground">Nenhuma transação registrada ainda.</p>
+      <p className="text-sm text-muted-foreground">
+        {hasSearch
+          ? "Nenhuma transação corresponde à busca."
+          : "Nenhuma transação registrada ainda."}
+      </p>
     </div>
   );
 }
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({ transaction, onEdit, onDelete }: {
+  transaction: Transaction;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const { label, meta } = deriveTransactionLabel(transaction);
   const amount = signedAmount(transaction);
   const isIncome = amount > 0;
 
   return (
-    <div className={`${COLUMNS} hover:bg-secondary/40 transition-colors`}>
+    <div className={`group ${COLUMNS} hover:bg-secondary/40 transition-colors`}>
       <div className="col-span-1 text-sm text-muted-foreground tabular-nums">
         {formatShortDate(transaction.date)}
       </div>
@@ -119,22 +132,63 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
         </span>
       </div>
       <div
-        className={`col-span-3 text-right text-sm font-medium tabular-nums ${
+        className={`col-span-2 text-right text-sm font-medium tabular-nums ${
           isIncome ? "text-[oklch(0.55_0.15_155)]" : "text-foreground"
         }`}
       >
         {isIncome ? "+" : ""}
         {formatBRL(amount)}
       </div>
+      {/*
+        Coluna própria, ao contrário dos cards de Categorias: numa tabela há
+        onde pôr os controles sem sobrepor conteúdo. Continuam no hover para
+        não poluir a leitura, com `focus-within` para o teclado.
+      */}
+      <div className="col-span-1 flex justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Editar ${transaction.title}`}
+          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={`Excluir ${transaction.title}`}
+          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
 
 function TransacoesPage() {
+  const [isCreating, setIsCreating] = useState(false);
+  const [editing, setEditing] = useState<Transaction | undefined>();
+  const [deleting, setDeleting] = useState<Transaction | undefined>();
+  const [search, setSearch] = useState("");
+
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["transactions"],
     queryFn: () => api.get<Transaction[]>(TRANSACTIONS_ENDPOINT),
   });
+
+  /*
+   * Busca client-side sobre o que já foi carregado: `GET /transactions/`
+   * devolve tudo, sem paginação, então filtrar aqui não custa round-trip.
+   * ⚠️ Vira dívida com volume — ver "sem paginação" no CLAUDE.md.
+   */
+  const term = search.trim().toLowerCase();
+  const visible = (data ?? []).filter(
+    (t) =>
+      term === "" ||
+      t.title.toLowerCase().includes(term) ||
+      t.category.name.toLowerCase().includes(term),
+  );
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -145,14 +199,12 @@ function TransacoesPage() {
           title="Transações"
           description="Histórico completo de entradas e saídas."
           action={
-            <>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-                <Filter className="h-4 w-4" /> Filtrar
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
-                <Plus className="h-4 w-4" /> Nova
-              </button>
-            </>
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" /> Nova
+            </button>
           }
         />
 
@@ -160,7 +212,9 @@ function TransacoesPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar transação..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por descrição ou categoria..."
             className="w-full md:w-96 pl-10 pr-4 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -176,15 +230,32 @@ function TransacoesPage() {
             <TableHeader />
             {isPending ? (
               <LoadingRows />
-            ) : data.length === 0 ? (
-              <EmptyState />
+            ) : visible.length === 0 ? (
+              <EmptyState hasSearch={search.trim() !== ""} />
             ) : (
-              data.map((transaction) => (
-                <TransactionRow key={transaction.id} transaction={transaction} />
+              visible.map((transaction) => (
+                <TransactionRow
+                  key={transaction.id}
+                  transaction={transaction}
+                  onEdit={() => setEditing(transaction)}
+                  onDelete={() => setDeleting(transaction)}
+                />
               ))
             )}
           </div>
         )}
+
+        <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+        <TransactionFormDialog
+          key={editing?.id}
+          open={editing !== undefined}
+          onOpenChange={(open) => !open && setEditing(undefined)}
+          transaction={editing}
+        />
+        <DeleteTransactionDialog
+          transaction={deleting}
+          onOpenChange={(open) => !open && setDeleting(undefined)}
+        />
       </main>
     </div>
   );
