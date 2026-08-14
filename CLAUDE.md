@@ -264,8 +264,18 @@ de dashboard (`CashFlow`, `CategoryBars`, `Transactions`) e como valores literai
 > **Manter esta seção atualizada conforme a integração avançar tela por tela.**
 
 **Estado atual: as 5 telas integradas em leitura.** Nenhum mock de dado sobrou nas rotas.
-Escrita (criar/editar/excluir) segue fora — os botões "Nova", "Filtrar" e "Exportar"
-continuam inertes, e nenhuma tela tem afordância de edição.
+**Escrita ligada nas três telas que têm endpoint** (14/08/2026). Detalhes e decisões em
+"✍️ Escrita pela UI" abaixo.
+
+| Tela | Criar | Editar | Excluir | Ação própria |
+|---|---|---|---|---|
+| `categorias.tsx` | ✅ | ✅ | ✅ (409 em uso) | — |
+| `transacoes.tsx` | ✅ | ✅ | ✅ (estorna saldo) | busca client-side |
+| `parcelamentos.tsx` | ✅ | ✅ (409 inline) | ❌ sem endpoint | avançar parcela |
+
+O que segue inerte: "Exportar" em Relatórios (sem endpoint) e "Buscar" no Dashboard. O botão
+"Filtrar" de Transações foi **removido** — a busca client-side cobre descrição e categoria,
+e um botão inerte ao lado de um campo que funciona é pior que não tê-lo.
 
 | Tela / Rota | Endpoint(s) | Status |
 |---|---|---|
