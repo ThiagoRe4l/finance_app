@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, AlertCircle, RotateCw } from "lucide-react";
+import { Plus, AlertCircle, RotateCw } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryBars } from "@/components/dashboard/CategoryBars";
@@ -11,6 +12,7 @@ import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import { formatDelta, trendFromDelta, type CategorySummary } from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
+import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -182,6 +184,8 @@ function Summary({ data }: { data: DashboardSummary }) {
 }
 
 function Index() {
+  const [isCreating, setIsCreating] = useState(false);
+
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => api.get<DashboardSummary>(SUMMARY_ENDPOINT),
@@ -193,16 +197,19 @@ function Index() {
       <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
         <Header
           action={
-            <>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-                <Search className="h-4 w-4" />
-                Buscar
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
-                <Plus className="h-4 w-4" />
-                Nova transação
-              </button>
-            </>
+            /*
+              "Buscar" removido: era botão sem campo e sem estado, e o Dashboard
+              não tem lista para filtrar — são agregados e 7 transações
+              recentes. Mesma lógica do "Filtrar" de Transações: inerte ao lado
+              de ações que funcionam é pior que ausente.
+            */
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Plus className="h-4 w-4" />
+              Nova transação
+            </button>
           }
         />
 
@@ -217,6 +224,9 @@ function Index() {
         ) : (
           <Summary data={data} />
         )}
+
+        {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
+        <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
       </main>
     </div>
   );

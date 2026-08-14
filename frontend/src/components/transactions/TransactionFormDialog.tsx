@@ -124,8 +124,19 @@ export function TransactionFormDialog({
         ? api.patch(`/transactions/${transaction!.id}`, payload)
         : api.post("/transactions/", payload),
     onSuccess: () => {
-      // Transação move saldo e agregados: dashboard, categorias e a própria
-      // listagem ficariam desatualizados.
+      /*
+       * Transação move saldo e agregados: dashboard, categorias e a própria
+       * listagem ficariam desatualizados.
+       *
+       * ⚠️ `["installments"]` fica **de fora de propósito**: nenhuma operação de
+       * transação escreve em dado de parcelamento hoje. `create_transaction` só
+       * *valida* o `installment_id`; `remaining_amount` deriva de
+       * `installment_amount × parcelas restantes`, e avançar a parcela é ação
+       * separada, na tela de Parcelamentos.
+       *
+       * Se um dia criar a transação passar a avançar `current_installment` — ou
+       * qualquer outro efeito no parcelamento —, esta lista precisa da chave.
+       */
       for (const key of [["transactions"], ["dashboard"], ["categories"], ["reports"]]) {
         queryClient.invalidateQueries({ queryKey: key });
       }

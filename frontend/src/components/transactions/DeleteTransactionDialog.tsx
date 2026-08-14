@@ -36,6 +36,9 @@ export function DeleteTransactionDialog({
   const mutation = useMutation({
     mutationFn: () => api.delete(`/transactions/${transaction!.id}`),
     onSuccess: () => {
+      // `["installments"]` fora pelo mesmo motivo do formulário: excluir uma
+      // transação vinculada não altera o parcelamento — o `SET NULL` é do lado
+      // da transação.
       for (const key of [["transactions"], ["dashboard"], ["categories"], ["reports"]]) {
         queryClient.invalidateQueries({ queryKey: key });
       }
