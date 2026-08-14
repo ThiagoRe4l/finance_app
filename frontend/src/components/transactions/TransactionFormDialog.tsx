@@ -27,13 +27,12 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import { formatFullDate, parseISODate, toISODate } from "@/lib/date";
-import { resolveCategoryIcon } from "@/lib/category-icons";
+import { CategorySelect } from "@/components/shared/CategorySelect";
 import {
   transactionCreateSchema,
   transactionEditSchema,
   type TransactionFormInput,
 } from "@/lib/transaction-form";
-import type { CategorySummary } from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
 import { installmentProgress, type Installment } from "@/lib/installments";
 
@@ -81,12 +80,6 @@ export function TransactionFormDialog({
   const [values, setValues] = useState<TransactionFormInput>(emptyValues);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [unlink, setUnlink] = useState(false);
-
-  const categories = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => api.get<CategorySummary[]>("/categories/"),
-    enabled: open,
-  });
 
   /*
    * ⚠️ Debt registrada no CLAUDE.md: `account_id` é obrigatório no POST, mas não
@@ -277,28 +270,11 @@ export function TransactionFormDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="tx-category">Categoria</Label>
-              <Select
+              <CategorySelect
+                id="tx-category"
                 value={values.category_id}
                 onValueChange={(v) => update("category_id", v)}
-                disabled={categories.isPending}
-              >
-                <SelectTrigger id="tx-category">
-                  <SelectValue placeholder={categories.isPending ? "Carregando..." : "Selecione"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(categories.data ?? []).map((category) => {
-                    const Icon = resolveCategoryIcon(category.icon_name);
-                    return (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-4 w-4" style={{ color: category.color }} />
-                          {category.name}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              />
               {errors.category_id && (
                 <p className="text-xs text-destructive">{errors.category_id}</p>
               )}

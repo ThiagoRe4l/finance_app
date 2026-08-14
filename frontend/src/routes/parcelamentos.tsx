@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, CreditCard, AlertCircle, RotateCw, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, CreditCard, AlertCircle, RotateCw, CheckCircle2, Pencil, ChevronRight, Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +13,7 @@ import {
   type Installment,
   type InstallmentsSummary,
 } from "@/lib/installments";
+import { InstallmentFormDialog } from "@/components/installments/InstallmentFormDialog";
 
 export const Route = createFileRoute("/parcelamentos")({
   head: () => ({
@@ -96,11 +99,35 @@ function LoadingCards() {
   );
 }
 
-function InstallmentCard({ installment }: { installment: Installment }) {
+function InstallmentCard({ installment, onEdit }: {
+  installment: Installment;
+  onEdit: () => void;
+}) {
+  const queryClient = useQueryClient();
   const progress = installmentProgress(
     installment.current_installment,
     installment.total_installments,
   );
+
+  /*
+   * Avançar parcela é ação própria, fora do formulário: é a mais frequente da
+   * tela (uma por mês, por parcelamento) e a única que **nunca** dá 409 —
+   * `current_installment` não está na lista travada pela D15. Abrir um
+   * formulário de 7 campos para mudar um número seria atrito desproporcional.
+   */
+  const advance = useMutation({
+    mutationFn: () =>
+      api.patch(`/installments/${installment.id}`, {
+        current_installment: installment.current_installment + 1,
+      }),
+    onSuccess: () => {
+      for (const key of [["installments"], ["dashboard"], ["reports"]]) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
+      toast.success(`${installment.title}: parcela avançada.`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div
@@ -147,6 +174,38 @@ function InstallmentCard({ installment }: { installment: Installment }) {
               {formatBRL(installment.remaining_amount)}
             </p>
           </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={`Editar ${installment.title}`}
+              className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            {/*
+              Some quando quitado: um parcelamento encerrado não deveria
+              oferecer avançar mais. O backend aceitaria (13 -> 14 é estado
+              válido pela D13), mas não há sentido de negócio.
+            */}
+            {!progress.isPaidOff && (
+              <button
+                type="button"
+                onClick={() => advance.mutate()}
+                disabled={advance.isPending}
+                aria-label={`Avançar parcela de ${installment.title}`}
+                title="Avançar parcela"
+                className="flex items-center gap-1 h-8 px-3 rounded-md border border-border text-xs hover:bg-secondary transition-colors disabled:opacity-60"
+              >
+                {advance.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                )}
+                Avançar
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <div className="space-y-2">
@@ -168,6 +227,9 @@ function InstallmentCard({ installment }: { installment: Installment }) {
 }
 
 function ParcelamentosPage() {
+  const [isCreating, setIsCreating] = useState(false);
+  const [editing, setEditing] = useState<Installment | undefined>();
+
   const list = useQuery({
     queryKey: ["installments"],
     queryFn: () => api.get<Installment[]>(INSTALLMENTS_ENDPOINT),
@@ -196,7 +258,10 @@ function ParcelamentosPage() {
           title="Parcelamentos"
           description="Compras parceladas em aberto e impacto mensal no orçamento."
           action={
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            >
               <Plus className="h-4 w-4" /> Novo parcelamento
             </button>
           }
@@ -244,12 +309,24 @@ function ParcelamentosPage() {
             ) : (
               <div className="space-y-4">
                 {list.data.map((installment) => (
-                  <InstallmentCard key={installment.id} installment={installment} />
+                  <InstallmentCard
+                    key={installment.id}
+                    installment={installment}
+                    onEdit={() => setEditing(installment)}
+                  />
                 ))}
               </div>
             )}
           </>
         )}
+
+        <InstallmentFormDialog open={isCreating} onOpenChange={setIsCreating} />
+        <InstallmentFormDialog
+          key={editing?.id}
+          open={editing !== undefined}
+          onOpenChange={(open) => !open && setEditing(undefined)}
+          installment={editing}
+        />
       </main>
     </div>
   );

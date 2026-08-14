@@ -334,6 +334,42 @@ API **não expõe** se há. Em vez de adivinhar, o formulário deixa editar livr
 **mês corrente**, não o total, então a UI não consegue dizer quantas transações bloqueiam.
 Usa o `detail` que o backend já manda; campo novo na API fica para quando incomodar.
 
+#### Parcelamentos: dois acoplamentos textuais assumidos (14/08/2026)
+
+**`end_date` é rótulo, não data.** `String(20)` livre no backend, sem validação; o seed usa
+`"Ago/2026"`. O formulário usa um seletor mês/ano e **gera** a string nesse formato.
+
+⚠️ **O front assume `"Mmm/AAAA"` e o backend não garante.** Um parcelamento criado por outro
+caminho (script, `curl`, seed futuro) pode trazer qualquer coisa em `end_date`, e o seletor
+não vai conseguir preencher na edição — cai num default. As abreviações vêm da mesma lista
+de `dashboard.py` (`Jan`…`Dez`), duplicada no front porque não há endpoint que a exponha.
+
+**O 409 do `PATCH` é parseado pelo texto.** O `detail` traz os campos travados ordenados e
+separados por vírgula:
+
+```
+"Parcelamento já possui transações lançadas:
+ installment_amount, total_amount, total_installments não pode(m) mais ser alterado(s)."
+```
+
+A UI extrai os nomes por regex para pintar cada campo. **Reformular a frase no backend
+quebra o parse em silêncio** — os campos deixam de ser destacados. Mitigação: a função de
+extração tem teste próprio e devolve lista vazia quando não casa, caindo no toast genérico
+com a mensagem íntegra. Aceito como acoplamento conhecido; a alternativa seria o backend
+devolver os campos em lista estruturada, que é mudança de contrato sem consumidor pedindo.
+
+**`total_amount` é derivado no formulário.** `installment_amount` e `total_installments` são
+editáveis; o total é calculado e somente-leitura. Os três são redundantes e o backend **não
+valida coerência** — nada impede "12 × R$ 500" com total de R$ 9.000, e a tela calcula
+"Saldo a pagar" a partir dos dois primeiros, então a incoerência apareceria direto na UI.
+
+A multiplicação usa **centavos inteiros**, não `number`: `450.00 × 12` em ponto flutuante é
+o mesmo risco que o backend eliminou com `Decimal`.
+
+**Avançar parcela é botão dedicado no card**, não campo do formulário. É a ação mais
+frequente da tela (uma vez por mês, por parcelamento), e a única que **nunca** dá 409 —
+`current_installment` não está na lista travada. Some quando o parcelamento está quitado.
+
 #### 🚧 Debt: `account_id` sem seletor
 
 `POST /transactions` e `POST /installments` exigem `account_id`, mas **não existe tela de
