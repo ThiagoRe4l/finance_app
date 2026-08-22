@@ -41,14 +41,12 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
                 detail="Parcelamento não encontrado."
             )
 
-    # 4. Verifica o tipo da transação e atualiza o saldo
-    # Todas as FKs já foram validadas acima — mutar saldo antes disso deixaria
-    # `current_balance` corrompido quando um ID inválido derrubasse a requisição.
-    if transaction.type == "SAÍDA":
-        account.current_balance -= transaction.amount
-    elif transaction.type == "ENTRADA":
-        account.current_balance += transaction.amount
-    else:
+    # 4. Verifica o tipo da transação
+    #
+    # O saldo **não** é tocado aqui: ele é derivado do ledger na leitura
+    # (`app/account_balance.py`). A ordem "valide as FKs antes de mutar saldo"
+    # perdeu o objeto — não há mais saldo a corromper no meio da requisição.
+    if transaction.type not in ("ENTRADA", "SAÍDA"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tipo de transação inválido. Deve ser 'ENTRADA' ou 'SAÍDA'."
@@ -81,29 +79,18 @@ def list_transactions(db: Session = Depends(get_db)):
     ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()
 
 
-def _apply_to_balance(account: models.Account, tx_type: str, amount: float, sign: int):
-    """Aplica (`sign=1`) ou estorna (`sign=-1`) o efeito de uma transação.
-
-    Centralizar isso é o que garante que estorno e reaplicação sejam exatamente
-    simétricos. Duplicar os dois sinais à mão é como o saldo passa a derrapar:
-    basta um dos lados esquecer o caso ENTRADA.
-    """
-    delta = amount if tx_type == "ENTRADA" else -amount
-    account.current_balance += sign * delta
-
-
 @router.patch("/{transaction_id}", response_model=schemas.TransactionResponse)
 def update_transaction(
     transaction_id: int,
     payload: schemas.TransactionUpdate,
     db: Session = Depends(get_db)
 ):
-    """Edição parcial. Estorna o efeito antigo no saldo e aplica o novo.
+    """Edição parcial.
 
-    A ordem aqui não é estética: **toda** validação acontece antes de encostar
-    em `current_balance`, mesma regra do `create_transaction`. Um 400 ou 404
-    depois do estorno deixaria o saldo corrompido sem nenhum registro de que
-    algo mudou.
+    Não há estorno nem reaplicação de saldo: com o saldo derivado do ledger, a
+    próxima leitura simplesmente recalcula. O `_apply_to_balance` que existia
+    aqui — e a regra de ordenar as validações antes de encostar no saldo —
+    perderam o objeto junto com a coluna.
     """
     transaction = db.query(models.Transaction).filter(
         models.Transaction.id == transaction_id
@@ -160,14 +147,9 @@ def update_transaction(
             detail="Uma transação não pode ser fixa e parcelada ao mesmo tempo."
         )
 
-    # --- 2. Saldo: estorna o efeito antigo, aplica os campos, refaz o efeito ---
-    account = transaction.account
-    _apply_to_balance(account, transaction.type, transaction.amount, sign=-1)
-
+    # --- 2. Aplica os campos ---
     for field, value in data.items():
         setattr(transaction, field, value)
-
-    _apply_to_balance(account, transaction.type, transaction.amount, sign=1)
 
     db.commit()
     db.refresh(transaction)
@@ -177,7 +159,10 @@ def update_transaction(
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
-    """Exclui a transação e estorna seu efeito no saldo da conta."""
+    """Exclui a transação.
+
+    Sem estorno de saldo: a linha some do ledger e o saldo derivado acompanha.
+    """
     transaction = db.query(models.Transaction).filter(
         models.Transaction.id == transaction_id
     ).first()
@@ -186,10 +171,6 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transação não encontrada."
         )
-
-    _apply_to_balance(
-        transaction.account, transaction.type, transaction.amount, sign=-1
-    )
 
     db.delete(transaction)
     db.commit()

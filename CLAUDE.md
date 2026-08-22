@@ -558,6 +558,61 @@ Pontos que os testes travam (`test_category_fk.py`):
 > A agregação por FK substituiu um loop que rodava duas queries por categoria. Se precisar
 > mexer, é um `GROUP BY` com `CASE` — não volte para o loop.
 
+### Saldo é derivado do ledger, não armazenado
+
+**Decidido em 15/08/2026, implementado em 22/08/2026.** Fecha o item 1 dos "Candidatos ao dia 5".
+
+`Account.current_balance` era coluna mutável, e cada caminho de escrita precisava lembrar
+de ajustá-la. Eram **três** (`POST`, `PATCH`, `DELETE` de transação), todos cobertos por
+teste — mas a proteção era por disciplina, não por construção.
+
+**O que decidiu a mudança:** qualquer escrita que não passe pelos routers deixa o saldo
+obsoleto — seed, script de importação, migração, SQL cru. Dois testes provam isso
+(`test_derived_balance.py`), falhando contra o mecanismo armazenado.
+
+⚠️ **Correção de um argumento usado ao decidir.** O mapeamento afirmou que o `ON DELETE
+CASCADE` já provava a divergência. **Não provava.** O CASCADE de `Transaction.account_id`
+dispara ao apagar a *conta*, então conta e transações somem juntas e não sobra saldo
+obsoleto. O teste de CASCADE passa antes e depois da mudança — é regressão, não motivação.
+O argumento verdadeiro é sobre caminhos externos ou futuros, não sobre defeito já presente.
+
+**A coluna foi removida**, não mantida como campo morto: campo que ninguém mais atualiza é
+campo que alguém preenche errado. `AccountResponse.current_balance` passa a ser **campo
+derivado** — exceção declarada ao padrão de serialização direta do ORM, mesma natureza de
+`spent`/`txs_count` em `categories.py`.
+
+Fórmula: `initial_balance + SUM(ENTRADA) − SUM(SAÍDA)`, sem recorte de data — saldo é
+acumulado por definição, ao contrário de `spent`, que é do mês.
+
+`_apply_to_balance` e as três escritas **sumiram**. O `PATCH` deixou de precisar estornar e
+reaplicar; o `DELETE`, de estornar. A ordem "valide as FKs antes de mutar saldo" perdeu o
+objeto — não há mais saldo a corromper no meio de uma requisição.
+
+`dashboard.total_balance` passa de `SUM(current_balance)` para
+`SUM(initial_balance) + SUM(ENTRADA) − SUM(SAÍDA)`.
+
+**`app/account_balance.py` centraliza a regra**, no mesmo espírito de `periods.py` e
+`installment_metrics.py`. São dois consumidores — `GET /accounts` e o `total_balance` do
+dashboard — e o que se compartilha é o `CASE` de sinal (`ledger_delta()`), a parte que
+inverteria de um lado só e faria a mesma métrica ter dois valores no mesmo app. As duas
+agregações continuam independentes (uma agrupa por conta, a outra é global);
+`test_total_balance_matches_the_sum_of_the_accounts` é o que trava a igualdade entre elas.
+
+⚠️ **O `outerjoin` de `accounts_with_balance` não é estético** — é o mesmo motivo do OUTER
+em `_aggregated_rows`: com `INNER JOIN`, conta sem transação nenhuma sumiria da listagem. O
+`coalesce(..., Decimal("0.00"))` é o par disso, senão o saldo dela viria `null` no JSON em
+vez do saldo inicial.
+
+`POST /accounts` responde pela **mesma** agregação, não por `initial_balance` direto. Conta
+recém-criada não tem transação e os dois valores coincidem hoje — repetir a fórmula é
+exatamente como os dois endpoints começariam a divergir depois.
+
+**Custo de leitura.** `GET /accounts` vira `LEFT JOIN` + `GROUP BY` em vez de `SELECT` de
+coluna. A agregação cresce com o **total histórico de transações**, não com o número de
+contas — 5 anos de uso pessoal são ~5.000 linhas, triviais com o índice de `account_id` que
+a FK já cria. O ponto de virada realista exigiria dezenas de milhares de lançamentos **e**
+`/accounts` sendo chamado com frequência; hoje é uma vez por formulário aberto.
+
 ### Dinheiro é `Decimal`, nunca `float`
 
 **Decidido e implementado em 08/08/2026.** As 8 colunas monetárias usam o alias `MONEY =
@@ -923,7 +978,6 @@ decisão registrada, teste vermelho, implementação.
 | Bloco "Fixas vs Variáveis" do Dashboard | aqui, item 0 |
 | Mecanismo contra teste dependente de data | aqui, item 0.1 |
 | Vitest para teste de componente | "Testes do frontend: runner nativo do Node" |
-| Saldo derivado do ledger | "Candidatos ao dia 5", item 1 |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -972,7 +1026,10 @@ comportamento atual está correto. Ambas tratam de *exposição a risco futuro*.
 Quem for implementar qualquer uma precisa passar pelo processo normal — decisão registrada
 primeiro, depois teste vermelho, depois código.
 
-### 1. `current_balance` armazenado vs. saldo derivado do ledger
+### 1. ✅ `current_balance` armazenado vs. saldo derivado do ledger — **resolvido em 22/08/2026**
+
+> Implementado. O registro abaixo fica como histórico da observação; o contrato em vigor
+> está em "🧩 Design Patterns → Saldo é derivado do ledger, não armazenado".
 
 **Observação.** `Account.current_balance` é campo mutável gravado no banco, e cada caminho
 de escrita precisa lembrar de ajustá-lo. Até o dia 4.1 havia **um** (`create_transaction`);

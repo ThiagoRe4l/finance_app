@@ -12,6 +12,7 @@
           "Accounts"
         ],
         "summary": "List Accounts",
+        "description": "Contas com o saldo calculado na leitura.\n\nCusto: `LEFT JOIN` + `GROUP BY` em vez de um `SELECT` de coluna. A agregação\ncresce com o total histórico de transações, não com o número de contas —\nirrelevante na ordem de grandeza de finanças pessoais, e o índice de\n`account_id` que a FK já cria cobre o join.",
         "operationId": "list_accounts_api_accounts__get",
         "responses": {
           "200": {
@@ -140,7 +141,7 @@
           "Transactions"
         ],
         "summary": "Update Transaction",
-        "description": "Edição parcial. Estorna o efeito antigo no saldo e aplica o novo.\n\nA ordem aqui não é estética: **toda** validação acontece antes de encostar\nem `current_balance`, mesma regra do `create_transaction`. Um 400 ou 404\ndepois do estorno deixaria o saldo corrompido sem nenhum registro de que\nalgo mudou.",
+        "description": "Edição parcial.\n\nNão há estorno nem reaplicação de saldo: com o saldo derivado do ledger, a\npróxima leitura simplesmente recalcula. O `_apply_to_balance` que existia\naqui — e a regra de ordenar as validações antes de encostar no saldo —\nperderam o objeto junto com a coluna.",
         "operationId": "update_transaction_api_transactions__transaction_id__patch",
         "parameters": [
           {
@@ -191,7 +192,7 @@
           "Transactions"
         ],
         "summary": "Delete Transaction",
-        "description": "Exclui a transação e estorna seu efeito no saldo da conta.",
+        "description": "Exclui a transação.\n\nSem estorno de saldo: a linha some do ledger e o saldo derivado acompanha.",
         "operationId": "delete_transaction_api_transactions__transaction_id__delete",
         "parameters": [
           {

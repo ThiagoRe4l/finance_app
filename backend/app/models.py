@@ -21,7 +21,13 @@ class Account(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     initial_balance: Mapped[Decimal] = mapped_column(MONEY, default=Decimal("0.00"), nullable=False)
-    current_balance: Mapped[Decimal] = mapped_column(MONEY, default=Decimal("0.00"), nullable=False)
+
+    # ⚠️ **Não existe `current_balance` aqui.** O saldo é derivado do ledger na
+    # leitura (`app/account_balance.py`), não armazenado. A coluna foi removida
+    # em vez de mantida como campo morto: campo que ninguém mais atualiza é
+    # campo que alguém preenche errado, e voltaria a divergir do ledger sem nada
+    # denunciar. `AccountResponse.current_balance` continua existindo como campo
+    # **derivado** — mesma natureza de `spent`/`txs_count` em `categories.py`.
 
     # Relação um-para-muitos com Transações (com cascade delete)
     transactions: Mapped[List["Transaction"]] = relationship(
@@ -29,7 +35,7 @@ class Account(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Account {self.name} (Balance: {self.current_balance})>"
+        return f"<Account {self.name} (Initial: {self.initial_balance})>"
 
 
 class Transaction(Base):

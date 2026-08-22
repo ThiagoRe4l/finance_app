@@ -13,7 +13,8 @@ def seed_data():
     try:
         # 1. Cria Conta Padrão se não existir
         if not db.query(Account).first():
-            main_account = Account(name="Conta Principal", initial_balance=10000.0, current_balance=10000.0)
+            # Sem `current_balance`: o saldo é derivado do ledger na leitura.
+            main_account = Account(name="Conta Principal", initial_balance=10000.0)
             db.add(main_account)
             print("Conta padrão criada.")
         

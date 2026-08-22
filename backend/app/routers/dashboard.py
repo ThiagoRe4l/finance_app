@@ -10,6 +10,7 @@ from app import models, schemas
 from app.routers.categories import list_categories
 from app.periods import current_month_bounds, month_bounds
 from app import installment_metrics
+from app import account_balance
 
 router = APIRouter(
     prefix="/dashboard",
@@ -27,8 +28,23 @@ ZERO = Decimal("0.00")
 @router.get("/summary", response_model=schemas.DashboardSummary)
 def get_dashboard_summary(db: Session = Depends(get_db)):
     # 1. Saldo Total
-    total_balance = db.query(func.sum(models.Account.current_balance)).scalar() or ZERO
-    
+    #
+    # `SUM(initial_balance) + SUM(ENTRADA) − SUM(SAÍDA)`. Deixou de ser
+    # `SUM(current_balance)` porque a coluna não existe mais — o saldo é
+    # derivado do ledger.
+    #
+    # O `CASE` de sinal vem de `app/account_balance.py`, o mesmo que
+    # `GET /accounts` usa: são duas agregações independentes, e é assim que
+    # ENTRADA/SAÍDA não inverte de um lado só. A igualdade entre os dois
+    # endpoints é travada por
+    # `test_total_balance_matches_the_sum_of_the_accounts`.
+    total_initial = db.query(func.sum(models.Account.initial_balance)).scalar() or ZERO
+    total_ledger = db.query(
+        func.coalesce(func.sum(account_balance.ledger_delta()), ZERO)
+    ).scalar() or ZERO
+    total_balance = total_initial + total_ledger
+
+
     # 2. Receitas e Despesas do mês atual
     #
     # Intervalo semiaberto, o mesmo do laço abaixo e o mesmo de
