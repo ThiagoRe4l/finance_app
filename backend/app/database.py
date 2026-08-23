@@ -2,13 +2,22 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-# Define o caminho do banco de dados SQLite no workspace do backend
-DATABASE_DIR = "/workspace/backend"
-DATABASE_PATH = os.path.join(DATABASE_DIR, "database.db")
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+from app.settings import resolve_database_url, sqlite_path_from_url
 
-# Garante que o diretório de persistência existe
-os.makedirs(DATABASE_DIR, exist_ok=True)
+# Vem de `DATABASE_URL`; sem a variável, o mesmo caminho que era hardcoded aqui.
+# A resolução mora em `app/settings.py` porque o engine é criado no import deste
+# módulo — ver a explicação lá.
+SQLALCHEMY_DATABASE_URL = resolve_database_url()
+
+# Garante o diretório de persistência. Num volume recém-criado ele pode não
+# existir ainda, e o SQLite não cria diretório — falharia com "unable to open
+# database file" no primeiro boot.
+#
+# `sqlite_path_from_url` devolve None para Postgres, então este bloco vira
+# no-op se o banco mudar, sem precisar de `if` sobre o driver.
+_sqlite_path = sqlite_path_from_url(SQLALCHEMY_DATABASE_URL)
+if _sqlite_path:
+    os.makedirs(os.path.dirname(_sqlite_path), exist_ok=True)
 
 # Cria o engine do SQLAlchemy (necessário para SQLite habilitar multithreading em desenvolvimento)
 engine = create_engine(

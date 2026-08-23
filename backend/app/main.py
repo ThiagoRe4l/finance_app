@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.settings import resolve_cors_origins
 from app.routers import accounts, transactions, investments, categories, installments, dashboard, reports
 
 app = FastAPI(
@@ -10,10 +11,17 @@ app = FastAPI(
 )
 
 # Configurações do CORS
+#
+# `allow_credentials=False` é decisão, não descuido (D-Deploy-6). A combinação
+# anterior — `allow_origins=["*"]` **com** credenciais — é inválida pela
+# especificação de CORS: o Starlette a contorna refletindo a origem da
+# requisição em vez de mandar `*`, o que na prática significa "aceita qualquer
+# origem, com credenciais". O `apiFetch` do front não manda `credentials` em
+# chamada nenhuma, então fechar não custa nada funcionalmente.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens para facilidade em desenvolvimento e Docker
-    allow_credentials=True,
+    allow_origins=resolve_cors_origins(),  # `*` em dev; domínio do front em produção
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
