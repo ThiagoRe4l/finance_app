@@ -1,0 +1,9 @@
+# Dependências de DESENVOLVIMENTO e CI.
+#
+# O `-r` não é atalho: é o que impede as duas listas de divergirem. Sem ele,
+# subir a versão do FastAPI em produção deixaria a suíte rodando contra outra.
+-r requirements.txt
+
+pytest==9.1.1
+# httpx é dependência do TestClient do Starlette, não uso direto do projeto.
+httpx==0.28.1

@@ -1,7 +1,10 @@
-fastapi>=0.100.0
-uvicorn>=0.22.0
-sqlalchemy>=2.0.0
-pydantic>=2.0.0
-pytest>=7.0.0
-httpx>=0.24.0
-
+# Dependências de PRODUÇÃO. Runner de testes não entra aqui — ver
+# requirements-dev.txt e a decisão D-Deploy-5 no CLAUDE.md.
+#
+# Versões pinadas em `==` de propósito: com `>=`, um rebuild meses depois puxa
+# breaking change de FastAPI ou Pydantic e o deploy quebra sem ninguém ter
+# tocado no código. Para atualizar, suba a versão aqui e rode a suíte.
+fastapi==0.139.2
+uvicorn==0.51.0
+sqlalchemy==2.0.51
+pydantic==2.13.4
