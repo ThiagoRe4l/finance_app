@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download, AlertCircle, RotateCw } from "lucide-react";
+import { AlertCircle, RotateCw } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -221,11 +221,6 @@ function RelatoriosPage() {
           eyebrow="Últimos 6 meses"
           title="Relatórios"
           description="Tendências e comparativos para entender seu comportamento financeiro."
-          action={
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-              <Download className="h-4 w-4" /> Exportar
-            </button>
-          }
         />
 
         {isError ? (

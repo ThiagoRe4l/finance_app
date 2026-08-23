@@ -273,9 +273,15 @@ de dashboard (`CashFlow`, `CategoryBars`, `Transactions`) e como valores literai
 | `transacoes.tsx` | ✅ | ✅ | ✅ (estorna saldo) | busca client-side |
 | `parcelamentos.tsx` | ✅ | ✅ (409 inline) | ❌ sem endpoint | avançar parcela |
 
-O que segue inerte: "Exportar" em Relatórios (sem endpoint) e "Buscar" no Dashboard. O botão
-"Filtrar" de Transações foi **removido** — a busca client-side cobre descrição e categoria,
-e um botão inerte ao lado de um campo que funciona é pior que não tê-lo.
+**Não sobrou botão inerte.** Os três que existiam foram **removidos**: "Filtrar" em
+Transações, "Buscar" no Dashboard e "Exportar" em Relatórios. Nenhum dos três tinha
+endpoint, e botão que não faz nada promete recurso inexistente. Nos dois primeiros havia
+agravante — a busca client-side de Transações já cobre descrição e categoria, e o Dashboard
+já lista as transações recentes —, então o botão inerte ficava ao lado da coisa que
+funciona.
+
+Exportar relatório continua sem existir. Se voltar, é fatia de backend com endpoint próprio,
+não um botão religado.
 
 | Tela / Rota | Endpoint(s) | Status |
 |---|---|---|
