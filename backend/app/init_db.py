@@ -6,10 +6,26 @@ def init_database():
     print("Criando tabelas no banco de dados SQLite...")
     Base.metadata.create_all(bind=engine)
     print("Banco de dados inicializado com sucesso!")
-    seed_data()
 
-def seed_data():
     db = SessionLocal()
+    try:
+        seed_data(db)
+    finally:
+        db.close()
+
+def seed_data(db):
+    """Popula o banco com conta e categorias padrão. **Idempotente.**
+
+    Recebe a sessão por parâmetro em vez de abrir a própria `SessionLocal`:
+    ligada ao engine global, a versão anterior era intestável — escreveria no
+    `database.db` do repositório em vez do banco em memória da suíte.
+
+    ⚠️ **A idempotência é requisito de produção, não conveniência.** No Railway
+    este módulo roda no entrypoint, a cada boot do container — num volume novo
+    é o único ponto que cria as tabelas, então não dá para executá-lo só uma
+    vez à mão. Se as guardas de existência falharem, cada redeploy duplica as
+    10 categorias, e o estrago só é notado com o dado já sujo.
+    """
     try:
         # 1. Cria Conta Padrão se não existir
         if not db.query(Account).first():
@@ -43,8 +59,6 @@ def seed_data():
     except Exception as e:
         print(f"Erro ao popular dados iniciais: {e}")
         db.rollback()
-    finally:
-        db.close()
 
 if __name__ == "__main__":
     init_database()
