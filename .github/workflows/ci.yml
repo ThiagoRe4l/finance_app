@@ -59,16 +59,8 @@ jobs:
       - name: Testes (runner nativo do Node)
         run: npm test
 
-      # ⚠️ DESLIGADO DE PROPÓSITO — não é esquecimento.
-      #
-      # `npm run lint` acusa hoje ~844 erros de formatação Prettier em arquivos
-      # que ninguém tocou. Ligado agora, o gate nasce vermelho, e gate que nasce
-      # vermelho é ignorado em uma semana (D-Deploy-4).
-      #
-      # A ordem decidida é: commit isolado de `npm run format` PRIMEIRO, e só
-      # então descomentar as duas linhas abaixo. O passo fica aqui, na forma
-      # final, para que ligá-lo seja remover dois `#` — e para que a pendência
-      # esteja visível no lugar onde será resolvida, não só no CLAUDE.md.
-      #
-      # - name: Lint
-      #   run: npm run lint
+      # Ligado depois de 89bbd86 (format) e do commit que trocou `any` por
+      # `unknown`: `npm run lint` agora sai com 0 erros. Gate nasce verde, que
+      # era a condição da D-Deploy-4.
+      - name: Lint
+        run: npm run lint
