@@ -41,15 +41,22 @@ export function CashFlow({ months }: { months: MonthlyFlow[] }) {
       </div>
       <div className="flex items-end gap-6 h-48">
         {bars.map((bar, i) => (
-          <div key={`${bar.month}-${i}`} className="flex-1 flex flex-col items-center gap-2">
+          <div
+            key={`${bar.month}-${i}`}
+            className="flex-1 flex flex-col items-center gap-2"
+          >
             <div className="flex items-end gap-1 h-40 w-full justify-center">
               <div
                 className="w-3 rounded-t bg-primary transition-all"
-                style={{ height: max > 0 ? `${(bar.income / max) * 100}%` : "0%" }}
+                style={{
+                  height: max > 0 ? `${(bar.income / max) * 100}%` : "0%",
+                }}
               />
               <div
                 className="w-3 rounded-t bg-border transition-all"
-                style={{ height: max > 0 ? `${(bar.outcome / max) * 100}%` : "0%" }}
+                style={{
+                  height: max > 0 ? `${(bar.outcome / max) * 100}%` : "0%",
+                }}
               />
             </div>
             <span className="text-xs text-muted-foreground">{bar.month}</span>

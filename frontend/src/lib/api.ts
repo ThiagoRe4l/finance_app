@@ -2,9 +2,14 @@ import { resolveApiBaseUrl } from "./config.ts";
 
 // Resolvida em build (ver config.ts). `import.meta.env` é substituído pelo
 // Vite em tempo de compilação; em dev, sem a variável, cai no localhost:8000.
-const API_BASE_URL = resolveApiBaseUrl(import.meta.env as Record<string, string | undefined>);
+const API_BASE_URL = resolveApiBaseUrl(
+  import.meta.env as Record<string, string | undefined>,
+);
 
-export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  endpoint: string,
+  options?: RequestInit,
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers: {
@@ -14,7 +19,9 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
+    const errorData = await response
+      .json()
+      .catch(() => ({ detail: "Unknown error" }));
     throw new Error(errorData.detail || response.statusText);
   }
 

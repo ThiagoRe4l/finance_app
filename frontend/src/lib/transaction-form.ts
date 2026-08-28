@@ -47,7 +47,10 @@ export interface TransactionFormInput {
 const amountField = z
   .string()
   .transform((raw) => parseMoneyInput(raw))
-  .refine((parsed) => parsed !== null, "Informe um valor válido, como 1.500,00.")
+  .refine(
+    (parsed) => parsed !== null,
+    "Informe um valor válido, como 1.500,00.",
+  )
   // `amount` tem `gt=0` no backend. O sinal da transação vem de `type`, não do
   // valor — zero e negativo não têm significado aqui.
   .refine(
@@ -95,18 +98,17 @@ export const transactionCreateSchema = z
         (raw) => raw === undefined || raw === "" || /^\d+$/.test(raw),
         "Parcelamento inválido.",
       )
-      .transform((raw) => (raw === undefined || raw === "" ? undefined : Number(raw))),
+      .transform((raw) =>
+        raw === undefined || raw === "" ? undefined : Number(raw),
+      ),
   })
-  .refine(
-    (data) => !(data.is_fixed && data.installment_id !== undefined),
-    {
-      // Espelha `check_fixed_and_installment_exclusive`, que devolve 422. O
-      // formulário também desabilita um controle quando o outro está ativo, mas
-      // a regra vive aqui para não depender só do JSX.
-      message: "Uma transação não pode ser fixa e parcelada ao mesmo tempo.",
-      path: ["installment_id"],
-    },
-  )
+  .refine((data) => !(data.is_fixed && data.installment_id !== undefined), {
+    // Espelha `check_fixed_and_installment_exclusive`, que devolve 422. O
+    // formulário também desabilita um controle quando o outro está ativo, mas
+    // a regra vive aqui para não depender só do JSX.
+    message: "Uma transação não pode ser fixa e parcelada ao mesmo tempo.",
+    path: ["installment_id"],
+  })
   .transform(({ installment_id, ...rest }) =>
     // Ausência ≠ `null`: o backend trata a chave ausente como "não vincular".
     installment_id === undefined ? rest : { ...rest, installment_id },

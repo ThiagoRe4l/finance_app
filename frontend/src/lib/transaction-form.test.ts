@@ -37,7 +37,9 @@ import {
   type TransactionFormInput,
 } from "./transaction-form.ts";
 
-function input(overrides: Partial<TransactionFormInput> = {}): TransactionFormInput {
+function input(
+  overrides: Partial<TransactionFormInput> = {},
+): TransactionFormInput {
   return {
     title: "Supermercado",
     type: "SAÍDA",
@@ -69,7 +71,10 @@ test("create devolve o payload completo do POST", () => {
 
 test("create converte category_id de string para número", () => {
   // O `Select` devolve string; o backend espera `integer` e rejeita "3" com 422.
-  const parsed = transactionCreateSchema.parse({ ...input({ category_id: "42" }), account_id: 1 });
+  const parsed = transactionCreateSchema.parse({
+    ...input({ category_id: "42" }),
+    account_id: 1,
+  });
 
   assert.equal(parsed.category_id, 42);
   assert.equal(typeof parsed.category_id, "number");
@@ -143,7 +148,10 @@ test("create recusa transação fixa E parcelada ao mesmo tempo", () => {
 test("create aceita fixa sem parcelamento, e parcelada sem fixa", () => {
   // As duas pontas do exclusivo: cada uma sozinha é válida.
   assert.equal(
-    transactionCreateSchema.safeParse({ ...input({ is_fixed: true }), account_id: 1 }).success,
+    transactionCreateSchema.safeParse({
+      ...input({ is_fixed: true }),
+      account_id: 1,
+    }).success,
     true,
   );
   assert.equal(
@@ -190,7 +198,9 @@ test("edit omite installment_id quando não se pede desvínculo", () => {
 });
 
 test("edit manda installment_id: null quando se pede desvínculo", () => {
-  const parsed = transactionEditSchema.parse(input({ unlink_installment: true }));
+  const parsed = transactionEditSchema.parse(
+    input({ unlink_installment: true }),
+  );
 
   assert.ok("installment_id" in parsed);
   assert.equal(parsed.installment_id, null);
@@ -203,7 +213,9 @@ test("edit nunca produz installment_id diferente de null", () => {
    * o campo de entrada é um booleano, não um id.
    */
   for (const unlink of [true, false, undefined]) {
-    const parsed = transactionEditSchema.parse(input({ unlink_installment: unlink }));
+    const parsed = transactionEditSchema.parse(
+      input({ unlink_installment: unlink }),
+    );
     if ("installment_id" in parsed) {
       assert.equal(parsed.installment_id, null, `unlink=${unlink}`);
     }
@@ -223,10 +235,22 @@ test("edit converte os demais campos igual ao create", () => {
 // ---------------------------------------------------------------------------
 
 test("título é obrigatório e respeita o limite de 150", () => {
-  assert.equal(transactionEditSchema.safeParse(input({ title: "" })).success, false);
-  assert.equal(transactionEditSchema.safeParse(input({ title: "  " })).success, false);
-  assert.equal(transactionEditSchema.safeParse(input({ title: "a".repeat(150) })).success, true);
-  assert.equal(transactionEditSchema.safeParse(input({ title: "a".repeat(151) })).success, false);
+  assert.equal(
+    transactionEditSchema.safeParse(input({ title: "" })).success,
+    false,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ title: "  " })).success,
+    false,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ title: "a".repeat(150) })).success,
+    true,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ title: "a".repeat(151) })).success,
+    false,
+  );
 });
 
 test("valor precisa ser maior que zero", () => {
@@ -250,11 +274,20 @@ test("valor inválido é recusado com mensagem própria", () => {
 });
 
 test("tipo só aceita ENTRADA ou SAÍDA", () => {
-  assert.equal(transactionEditSchema.safeParse(input({ type: "ENTRADA" })).success, true);
-  assert.equal(transactionEditSchema.safeParse(input({ type: "TRANSFERÊNCIA" })).success, false);
+  assert.equal(
+    transactionEditSchema.safeParse(input({ type: "ENTRADA" })).success,
+    true,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ type: "TRANSFERÊNCIA" })).success,
+    false,
+  );
   // O backend normaliza para maiúsculo, mas o formulário usa lista fechada:
   // minúsculo aqui indicaria bug de ligação, não digitação do usuário.
-  assert.equal(transactionEditSchema.safeParse(input({ type: "saída" })).success, false);
+  assert.equal(
+    transactionEditSchema.safeParse(input({ type: "saída" })).success,
+    false,
+  );
 });
 
 test("data precisa vir em ISO", () => {
@@ -262,9 +295,18 @@ test("data precisa vir em ISO", () => {
    * O picker sempre entrega ISO via `toISODate`. Um "07/08/2026" aqui seria
    * sintoma de o componente ter mandado o texto exibido em vez do valor.
    */
-  assert.equal(transactionEditSchema.safeParse(input({ date: "2026-08-07" })).success, true);
-  assert.equal(transactionEditSchema.safeParse(input({ date: "07/08/2026" })).success, false);
-  assert.equal(transactionEditSchema.safeParse(input({ date: "" })).success, false);
+  assert.equal(
+    transactionEditSchema.safeParse(input({ date: "2026-08-07" })).success,
+    true,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ date: "07/08/2026" })).success,
+    false,
+  );
+  assert.equal(
+    transactionEditSchema.safeParse(input({ date: "" })).success,
+    false,
+  );
 });
 
 test("categoria é obrigatória", () => {
@@ -292,6 +334,8 @@ test("reporta todos os campos inválidos de uma vez", () => {
   });
 
   assert.equal(result.success, false);
-  const campos = [...new Set(result.error!.issues.map((i) => i.path[0]))].sort();
+  const campos = [
+    ...new Set(result.error!.issues.map((i) => i.path[0])),
+  ].sort();
   assert.deepEqual(campos, ["amount", "category_id", "date", "title", "type"]);
 });

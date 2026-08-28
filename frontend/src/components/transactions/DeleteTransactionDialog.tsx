@@ -39,7 +39,12 @@ export function DeleteTransactionDialog({
       // `["installments"]` fora pelo mesmo motivo do formulário: excluir uma
       // transação vinculada não altera o parcelamento — o `SET NULL` é do lado
       // da transação.
-      for (const key of [["transactions"], ["dashboard"], ["categories"], ["reports"]]) {
+      for (const key of [
+        ["transactions"],
+        ["dashboard"],
+        ["categories"],
+        ["reports"],
+      ]) {
         queryClient.invalidateQueries({ queryKey: key });
       }
       toast.success("Transação excluída.");
@@ -66,7 +71,9 @@ export function DeleteTransactionDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={mutation.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={mutation.isPending}>
+            Cancelar
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={(event) => {
               event.preventDefault();

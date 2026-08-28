@@ -17,7 +17,11 @@ export interface ReportOverview {
   total_revenues: string;
   total_expenses: string;
   average_savings: number;
-  monthly_comparative: Array<{ month: string; income: string; outcome: string }>;
+  monthly_comparative: Array<{
+    month: string;
+    income: string;
+    outcome: string;
+  }>;
   top_categories: Array<{ name: string; value: string }>;
 }
 
@@ -40,10 +44,10 @@ export function formatInstallmentsInsight(
     return null;
   }
 
-  const plural = activeCount === 1 ? "parcelamento ativo" : "parcelamentos ativos";
+  const plural =
+    activeCount === 1 ? "parcelamento ativo" : "parcelamentos ativos";
   return `Você tem ${activeCount} ${plural} comprometendo ${formatBRL(monthlyCommitted)} por mês.`;
 }
-
 
 export interface InstallmentsTotals {
   activeCount: number;

@@ -13,7 +13,10 @@ export const Route = createFileRoute("/relatorios")({
   head: () => ({
     meta: [
       { title: "Relatórios — Fisco" },
-      { name: "description", content: "Análises e tendências das suas finanças." },
+      {
+        name: "description",
+        content: "Análises e tendências das suas finanças.",
+      },
     ],
   }),
   component: RelatoriosPage,
@@ -24,7 +27,11 @@ export const Route = createFileRoute("/relatorios")({
 const OVERVIEW_ENDPOINT = "/reports/overview";
 const INSTALLMENTS_SUMMARY_ENDPOINT = "/installments/summary";
 
-function ErrorBanner({ message, onRetry, isRetrying }: {
+function ErrorBanner({
+  message,
+  onRetry,
+  isRetrying,
+}: {
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -34,7 +41,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">Não foi possível carregar os relatórios</p>
+          <p className="text-sm font-medium text-foreground">
+            Não foi possível carregar os relatórios
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -55,7 +64,10 @@ function LoadingState() {
     <>
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+          <div
+            key={i}
+            className="bg-card p-6 rounded-2xl border border-border shadow-sm"
+          >
             <Skeleton className="h-3 w-32 mb-3" />
             <Skeleton className="h-7 w-32" />
           </div>
@@ -70,20 +82,32 @@ function LoadingState() {
   );
 }
 
-function TotalCard({ label, value, className = "" }: {
+function TotalCard({
+  label,
+  value,
+  className = "",
+}: {
   label: string;
   value: string;
   className?: string;
 }) {
   return (
     <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-2xl font-semibold tabular-nums ${className}`}>{value}</p>
+      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+        {label}
+      </p>
+      <p className={`text-2xl font-semibold tabular-nums ${className}`}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function MonthlyComparison({ months }: { months: ReportOverview["monthly_comparative"] }) {
+function MonthlyComparison({
+  months,
+}: {
+  months: ReportOverview["monthly_comparative"];
+}) {
   const bars = months.map((m) => ({
     month: m.month,
     income: parseMoney(m.income),
@@ -99,7 +123,9 @@ function MonthlyComparison({ months }: { months: ReportOverview["monthly_compara
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-sm font-medium">Comparativo Mensal</h2>
-          <p className="text-xs text-muted-foreground mt-1">Entradas vs Saídas</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Entradas vs Saídas
+          </p>
         </div>
         <div className="flex gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-2">
@@ -112,15 +138,22 @@ function MonthlyComparison({ months }: { months: ReportOverview["monthly_compara
       </div>
       <div className="flex items-end gap-6 h-64">
         {bars.map((bar, i) => (
-          <div key={`${bar.month}-${i}`} className="flex-1 flex flex-col items-center gap-2">
+          <div
+            key={`${bar.month}-${i}`}
+            className="flex-1 flex flex-col items-center gap-2"
+          >
             <div className="flex items-end gap-1.5 h-56 w-full justify-center">
               <div
                 className="w-5 rounded-t bg-primary transition-all"
-                style={{ height: max > 0 ? `${(bar.income / max) * 100}%` : "0%" }}
+                style={{
+                  height: max > 0 ? `${(bar.income / max) * 100}%` : "0%",
+                }}
               />
               <div
                 className="w-5 rounded-t bg-border transition-all"
-                style={{ height: max > 0 ? `${(bar.outcome / max) * 100}%` : "0%" }}
+                style={{
+                  height: max > 0 ? `${(bar.outcome / max) * 100}%` : "0%",
+                }}
               />
             </div>
             <span className="text-xs text-muted-foreground">{bar.month}</span>
@@ -131,8 +164,15 @@ function MonthlyComparison({ months }: { months: ReportOverview["monthly_compara
   );
 }
 
-function TopCategories({ categories }: { categories: ReportOverview["top_categories"] }) {
-  const rows = categories.map((c) => ({ name: c.name, value: parseMoney(c.value) }));
+function TopCategories({
+  categories,
+}: {
+  categories: ReportOverview["top_categories"];
+}) {
+  const rows = categories.map((c) => ({
+    name: c.name,
+    value: parseMoney(c.value),
+  }));
   // Proporção relativa à maior — o ranking já vem ordenado do backend.
   const largest = rows.length > 0 ? rows[0].value : 0;
 
@@ -149,12 +189,17 @@ function TopCategories({ categories }: { categories: ReportOverview["top_categor
             <div key={row.name}>
               <div className="flex justify-between text-sm mb-2">
                 <span>{row.name}</span>
-                <span className="tabular-nums text-muted-foreground">{formatBRL(row.value)}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatBRL(row.value)}
+                </span>
               </div>
               <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full"
-                  style={{ width: largest > 0 ? `${(row.value / largest) * 100}%` : "0%" }}
+                  style={{
+                    width:
+                      largest > 0 ? `${(row.value / largest) * 100}%` : "0%",
+                  }}
                 />
               </div>
             </div>
@@ -225,7 +270,9 @@ function RelatoriosPage() {
 
         {isError ? (
           <ErrorBanner
-            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            message={
+              error instanceof Error ? error.message : "Erro desconhecido."
+            }
             onRetry={retry}
             isRetrying={isFetching}
           />

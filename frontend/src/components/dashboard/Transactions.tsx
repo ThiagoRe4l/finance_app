@@ -1,5 +1,9 @@
 import { formatBRL } from "@/lib/money";
-import { deriveTransactionLabel, signedAmount, type Transaction } from "@/lib/transactions";
+import {
+  deriveTransactionLabel,
+  signedAmount,
+  type Transaction,
+} from "@/lib/transactions";
 
 /*
  * Apresentacional: recebe `recent_transactions` do payload do dashboard — o
@@ -11,7 +15,11 @@ import { deriveTransactionLabel, signedAmount, type Transaction } from "@/lib/tr
  * uma tabela `typeLabel` própria — a mesma regra escrita duas vezes, com casing
  * diferente.
  */
-export function Transactions({ transactions }: { transactions: Transaction[] }) {
+export function Transactions({
+  transactions,
+}: {
+  transactions: Transaction[];
+}) {
   return (
     <section className="bg-card p-8 rounded-2xl border border-border shadow-sm">
       <div className="flex items-center justify-between mb-6">
@@ -40,7 +48,9 @@ export function Transactions({ transactions }: { transactions: Transaction[] }) 
                 className="flex justify-between items-center py-3 first:pt-0 last:pb-0"
               >
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium">{transaction.title}</span>
+                  <span className="text-sm font-medium">
+                    {transaction.title}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {transaction.category.name}
                   </span>
@@ -48,7 +58,9 @@ export function Transactions({ transactions }: { transactions: Transaction[] }) 
                 <div className="text-right">
                   <span
                     className={`text-sm tabular-nums block font-medium ${
-                      isIncome ? "text-[oklch(0.55_0.15_155)]" : "text-foreground"
+                      isIncome
+                        ? "text-[oklch(0.55_0.15_155)]"
+                        : "text-foreground"
                     }`}
                   >
                     {isIncome ? "+" : ""}

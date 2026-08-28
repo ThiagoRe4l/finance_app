@@ -28,21 +28,28 @@ test("sem a variável, mantém exatamente o comportamento de hoje", () => {
 
 test("usa a variável quando ela existe", () => {
   assert.equal(
-    resolveApiBaseUrl({ VITE_API_BASE_URL: "https://backend.up.railway.app/api" }),
+    resolveApiBaseUrl({
+      VITE_API_BASE_URL: "https://backend.up.railway.app/api",
+    }),
     "https://backend.up.railway.app/api",
   );
 });
 
 test("variável em branco cai no default", () => {
   // Campo definido vazio no painel do Railway é indistinguível de esquecido.
-  assert.equal(resolveApiBaseUrl({ VITE_API_BASE_URL: "   " }), "http://localhost:8000/api");
+  assert.equal(
+    resolveApiBaseUrl({ VITE_API_BASE_URL: "   " }),
+    "http://localhost:8000/api",
+  );
 });
 
 test("remove barra final para não gerar '//' nos endpoints", () => {
   // `apiFetch` monta `${base}${endpoint}` e todo endpoint começa com "/".
   // Com base terminada em barra, `/accounts/` viraria `//accounts/`.
   assert.equal(
-    resolveApiBaseUrl({ VITE_API_BASE_URL: "https://backend.up.railway.app/api/" }),
+    resolveApiBaseUrl({
+      VITE_API_BASE_URL: "https://backend.up.railway.app/api/",
+    }),
     "https://backend.up.railway.app/api",
   );
 });

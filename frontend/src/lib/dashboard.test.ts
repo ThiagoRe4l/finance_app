@@ -51,7 +51,10 @@ function category(overrides: Partial<CategorySummary> = {}): CategorySummary {
 // ---------------------------------------------------------------------------
 
 test("formata percentual positivo com sinal explícito", () => {
-  assert.equal(formatDelta(24.018042657676403, "vs mês anterior"), "+24,0% vs mês anterior");
+  assert.equal(
+    formatDelta(24.018042657676403, "vs mês anterior"),
+    "+24,0% vs mês anterior",
+  );
 });
 
 test("formata percentual negativo", () => {
@@ -60,7 +63,10 @@ test("formata percentual negativo", () => {
 });
 
 test("usa vírgula decimal, como o resto da UI", () => {
-  assert.equal(formatDelta(70.75266272189349, "das receitas"), "+70,8% das receitas");
+  assert.equal(
+    formatDelta(70.75266272189349, "das receitas"),
+    "+70,8% das receitas",
+  );
 });
 
 test("arredonda para uma casa", () => {
@@ -170,7 +176,10 @@ test("trend e tone são independentes — o caso que originou o bug", () => {
   const expensesChange = 325.8;
 
   assert.equal(trendFromDelta(expensesChange), "up");
-  assert.equal(formatDelta(expensesChange, "vs mês anterior"), "+325,8% vs mês anterior");
+  assert.equal(
+    formatDelta(expensesChange, "vs mês anterior"),
+    "+325,8% vs mês anterior",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -238,7 +247,10 @@ test("filtra categorias sem gasto", () => {
     "2100.00",
   );
 
-  assert.deepEqual(rows.map((r) => r.name), ["Moradia"]);
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ["Moradia"],
+  );
 });
 
 test("ordena do maior gasto para o menor", () => {
@@ -252,7 +264,10 @@ test("ordena do maior gasto para o menor", () => {
     "3000.00",
   );
 
-  assert.deepEqual(rows.map((r) => r.name), ["Moradia", "Alimentação", "Transporte"]);
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ["Moradia", "Alimentação", "Transporte"],
+  );
 });
 
 test("preserva id, nome e cor para o componente pintar a barra", () => {
@@ -277,7 +292,10 @@ test("total de despesas zero não gera divisão por zero", () => {
    * dividir por zero e devolver `Infinity`/`NaN` no caminho.
    */
   const rows = toDistribution(
-    [category({ spent: "0.00" }), category({ id: 2, name: "Lazer", spent: "0.00" })],
+    [
+      category({ spent: "0.00" }),
+      category({ id: 2, name: "Lazer", spent: "0.00" }),
+    ],
     "0.00",
   );
 

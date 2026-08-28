@@ -59,7 +59,10 @@ export const categoryFormSchema = z.object({
   budget: z
     .string()
     .transform((raw) => (raw.trim() === "" ? "0.00" : parseMoneyInput(raw)))
-    .refine((parsed) => parsed !== null, "Informe um valor válido, como 1.500,00.")
+    .refine(
+      (parsed) => parsed !== null,
+      "Informe um valor válido, como 1.500,00.",
+    )
     .refine(
       (parsed) => parsed === null || !parsed.startsWith("-"),
       "O orçamento não pode ser negativo.",

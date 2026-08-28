@@ -74,7 +74,10 @@ export function deriveTransactionLabel(transaction: Transaction): DerivedLabel {
 
   if (transaction.installment) {
     const { current_installment, total_installments } = transaction.installment;
-    return { label: "Parcelada", meta: `${current_installment}/${total_installments}` };
+    return {
+      label: "Parcelada",
+      meta: `${current_installment}/${total_installments}`,
+    };
   }
 
   if (transaction.is_fixed) {

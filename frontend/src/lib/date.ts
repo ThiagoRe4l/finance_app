@@ -35,7 +35,6 @@ export function formatShortDate(value: string): string {
   return `${day}/${month}`;
 }
 
-
 /**
  * ISO da API → `Date` local, para o `selected` do `Calendar`.
  *

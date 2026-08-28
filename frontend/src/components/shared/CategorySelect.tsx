@@ -43,7 +43,9 @@ export function CategorySelect({
       disabled={disabled || categories.isPending}
     >
       <SelectTrigger id={id}>
-        <SelectValue placeholder={categories.isPending ? "Carregando..." : "Selecione"} />
+        <SelectValue
+          placeholder={categories.isPending ? "Carregando..." : "Selecione"}
+        />
       </SelectTrigger>
       <SelectContent>
         {(categories.data ?? []).map((category) => {

@@ -71,7 +71,9 @@ export function DeleteCategoryDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {isBlocked ? "Não é possível excluir" : `Excluir "${category?.name}"?`}
+            {isBlocked
+              ? "Não é possível excluir"
+              : `Excluir "${category?.name}"?`}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {isBlocked
@@ -97,7 +99,9 @@ export function DeleteCategoryDialog({
               disabled={mutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {mutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               Excluir
             </AlertDialogAction>
           )}

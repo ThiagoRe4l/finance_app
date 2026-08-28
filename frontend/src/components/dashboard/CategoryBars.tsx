@@ -39,12 +39,17 @@ export function CategoryBars({
                   API isso vira no-op silencioso — `String.prototype.toLocaleString`
                   ignora os argumentos e devolve "2100.00" cru na tela.
                 */}
-                <span className="tabular-nums text-muted-foreground">{formatBRL(row.spent)}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatBRL(row.spent)}
+                </span>
               </div>
               <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all"
-                  style={{ width: `${row.percent}%`, backgroundColor: row.color }}
+                  style={{
+                    width: `${row.percent}%`,
+                    backgroundColor: row.color,
+                  }}
                 />
               </div>
             </div>

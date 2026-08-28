@@ -1,0 +1,11 @@
+# Arquivo GERADO pelo plugin do TanStack Router. O CLAUDE.md é explícito:
+# "GERADO automaticamente — nunca editar". Formatá-lo é churn puro — a próxima
+# regeneração reverte tudo — e não traz benefício nenhum ao gate de lint: ele
+# tem `/* eslint-disable */` no topo e contribui com 0 dos 848 erros.
+src/routeTree.gen.ts
+
+# Saídas de build (o eslint já as ignora em eslint.config.js)
+dist
+.output
+.vinxi
+.tanstack

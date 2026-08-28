@@ -56,7 +56,10 @@ export function installmentProgress(
     return { paidCount: 0, percent: 0, isPaidOff: false };
   }
 
-  const paidCount = Math.max(0, Math.min(currentInstallment - 1, totalInstallments));
+  const paidCount = Math.max(
+    0,
+    Math.min(currentInstallment - 1, totalInstallments),
+  );
 
   return {
     paidCount,

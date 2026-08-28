@@ -59,8 +59,14 @@ test("parseMoney rejeita entrada não numérica em vez de devolver NaN", () => {
 });
 
 test("parseMoney rejeita null e undefined vindos de um campo ausente", () => {
-  assert.throws(() => parseMoney(null as unknown as string), /valor monetário/i);
-  assert.throws(() => parseMoney(undefined as unknown as string), /valor monetário/i);
+  assert.throws(
+    () => parseMoney(null as unknown as string),
+    /valor monetário/i,
+  );
+  assert.throws(
+    () => parseMoney(undefined as unknown as string),
+    /valor monetário/i,
+  );
 });
 
 test("⚠️ parseMoney reintroduz o erro de float — limitação conhecida e deliberada", () => {
@@ -136,7 +142,6 @@ test("formatBRL rejeita number não finito em vez de exibir 'R$ NaN'", () => {
   assert.throws(() => formatBRL(Number.NEGATIVE_INFINITY), /valor monetário/i);
 });
 
-
 // ---------------------------------------------------------------------------
 // parseMoneyInput — o que o usuário digita → o que a API recebe
 // ---------------------------------------------------------------------------
@@ -193,7 +198,7 @@ test("entrada vazia devolve null, não zero", () => {
 test("recusa texto que não é número", () => {
   assert.equal(parseMoneyInput("abc"), null);
   assert.equal(parseMoneyInput("1500,"), null);
-  assert.equal(parseMoneyInput("1500,123"), null);  // mais de 2 casas
+  assert.equal(parseMoneyInput("1500,123"), null); // mais de 2 casas
   assert.equal(parseMoneyInput("--5"), null);
 });
 

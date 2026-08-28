@@ -43,7 +43,11 @@ export function formatDelta(
   percentage: number | null | undefined,
   suffix: string,
 ): string | null {
-  if (percentage === null || percentage === undefined || !Number.isFinite(percentage)) {
+  if (
+    percentage === null ||
+    percentage === undefined ||
+    !Number.isFinite(percentage)
+  ) {
     return null;
   }
 
@@ -72,7 +76,11 @@ export type Trend = "up" | "down" | "flat";
  * limiar mínimo aqui, não inferir direção de texto.
  */
 export function trendFromDelta(percentage: number | null | undefined): Trend {
-  if (percentage === null || percentage === undefined || !Number.isFinite(percentage)) {
+  if (
+    percentage === null ||
+    percentage === undefined ||
+    !Number.isFinite(percentage)
+  ) {
     return "flat";
   }
   if (percentage > 0) return "up";
@@ -99,22 +107,24 @@ export function toDistribution(
 ): DistributionRow[] {
   const total = parseMoney(totalExpenses);
 
-  return categories
-    .map((category) => ({
-      id: category.id,
-      name: category.name,
-      color: category.color,
-      spent: parseMoney(category.spent),
-    }))
-    // Categoria zerada vira barra vazia sem informação. A API devolve todas
-    // porque o join é OUTER — num banco novo são as 7 categorias de seed.
-    .filter((row) => row.spent > 0)
-    .sort((a, b) => b.spent - a.spent)
-    .map((row) => ({
-      ...row,
-      // `total > 0` guarda a divisão: com a lista já filtrada este ramo não é
-      // alcançável hoje, mas deixá-lo implícito convidaria um `Infinity` para
-      // dentro do `style={{ width }}`.
-      percent: total > 0 ? (row.spent / total) * 100 : 0,
-    }));
+  return (
+    categories
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        color: category.color,
+        spent: parseMoney(category.spent),
+      }))
+      // Categoria zerada vira barra vazia sem informação. A API devolve todas
+      // porque o join é OUTER — num banco novo são as 7 categorias de seed.
+      .filter((row) => row.spent > 0)
+      .sort((a, b) => b.spent - a.spent)
+      .map((row) => ({
+        ...row,
+        // `total > 0` guarda a divisão: com a lista já filtrada este ramo não é
+        // alcançável hoje, mas deixá-lo implícito convidaria um `Infinity` para
+        // dentro do `style={{ width }}`.
+        percent: total > 0 ? (row.spent / total) * 100 : 0,
+      }))
+  );
 }

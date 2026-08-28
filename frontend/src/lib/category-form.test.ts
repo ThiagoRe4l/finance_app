@@ -56,7 +56,10 @@ test("budget sai em decimal canônico, nunca em number", () => {
 });
 
 test("apara espaços do nome", () => {
-  assert.equal(categoryFormSchema.parse(input({ name: "  Lazer  " })).name, "Lazer");
+  assert.equal(
+    categoryFormSchema.parse(input({ name: "  Lazer  " })).name,
+    "Lazer",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -72,7 +75,10 @@ test("nome é obrigatório", () => {
 
 test("nome só com espaços também é vazio", () => {
   // Sem o `trim` antes do `min`, "   " passaria e o backend gravaria em branco.
-  assert.equal(categoryFormSchema.safeParse(input({ name: "   " })).success, false);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ name: "   " })).success,
+    false,
+  );
 });
 
 test("nome respeita o limite de 50 do backend", () => {
@@ -80,8 +86,14 @@ test("nome respeita o limite de 50 do backend", () => {
    * `String(50)` no model. Validar aqui transforma um 422 depois do submit em
    * mensagem inline antes dele.
    */
-  assert.equal(categoryFormSchema.safeParse(input({ name: "a".repeat(50) })).success, true);
-  assert.equal(categoryFormSchema.safeParse(input({ name: "a".repeat(51) })).success, false);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ name: "a".repeat(50) })).success,
+    true,
+  );
+  assert.equal(
+    categoryFormSchema.safeParse(input({ name: "a".repeat(51) })).success,
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -118,7 +130,10 @@ test("budget com texto inválido é recusado com mensagem própria", () => {
 test("budget recusa ponto como decimal, como o parser", () => {
   // Coerente com `parseMoneyInput`: "1500.50" viraria 150050 se interpretado
   // como milhar. Recusa explícita em vez de erro silencioso de 100×.
-  assert.equal(categoryFormSchema.safeParse(input({ budget: "1500.50" })).success, false);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ budget: "1500.50" })).success,
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -132,19 +147,30 @@ test("icon_name precisa estar no mapa de ícones", () => {
    * genérica. Como o formulário usa um seletor com lista fechada, validar aqui
    * impede que um valor digitado à mão vaze.
    */
-  assert.equal(categoryFormSchema.safeParse(input({ icon_name: "Wallet" })).success, true);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ icon_name: "Wallet" })).success,
+    true,
+  );
 
-  const result = categoryFormSchema.safeParse(input({ icon_name: "NaoExiste" }));
+  const result = categoryFormSchema.safeParse(
+    input({ icon_name: "NaoExiste" }),
+  );
   assert.equal(result.success, false);
   assert.match(result.error!.issues[0].message, /ícone/i);
 });
 
 test("cor é obrigatória", () => {
-  assert.equal(categoryFormSchema.safeParse(input({ color: "" })).success, false);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ color: "" })).success,
+    false,
+  );
 });
 
 test("cor respeita o limite de 50 do backend", () => {
-  assert.equal(categoryFormSchema.safeParse(input({ color: "a".repeat(51) })).success, false);
+  assert.equal(
+    categoryFormSchema.safeParse(input({ color: "a".repeat(51) })).success,
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -165,5 +191,10 @@ test("reporta todos os campos inválidos de uma vez", () => {
 
   assert.equal(result.success, false);
   const campos = result.error!.issues.map((i) => i.path[0]);
-  assert.deepEqual([...campos].sort(), ["budget", "color", "icon_name", "name"]);
+  assert.deepEqual([...campos].sort(), [
+    "budget",
+    "color",
+    "icon_name",
+    "name",
+  ]);
 });

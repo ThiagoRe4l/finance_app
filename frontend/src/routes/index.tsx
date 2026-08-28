@@ -10,7 +10,11 @@ import { CashFlow, type MonthlyFlow } from "@/components/dashboard/CashFlow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
-import { formatDelta, trendFromDelta, type CategorySummary } from "@/lib/dashboard";
+import {
+  formatDelta,
+  trendFromDelta,
+  type CategorySummary,
+} from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
 
@@ -41,7 +45,9 @@ function Header({ action }: { action: React.ReactNode }) {
   return (
     <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Mês corrente</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+          Mês corrente
+        </p>
         <h1 className="text-3xl font-semibold tracking-tight">Visão Geral</h1>
         <p className="text-sm text-muted-foreground mt-2">
           Acompanhe seu fluxo, categorias e parcelamentos em um só lugar.
@@ -57,7 +63,10 @@ function LoadingState() {
     <>
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+          <div
+            key={i}
+            className="bg-card p-6 rounded-2xl border border-border shadow-sm"
+          >
             <Skeleton className="h-3 w-24 mb-3" />
             <Skeleton className="h-7 w-32" />
             <Skeleton className="h-3 w-28 mt-3" />
@@ -75,7 +84,11 @@ function LoadingState() {
   );
 }
 
-function ErrorBanner({ message, onRetry, isRetrying }: {
+function ErrorBanner({
+  message,
+  onRetry,
+  isRetrying,
+}: {
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -85,7 +98,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">Não foi possível carregar o resumo</p>
+          <p className="text-sm font-medium text-foreground">
+            Não foi possível carregar o resumo
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -112,7 +127,10 @@ function Summary({ data }: { data: DashboardSummary }) {
    * decorativo sem equivalente na API.
    */
   const balanceDelta = formatDelta(data.balance_change_pct, "vs mês anterior");
-  const expensesDelta = formatDelta(data.expenses_change_pct, "vs mês anterior");
+  const expensesDelta = formatDelta(
+    data.expenses_change_pct,
+    "vs mês anterior",
+  );
   const savingsDelta = formatDelta(data.savings_pct_of_revenue, "das receitas");
 
   return (
@@ -130,7 +148,11 @@ function Summary({ data }: { data: DashboardSummary }) {
           tone={(data.balance_change_pct ?? 0) < 0 ? "negative" : "positive"}
           trend={trendFromDelta(data.balance_change_pct)}
         />
-        <MetricCard label="Receitas" value={formatBRL(data.total_revenues)} tone="neutral" />
+        <MetricCard
+          label="Receitas"
+          value={formatBRL(data.total_revenues)}
+          tone="neutral"
+        />
         <MetricCard
           label="Despesas"
           value={formatBRL(data.total_expenses)}
@@ -144,7 +166,9 @@ function Summary({ data }: { data: DashboardSummary }) {
           label="Economia"
           value={formatBRL(data.total_savings)}
           delta={savingsDelta ?? undefined}
-          tone={(data.savings_pct_of_revenue ?? 0) < 0 ? "negative" : "positive"}
+          tone={
+            (data.savings_pct_of_revenue ?? 0) < 0 ? "negative" : "positive"
+          }
           trend={trendFromDelta(data.savings_pct_of_revenue)}
         />
       </section>
@@ -168,7 +192,9 @@ function Summary({ data }: { data: DashboardSummary }) {
           <div className="flex-1 flex flex-col justify-center gap-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Ativos</span>
-              <span className="tabular-nums font-medium">{data.active_installments_count}</span>
+              <span className="tabular-nums font-medium">
+                {data.active_installments_count}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Comprometido</span>
@@ -215,7 +241,9 @@ function Index() {
 
         {isError ? (
           <ErrorBanner
-            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            message={
+              error instanceof Error ? error.message : "Erro desconhecido."
+            }
             onRetry={() => refetch()}
             isRetrying={isFetching}
           />

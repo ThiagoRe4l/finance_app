@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
 
 import { buildReportInsights, formatInstallmentsInsight } from "./reports.ts";
 
-const NBSP = " ";  // espaço não-quebrável — o que o Intl usa
+const NBSP = " "; // espaço não-quebrável — o que o Intl usa
 
 test("monta a frase com contagem e valor formatado", () => {
   assert.equal(
@@ -80,7 +80,6 @@ test("valor monetário inválido falha visível", () => {
   assert.throws(() => formatInstallmentsInsight(2, "abc"), /valor monetário/i);
 });
 
-
 // ---------------------------------------------------------------------------
 // buildReportInsights — o que a seção "Insights" mostra, e se mostra
 // ---------------------------------------------------------------------------
@@ -94,7 +93,10 @@ test("valor monetário inválido falha visível", () => {
 // os testes abaixo continuam descrevendo a regra.
 
 test("devolve o insight de parcelamentos quando há algum ativo", () => {
-  const insights = buildReportInsights({ activeCount: 2, monthlyCommitted: "530.00" });
+  const insights = buildReportInsights({
+    activeCount: 2,
+    monthlyCommitted: "530.00",
+  });
 
   assert.equal(insights.length, 1);
   assert.match(insights[0], /2 parcelamentos ativos/);
@@ -106,11 +108,17 @@ test("lista vazia quando nenhum insight tem lastro", () => {
    * decoração e foram removidos. Lista vazia é o sinal para o componente
    * esconder a seção inteira, em vez de desenhar um card vazio.
    */
-  assert.deepEqual(buildReportInsights({ activeCount: 0, monthlyCommitted: "0.00" }), []);
+  assert.deepEqual(
+    buildReportInsights({ activeCount: 0, monthlyCommitted: "0.00" }),
+    [],
+  );
 });
 
 test("o singular chega até a lista", () => {
-  const [insight] = buildReportInsights({ activeCount: 1, monthlyCommitted: "450.00" });
+  const [insight] = buildReportInsights({
+    activeCount: 1,
+    monthlyCommitted: "450.00",
+  });
 
   assert.match(insight, /1 parcelamento ativo /);
 });
@@ -121,9 +129,15 @@ test("nunca devolve entrada nula ou vazia", () => {
    * renderizaria um item em branco — pior que não ter a seção.
    */
   for (const count of [0, 1, 5]) {
-    const insights = buildReportInsights({ activeCount: count, monthlyCommitted: "100.00" });
+    const insights = buildReportInsights({
+      activeCount: count,
+      monthlyCommitted: "100.00",
+    });
     for (const insight of insights) {
-      assert.ok(insight && insight.trim().length > 0, `item vazio com activeCount=${count}`);
+      assert.ok(
+        insight && insight.trim().length > 0,
+        `item vazio com activeCount=${count}`,
+      );
     }
   }
 });

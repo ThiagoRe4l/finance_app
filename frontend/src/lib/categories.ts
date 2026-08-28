@@ -27,7 +27,10 @@ export interface CategoryProgress {
   isAlert: boolean;
 }
 
-export function categoryProgress(spent: string, budget: string): CategoryProgress {
+export function categoryProgress(
+  spent: string,
+  budget: string,
+): CategoryProgress {
   const spentValue = parseMoney(spent);
   const budgetValue = parseMoney(budget);
 

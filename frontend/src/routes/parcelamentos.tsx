@@ -2,7 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, CreditCard, AlertCircle, RotateCw, CheckCircle2, Pencil, ChevronRight, Loader2 } from "lucide-react";
+import {
+  Plus,
+  CreditCard,
+  AlertCircle,
+  RotateCw,
+  CheckCircle2,
+  Pencil,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,7 +28,10 @@ export const Route = createFileRoute("/parcelamentos")({
   head: () => ({
     meta: [
       { title: "Parcelamentos — Fisco" },
-      { name: "description", content: "Acompanhe parcelas em aberto e o valor comprometido por mês." },
+      {
+        name: "description",
+        content: "Acompanhe parcelas em aberto e o valor comprometido por mês.",
+      },
     ],
   }),
   component: ParcelamentosPage,
@@ -29,7 +41,11 @@ export const Route = createFileRoute("/parcelamentos")({
 const INSTALLMENTS_ENDPOINT = "/installments/";
 const SUMMARY_ENDPOINT = "/installments/summary";
 
-function ErrorBanner({ message, onRetry, isRetrying }: {
+function ErrorBanner({
+  message,
+  onRetry,
+  isRetrying,
+}: {
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -39,7 +55,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">Não foi possível carregar os parcelamentos</p>
+          <p className="text-sm font-medium text-foreground">
+            Não foi possível carregar os parcelamentos
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -58,7 +76,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
 function TotalCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+        {label}
+      </p>
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
     </div>
   );
@@ -68,7 +88,10 @@ function LoadingTotals() {
   return (
     <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       {Array.from({ length: 3 }, (_, i) => (
-        <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+        <div
+          key={i}
+          className="bg-card p-6 rounded-2xl border border-border shadow-sm"
+        >
           <Skeleton className="h-3 w-32 mb-3" />
           <Skeleton className="h-7 w-28" />
         </div>
@@ -81,7 +104,10 @@ function LoadingCards() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 3 }, (_, i) => (
-        <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+        <div
+          key={i}
+          className="bg-card p-6 rounded-2xl border border-border shadow-sm"
+        >
           <div className="flex items-center justify-between gap-4 mb-5">
             <div className="flex items-center gap-4">
               <Skeleton className="h-10 w-10 rounded-lg" />
@@ -99,7 +125,10 @@ function LoadingCards() {
   );
 }
 
-function InstallmentCard({ installment, onEdit }: {
+function InstallmentCard({
+  installment,
+  onEdit,
+}: {
   installment: Installment;
   onEdit: () => void;
 }) {
@@ -211,7 +240,8 @@ function InstallmentCard({ installment, onEdit }: {
       <div className="space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
           <span>
-            Parcela {installment.current_installment} de {installment.total_installments}
+            Parcela {installment.current_installment} de{" "}
+            {installment.total_installments}
           </span>
           <span>{progress.percent.toFixed(0)}% pago</span>
         </div>
@@ -269,7 +299,9 @@ function ParcelamentosPage() {
 
         {isError ? (
           <ErrorBanner
-            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            message={
+              error instanceof Error ? error.message : "Erro desconhecido."
+            }
             onRetry={retry}
             isRetrying={isFetching}
           />

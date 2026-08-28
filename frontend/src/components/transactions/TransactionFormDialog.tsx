@@ -18,7 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,7 +141,12 @@ export function TransactionFormDialog({
        * Se um dia criar a transação passar a avançar `current_installment` — ou
        * qualquer outro efeito no parcelamento —, esta lista precisa da chave.
        */
-      for (const key of [["transactions"], ["dashboard"], ["categories"], ["reports"]]) {
+      for (const key of [
+        ["transactions"],
+        ["dashboard"],
+        ["categories"],
+        ["reports"],
+      ]) {
         queryClient.invalidateQueries({ queryKey: key });
       }
       toast.success(isEditing ? "Transação atualizada." : "Transação criada.");
@@ -162,7 +171,10 @@ export function TransactionFormDialog({
     event.preventDefault();
 
     const result = isEditing
-      ? transactionEditSchema.safeParse({ ...values, unlink_installment: unlink })
+      ? transactionEditSchema.safeParse({
+          ...values,
+          unlink_installment: unlink,
+        })
       : transactionCreateSchema.safeParse({
           ...values,
           account_id: accounts.data?.[0]?.id,
@@ -190,9 +202,12 @@ export function TransactionFormDialog({
     setErrors((current) => ({ ...current, [field]: undefined }));
   }
 
-  const linkedToInstallment = !isEditing && (values.installment_id ?? "") !== "";
+  const linkedToInstallment =
+    !isEditing && (values.installment_id ?? "") !== "";
   const activeInstallments = (installments.data ?? []).filter(
-    (it) => !installmentProgress(it.current_installment, it.total_installments).isPaidOff,
+    (it) =>
+      !installmentProgress(it.current_installment, it.total_installments)
+        .isPaidOff,
   );
 
   return (
@@ -200,7 +215,9 @@ export function TransactionFormDialog({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Editar transação" : "Nova transação"}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Editar transação" : "Nova transação"}
+            </DialogTitle>
             <DialogDescription>
               {isEditing
                 ? "A conta não pode ser alterada — para mover de conta, exclua e recrie."
@@ -218,13 +235,18 @@ export function TransactionFormDialog({
                 placeholder="Supermercado"
                 autoFocus
               />
-              {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+              {errors.title && (
+                <p className="text-xs text-destructive">{errors.title}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="tx-type">Tipo</Label>
-                <Select value={values.type} onValueChange={(v) => update("type", v)}>
+                <Select
+                  value={values.type}
+                  onValueChange={(v) => update("type", v)}
+                >
                   <SelectTrigger id="tx-type">
                     <SelectValue />
                   </SelectTrigger>
@@ -233,7 +255,9 @@ export function TransactionFormDialog({
                     <SelectItem value="ENTRADA">Entrada</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.type && <p className="text-xs text-destructive">{errors.type}</p>}
+                {errors.type && (
+                  <p className="text-xs text-destructive">{errors.type}</p>
+                )}
               </div>
 
               <div className="grid gap-2">
@@ -245,7 +269,9 @@ export function TransactionFormDialog({
                   placeholder="342,50"
                   inputMode="decimal"
                 />
-                {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
+                {errors.amount && (
+                  <p className="text-xs text-destructive">{errors.amount}</p>
+                )}
               </div>
             </div>
 
@@ -270,13 +296,17 @@ export function TransactionFormDialog({
                   */}
                   <Calendar
                     mode="single"
-                    selected={values.date ? parseISODate(values.date) : undefined}
+                    selected={
+                      values.date ? parseISODate(values.date) : undefined
+                    }
                     onSelect={(date) => date && update("date", toISODate(date))}
                     autoFocus
                   />
                 </PopoverContent>
               </Popover>
-              {errors.date && <p className="text-xs text-destructive">{errors.date}</p>}
+              {errors.date && (
+                <p className="text-xs text-destructive">{errors.date}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -295,8 +325,12 @@ export function TransactionFormDialog({
               <div className="grid gap-2">
                 <Label htmlFor="tx-installment">Parcelamento</Label>
                 <Select
-                  value={values.installment_id === "" ? NONE : values.installment_id}
-                  onValueChange={(v) => update("installment_id", v === NONE ? "" : v)}
+                  value={
+                    values.installment_id === "" ? NONE : values.installment_id
+                  }
+                  onValueChange={(v) =>
+                    update("installment_id", v === NONE ? "" : v)
+                  }
                   disabled={values.is_fixed}
                 >
                   <SelectTrigger id="tx-installment">
@@ -306,16 +340,20 @@ export function TransactionFormDialog({
                     <SelectItem value={NONE}>Nenhum</SelectItem>
                     {activeInstallments.map((it) => (
                       <SelectItem key={it.id} value={String(it.id)}>
-                        {it.title} — {it.current_installment}/{it.total_installments}
+                        {it.title} — {it.current_installment}/
+                        {it.total_installments}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Vincular não avança a parcela — isso é feito na tela de Parcelamentos.
+                  Vincular não avança a parcela — isso é feito na tela de
+                  Parcelamentos.
                 </p>
                 {errors.installment_id && (
-                  <p className="text-xs text-destructive">{errors.installment_id}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.installment_id}
+                  </p>
                 )}
               </div>
             )}
@@ -338,7 +376,9 @@ export function TransactionFormDialog({
                 disabled={linkedToInstallment}
               />
             </div>
-            {errors.is_fixed && <p className="text-xs text-destructive">{errors.is_fixed}</p>}
+            {errors.is_fixed && (
+              <p className="text-xs text-destructive">{errors.is_fixed}</p>
+            )}
 
             {isEditing && transaction?.installment && (
               <div className="flex items-center justify-between rounded-lg border border-border p-3">
@@ -346,11 +386,15 @@ export function TransactionFormDialog({
                   <Label htmlFor="tx-unlink">Desvincular do parcelamento</Label>
                   <p className="text-xs text-muted-foreground">
                     Parcela {transaction.installment.current_installment}/
-                    {transaction.installment.total_installments}. O lançamento continua
-                    existindo.
+                    {transaction.installment.total_installments}. O lançamento
+                    continua existindo.
                   </p>
                 </div>
-                <Switch id="tx-unlink" checked={unlink} onCheckedChange={setUnlink} />
+                <Switch
+                  id="tx-unlink"
+                  checked={unlink}
+                  onCheckedChange={setUnlink}
+                />
               </div>
             )}
           </div>
@@ -365,7 +409,9 @@ export function TransactionFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {mutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               {isEditing ? "Salvar" : "Criar"}
             </Button>
           </DialogFooter>

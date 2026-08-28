@@ -40,7 +40,12 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     type: "SAÍDA",
     amount: "100.00",
     date: "2026-08-07",
-    category: { id: 1, name: "Alimentação", color: "oklch(0.6 0.15 155)", icon_name: "UtensilsCrossed" },
+    category: {
+      id: 1,
+      name: "Alimentação",
+      color: "oklch(0.6 0.15 155)",
+      icon_name: "UtensilsCrossed",
+    },
     is_fixed: false,
     account_id: 1,
     installment_id: null,
@@ -54,14 +59,17 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
 // ---------------------------------------------------------------------------
 
 test("SAÍDA comum é Variável", () => {
-  assert.deepEqual(deriveTransactionLabel(tx()), { label: "Variável", meta: null });
+  assert.deepEqual(deriveTransactionLabel(tx()), {
+    label: "Variável",
+    meta: null,
+  });
 });
 
 test("SAÍDA fixa é Fixa", () => {
-  assert.deepEqual(
-    deriveTransactionLabel(tx({ is_fixed: true })),
-    { label: "Fixa", meta: null },
-  );
+  assert.deepEqual(deriveTransactionLabel(tx({ is_fixed: true })), {
+    label: "Fixa",
+    meta: null,
+  });
 });
 
 test("SAÍDA parcelada é Parcelada e carrega o progresso", () => {
@@ -70,14 +78,17 @@ test("SAÍDA parcelada é Parcelada e carrega o progresso", () => {
     installment: { current_installment: 2, total_installments: 12 },
   });
 
-  assert.deepEqual(deriveTransactionLabel(parcela), { label: "Parcelada", meta: "2/12" });
+  assert.deepEqual(deriveTransactionLabel(parcela), {
+    label: "Parcelada",
+    meta: "2/12",
+  });
 });
 
 test("ENTRADA é Receita", () => {
-  assert.deepEqual(
-    deriveTransactionLabel(tx({ type: "ENTRADA" })),
-    { label: "Receita", meta: null },
-  );
+  assert.deepEqual(deriveTransactionLabel(tx({ type: "ENTRADA" })), {
+    label: "Receita",
+    meta: null,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -108,7 +119,10 @@ test("ENTRADA parcelada é Receita e descarta o meta", () => {
     installment: { current_installment: 2, total_installments: 12 },
   });
 
-  assert.deepEqual(deriveTransactionLabel(entradaParcelada), { label: "Receita", meta: null });
+  assert.deepEqual(deriveTransactionLabel(entradaParcelada), {
+    label: "Receita",
+    meta: null,
+  });
 });
 
 test("SAÍDA parcelada vence is_fixed se os dois vierem juntos", () => {
@@ -125,7 +139,10 @@ test("SAÍDA parcelada vence is_fixed se os dois vierem juntos", () => {
     installment: { current_installment: 3, total_installments: 6 },
   });
 
-  assert.deepEqual(deriveTransactionLabel(inconsistente), { label: "Parcelada", meta: "3/6" });
+  assert.deepEqual(deriveTransactionLabel(inconsistente), {
+    label: "Parcelada",
+    meta: "3/6",
+  });
 });
 
 test("installment_id sem o objeto installment não vira Parcelada", () => {

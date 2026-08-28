@@ -44,8 +44,12 @@ export function MetricCard({
 }: MetricCardProps) {
   return (
     <div className="bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
-      <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">{label}</p>
-      <p className={`text-2xl font-semibold tabular-nums ${toneClasses[tone]}`}>{value}</p>
+      <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">
+        {label}
+      </p>
+      <p className={`text-2xl font-semibold tabular-nums ${toneClasses[tone]}`}>
+        {value}
+      </p>
       {delta && (
         <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
           <TrendIcon trend={trend} />

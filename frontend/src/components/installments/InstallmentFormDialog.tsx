@@ -41,8 +41,18 @@ interface Account {
 }
 
 const MONTH_LABELS = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
 /** Janela de anos do seletor: o ano corrente e os 9 seguintes. */
@@ -104,7 +114,9 @@ export function InstallmentFormDialog({
         ? {
             title: installment.title,
             category_id: String(installment.category.id),
-            installment_amount: formatBRL(installment.installment_amount).replace(/[^\d.,-]/g, ""),
+            installment_amount: formatBRL(
+              installment.installment_amount,
+            ).replace(/[^\d.,-]/g, ""),
             current_installment: String(installment.current_installment),
             total_installments: String(installment.total_installments),
             // `parseEndDate` pode devolver `null` se o valor não seguir
@@ -127,7 +139,9 @@ export function InstallmentFormDialog({
       for (const key of [["installments"], ["dashboard"], ["reports"]]) {
         queryClient.invalidateQueries({ queryKey: key });
       }
-      toast.success(isEditing ? "Parcelamento atualizado." : "Parcelamento criado.");
+      toast.success(
+        isEditing ? "Parcelamento atualizado." : "Parcelamento criado.",
+      );
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -160,7 +174,10 @@ export function InstallmentFormDialog({
 
     const result = isEditing
       ? installmentEditSchema.safeParse(values)
-      : installmentCreateSchema.safeParse({ ...values, account_id: accounts.data?.[0]?.id });
+      : installmentCreateSchema.safeParse({
+          ...values,
+          account_id: accounts.data?.[0]?.id,
+        });
 
     if (!result.success) {
       const next: FieldErrors = {};
@@ -176,13 +193,22 @@ export function InstallmentFormDialog({
     mutation.mutate(result.data);
   }
 
-  function update<K extends keyof InstallmentFormInput>(field: K, value: string) {
+  function update<K extends keyof InstallmentFormInput>(
+    field: K,
+    value: string,
+  ) {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
   }
 
-  const parsedEnd = parseEndDate(values.end_date) ?? { month: 1, year: yearOptions()[0] };
-  const derivedTotal = deriveTotalAmount(values.installment_amount, values.total_installments);
+  const parsedEnd = parseEndDate(values.end_date) ?? {
+    month: 1,
+    year: yearOptions()[0],
+  };
+  const derivedTotal = deriveTotalAmount(
+    values.installment_amount,
+    values.total_installments,
+  );
 
   function updateEndDate(month: number, year: number) {
     update("end_date", formatEndDate(month, year));
@@ -213,7 +239,9 @@ export function InstallmentFormDialog({
                 placeholder="Notebook Dell"
                 autoFocus
               />
-              {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+              {errors.title && (
+                <p className="text-xs text-destructive">{errors.title}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -239,7 +267,9 @@ export function InstallmentFormDialog({
                   inputMode="decimal"
                 />
                 {errors.installment_amount && (
-                  <p className="text-xs text-destructive">{errors.installment_amount}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.installment_amount}
+                  </p>
                 )}
               </div>
 
@@ -253,7 +283,9 @@ export function InstallmentFormDialog({
                   inputMode="numeric"
                 />
                 {errors.total_installments && (
-                  <p className="text-xs text-destructive">{errors.total_installments}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.total_installments}
+                  </p>
                 )}
               </div>
             </div>
@@ -272,7 +304,9 @@ export function InstallmentFormDialog({
                 {derivedTotal ? formatBRL(derivedTotal) : "—"}
               </p>
               {errors.total_amount && (
-                <p className="text-xs text-destructive">{errors.total_amount}</p>
+                <p className="text-xs text-destructive">
+                  {errors.total_amount}
+                </p>
               )}
             </div>
 
@@ -282,11 +316,15 @@ export function InstallmentFormDialog({
                 <Input
                   id="inst-current"
                   value={values.current_installment}
-                  onChange={(e) => update("current_installment", e.target.value)}
+                  onChange={(e) =>
+                    update("current_installment", e.target.value)
+                  }
                   inputMode="numeric"
                 />
                 {errors.current_installment && (
-                  <p className="text-xs text-destructive">{errors.current_installment}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.current_installment}
+                  </p>
                 )}
               </div>
 
@@ -299,7 +337,9 @@ export function InstallmentFormDialog({
                 <Label htmlFor="inst-month">Mês final</Label>
                 <Select
                   value={String(parsedEnd.month)}
-                  onValueChange={(v) => updateEndDate(Number(v), parsedEnd.year)}
+                  onValueChange={(v) =>
+                    updateEndDate(Number(v), parsedEnd.year)
+                  }
                 >
                   <SelectTrigger id="inst-month">
                     <SelectValue />
@@ -318,7 +358,9 @@ export function InstallmentFormDialog({
                 <Label htmlFor="inst-year">Ano final</Label>
                 <Select
                   value={String(parsedEnd.year)}
-                  onValueChange={(v) => updateEndDate(parsedEnd.month, Number(v))}
+                  onValueChange={(v) =>
+                    updateEndDate(parsedEnd.month, Number(v))
+                  }
                 >
                   <SelectTrigger id="inst-year">
                     <SelectValue />
@@ -333,7 +375,9 @@ export function InstallmentFormDialog({
                 </Select>
               </div>
             </div>
-            {errors.end_date && <p className="text-xs text-destructive">{errors.end_date}</p>}
+            {errors.end_date && (
+              <p className="text-xs text-destructive">{errors.end_date}</p>
+            )}
           </div>
 
           <DialogFooter>
@@ -346,7 +390,9 @@ export function InstallmentFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {mutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               {isEditing ? "Salvar" : "Criar"}
             </Button>
           </DialogFooter>

@@ -11,7 +11,10 @@
  * `money.test.ts`, que fixa a limitação num teste.
  */
 
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const BRL = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
 /**
  * Converte o valor monetário devolvido pela API em `number`.
@@ -53,7 +56,6 @@ export function formatBRL(value: string | number): string {
 
   return BRL.format(parsed);
 }
-
 
 // Convenção pt-BR: grupos de milhar separados por ponto, vírgula decimal com
 // até 2 casas. O primeiro grupo tem 1–3 dígitos.

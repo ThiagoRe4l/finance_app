@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Search, AlertCircle, RotateCw, Pencil, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  AlertCircle,
+  RotateCw,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,7 +28,10 @@ export const Route = createFileRoute("/transacoes")({
   head: () => ({
     meta: [
       { title: "Transações — Fisco" },
-      { name: "description", content: "Gerencie suas entradas e saídas, fixas e variáveis." },
+      {
+        name: "description",
+        content: "Gerencie suas entradas e saídas, fixas e variáveis.",
+      },
     ],
   }),
   component: TransacoesPage,
@@ -38,7 +48,8 @@ const typeColor: Record<TransactionLabel, string> = {
 // e sem ela toda listagem custa dois round-trips.
 const TRANSACTIONS_ENDPOINT = "/transactions/";
 
-const COLUMNS = "grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-0 items-center";
+const COLUMNS =
+  "grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-0 items-center";
 
 function TableHeader() {
   return (
@@ -72,7 +83,11 @@ function LoadingRows() {
   );
 }
 
-function ErrorBanner({ message, onRetry, isRetrying }: {
+function ErrorBanner({
+  message,
+  onRetry,
+  isRetrying,
+}: {
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -82,7 +97,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">Não foi possível carregar as transações</p>
+          <p className="text-sm font-medium text-foreground">
+            Não foi possível carregar as transações
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -110,7 +127,11 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
   );
 }
 
-function TransactionRow({ transaction, onEdit, onDelete }: {
+function TransactionRow({
+  transaction,
+  onEdit,
+  onDelete,
+}: {
   transaction: Transaction;
   onEdit: () => void;
   onDelete: () => void;
@@ -125,9 +146,13 @@ function TransactionRow({ transaction, onEdit, onDelete }: {
         {formatShortDate(transaction.date)}
       </div>
       <div className="col-span-4 text-sm font-medium">{transaction.title}</div>
-      <div className="col-span-2 text-sm text-muted-foreground">{transaction.category.name}</div>
+      <div className="col-span-2 text-sm text-muted-foreground">
+        {transaction.category.name}
+      </div>
       <div className="col-span-2">
-        <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full ${typeColor[label]}`}>
+        <span
+          className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full ${typeColor[label]}`}
+        >
           {meta ? `${label} ${meta}` : label}
         </span>
       </div>
@@ -221,7 +246,9 @@ function TransacoesPage() {
 
         {isError ? (
           <ErrorBanner
-            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            message={
+              error instanceof Error ? error.message : "Erro desconhecido."
+            }
             onRetry={() => refetch()}
             isRetrying={isFetching}
           />

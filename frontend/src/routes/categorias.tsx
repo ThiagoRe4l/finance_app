@@ -17,7 +17,10 @@ export const Route = createFileRoute("/categorias")({
   head: () => ({
     meta: [
       { title: "Categorias — Fisco" },
-      { name: "description", content: "Organize seus gastos por categorias e acompanhe o orçamento." },
+      {
+        name: "description",
+        content: "Organize seus gastos por categorias e acompanhe o orçamento.",
+      },
     ],
   }),
   component: CategoriasPage,
@@ -32,7 +35,10 @@ function LoadingCards() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+        <div
+          key={i}
+          className="bg-card p-6 rounded-2xl border border-border shadow-sm"
+        >
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-center gap-3">
               <Skeleton className="h-10 w-10 rounded-lg" />
@@ -54,7 +60,11 @@ function LoadingCards() {
   );
 }
 
-function ErrorBanner({ message, onRetry, isRetrying }: {
+function ErrorBanner({
+  message,
+  onRetry,
+  isRetrying,
+}: {
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -64,7 +74,9 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">Não foi possível carregar as categorias</p>
+          <p className="text-sm font-medium text-foreground">
+            Não foi possível carregar as categorias
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -80,7 +92,11 @@ function ErrorBanner({ message, onRetry, isRetrying }: {
   );
 }
 
-function CategoryCard({ category, onEdit, onDelete }: {
+function CategoryCard({
+  category,
+  onEdit,
+  onDelete,
+}: {
   category: CategorySummary;
   onEdit: () => void;
   onDelete: () => void;
@@ -118,14 +134,17 @@ function CategoryCard({ category, onEdit, onDelete }: {
         <div className="flex items-center gap-3">
           <div
             className="h-10 w-10 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `color-mix(in oklab, ${category.color} 15%, transparent)` }}
+            style={{
+              backgroundColor: `color-mix(in oklab, ${category.color} 15%, transparent)`,
+            }}
           >
             <Icon className="h-5 w-5" style={{ color: category.color }} />
           </div>
           <div>
             <p className="text-sm font-medium">{category.name}</p>
             <p className="text-xs text-muted-foreground">
-              {category.txs_count} {category.txs_count === 1 ? "transação" : "transações"}
+              {category.txs_count}{" "}
+              {category.txs_count === 1 ? "transação" : "transações"}
             </p>
           </div>
         </div>
@@ -154,7 +173,9 @@ function CategoryCard({ category, onEdit, onDelete }: {
               className="h-full rounded-full transition-all"
               style={{
                 width: `${progress.width}%`,
-                backgroundColor: progress.isAlert ? ALERT_COLOR : category.color,
+                backgroundColor: progress.isAlert
+                  ? ALERT_COLOR
+                  : category.color,
               }}
             />
           )}
@@ -162,13 +183,17 @@ function CategoryCard({ category, onEdit, onDelete }: {
       </div>
 
       <div className="flex items-baseline justify-between">
-        <span className="text-xl font-semibold tabular-nums">{formatBRL(progress.spent)}</span>
+        <span className="text-xl font-semibold tabular-nums">
+          {formatBRL(progress.spent)}
+        </span>
         {progress.hasBudget ? (
           <span className="text-xs text-muted-foreground tabular-nums">
             de {formatBRL(progress.budget)}
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground">sem orçamento definido</span>
+          <span className="text-xs text-muted-foreground">
+            sem orçamento definido
+          </span>
         )}
       </div>
     </div>
@@ -205,7 +230,9 @@ function CategoriasPage() {
 
         {isError ? (
           <ErrorBanner
-            message={error instanceof Error ? error.message : "Erro desconhecido."}
+            message={
+              error instanceof Error ? error.message : "Erro desconhecido."
+            }
             onRetry={() => refetch()}
             isRetrying={isFetching}
           />
@@ -213,7 +240,9 @@ function CategoriasPage() {
           <LoadingCards />
         ) : data.length === 0 ? (
           <div className="bg-card rounded-2xl border border-border shadow-sm px-6 py-16 text-center">
-            <p className="text-sm text-muted-foreground">Nenhuma categoria cadastrada ainda.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhuma categoria cadastrada ainda.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

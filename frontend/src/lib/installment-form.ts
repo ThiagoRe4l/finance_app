@@ -11,7 +11,20 @@ import { z } from "zod";
 import { parseMoneyInput } from "./money.ts";
 
 /** As mesmas abreviações de `dashboard.py`, duplicadas por não haver endpoint. */
-const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTHS = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
 
 const END_DATE = /^([A-Z][a-z]{2})\/(\d{4})$/;
 
@@ -58,7 +71,10 @@ export function deriveTotalAmount(
  * pt-BR recusa de propósito. Passar o valor canônico de volta pelo parser
  * devolvia `null` — e o `total_amount` do payload saía vazio.
  */
-function multiplyCanonical(canonical: string, totalInstallments: string): string | null {
+function multiplyCanonical(
+  canonical: string,
+  totalInstallments: string,
+): string | null {
   if (!/^\d+$/.test(totalInstallments.trim())) return null;
   const count = Number(totalInstallments);
   if (count <= 0) return null;
@@ -85,7 +101,9 @@ export function formatEndDate(month: number, year: number): string {
  * um parcelamento criado por script pode trazer qualquer coisa — o seletor cai
  * num default em vez de quebrar.
  */
-export function parseEndDate(value: string): { month: number; year: number } | null {
+export function parseEndDate(
+  value: string,
+): { month: number; year: number } | null {
   const match = typeof value === "string" ? END_DATE.exec(value.trim()) : null;
   if (!match) return null;
 
@@ -137,7 +155,10 @@ const commonFields = {
   installment_amount: z
     .string()
     .transform((raw) => parseMoneyInput(raw))
-    .refine((parsed) => parsed !== null, "Informe um valor válido, como 450,00.")
+    .refine(
+      (parsed) => parsed !== null,
+      "Informe um valor válido, como 450,00.",
+    )
     .refine(
       (parsed) => parsed === null || Number(parsed) > 0,
       "O valor da parcela deve ser maior que zero.",
@@ -157,14 +178,17 @@ const commonFields = {
 };
 
 /** Acrescenta `total_amount` derivado dos dois campos editáveis. */
-function withDerivedTotal<T extends { installment_amount: string; total_installments: number }>(
-  data: T,
-) {
+function withDerivedTotal<
+  T extends { installment_amount: string; total_installments: number },
+>(data: T) {
   return {
     ...data,
     // `installment_amount` já passou pelo schema e está canônico — por isso
     // `multiplyCanonical`, não `deriveTotalAmount`.
-    total_amount: multiplyCanonical(data.installment_amount, String(data.total_installments))!,
+    total_amount: multiplyCanonical(
+      data.installment_amount,
+      String(data.total_installments),
+    )!,
   };
 }
 

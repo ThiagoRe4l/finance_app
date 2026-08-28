@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
-import { categoryFormSchema, type CategoryFormInput } from "@/lib/category-form";
+import {
+  categoryFormSchema,
+  type CategoryFormInput,
+} from "@/lib/category-form";
 import { CATEGORY_ICON_NAMES, resolveCategoryIcon } from "@/lib/category-icons";
 import type { CategorySummary } from "@/lib/dashboard";
 
@@ -138,7 +141,9 @@ export function CategoryFormDialog({
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Editar categoria" : "Nova categoria"}
+            </DialogTitle>
             <DialogDescription>
               O orçamento é mensal e pode ficar em branco.
             </DialogDescription>
@@ -154,7 +159,9 @@ export function CategoryFormDialog({
                 placeholder="Alimentação"
                 autoFocus
               />
-              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -166,7 +173,9 @@ export function CategoryFormDialog({
                 placeholder="1.500,00"
                 inputMode="decimal"
               />
-              {errors.budget && <p className="text-xs text-destructive">{errors.budget}</p>}
+              {errors.budget && (
+                <p className="text-xs text-destructive">{errors.budget}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -189,7 +198,10 @@ export function CategoryFormDialog({
                           : "border-border hover:bg-secondary/60"
                       }`}
                     >
-                      <Icon className="h-4 w-4" style={{ color: values.color }} />
+                      <Icon
+                        className="h-4 w-4"
+                        style={{ color: values.color }}
+                      />
                     </button>
                   );
                 })}
@@ -210,15 +222,21 @@ export function CategoryFormDialog({
                     aria-label={color}
                     aria-pressed={values.color === color}
                     className={`h-8 w-8 rounded-full border-2 flex items-center justify-center transition-transform ${
-                      values.color === color ? "border-foreground scale-110" : "border-transparent"
+                      values.color === color
+                        ? "border-foreground scale-110"
+                        : "border-transparent"
                     }`}
                     style={{ backgroundColor: color }}
                   >
-                    {values.color === color && <Check className="h-4 w-4 text-white" />}
+                    {values.color === color && (
+                      <Check className="h-4 w-4 text-white" />
+                    )}
                   </button>
                 ))}
               </div>
-              {errors.color && <p className="text-xs text-destructive">{errors.color}</p>}
+              {errors.color && (
+                <p className="text-xs text-destructive">{errors.color}</p>
+              )}
             </div>
           </div>
 
@@ -232,7 +250,9 @@ export function CategoryFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {mutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               {isEditing ? "Salvar" : "Criar"}
             </Button>
           </DialogFooter>

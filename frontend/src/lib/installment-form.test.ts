@@ -28,7 +28,9 @@ import {
   type InstallmentFormInput,
 } from "./installment-form.ts";
 
-function input(overrides: Partial<InstallmentFormInput> = {}): InstallmentFormInput {
+function input(
+  overrides: Partial<InstallmentFormInput> = {},
+): InstallmentFormInput {
   return {
     title: "Notebook Dell",
     category_id: "3",
@@ -113,7 +115,10 @@ test("parseEndDate devolve null no que não segue o formato", () => {
 
 test("o ciclo formatEndDate -> parseEndDate não perde informação", () => {
   for (let month = 1; month <= 12; month += 1) {
-    assert.deepEqual(parseEndDate(formatEndDate(month, 2026)), { month, year: 2026 });
+    assert.deepEqual(parseEndDate(formatEndDate(month, 2026)), {
+      month,
+      year: 2026,
+    });
   }
 });
 
@@ -154,7 +159,8 @@ test("⚠️ devolve lista vazia quando o texto muda — fallback explícito", (
 
 test("ignora nomes que não são campos do formulário", () => {
   // Um `detail` com texto parecido não deve pintar campo que não existe.
-  const detail = "Parcelamento já possui transações lançadas: foo, bar não pode(m) mais ser alterado(s).";
+  const detail =
+    "Parcelamento já possui transações lançadas: foo, bar não pode(m) mais ser alterado(s).";
 
   assert.deepEqual(parseLockedFields(detail), []);
 });
@@ -186,22 +192,43 @@ test("create exige account_id", () => {
 });
 
 test("título respeita o limite de 100 — menor que o da transação", () => {
-  assert.equal(installmentEditSchema.safeParse(input({ title: "a".repeat(100) })).success, true);
-  assert.equal(installmentEditSchema.safeParse(input({ title: "a".repeat(101) })).success, false);
-  assert.equal(installmentEditSchema.safeParse(input({ title: "" })).success, false);
+  assert.equal(
+    installmentEditSchema.safeParse(input({ title: "a".repeat(100) })).success,
+    true,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ title: "a".repeat(101) })).success,
+    false,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ title: "" })).success,
+    false,
+  );
 });
 
 test("parcela precisa ser maior que zero", () => {
   for (const amount of ["0", "0,00", "-50,00"]) {
-    const result = installmentEditSchema.safeParse(input({ installment_amount: amount }));
+    const result = installmentEditSchema.safeParse(
+      input({ installment_amount: amount }),
+    );
     assert.equal(result.success, false, amount);
   }
 });
 
 test("total de parcelas precisa ser inteiro positivo", () => {
-  assert.equal(installmentEditSchema.safeParse(input({ total_installments: "0" })).success, false);
-  assert.equal(installmentEditSchema.safeParse(input({ total_installments: "1,5" })).success, false);
-  assert.equal(installmentEditSchema.safeParse(input({ total_installments: "" })).success, false);
+  assert.equal(
+    installmentEditSchema.safeParse(input({ total_installments: "0" })).success,
+    false,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ total_installments: "1,5" }))
+      .success,
+    false,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ total_installments: "" })).success,
+    false,
+  );
 });
 
 test("parcela atual aceita valor acima do total — é o estado quitado", () => {
@@ -210,14 +237,24 @@ test("parcela atual aceita valor acima do total — é o estado quitado", () => 
    * `current <= total` aqui pareceria defensiva e impediria registrar um
    * parcelamento já encerrado.
    */
-  const parsed = installmentEditSchema.parse(input({ current_installment: "13" }));
+  const parsed = installmentEditSchema.parse(
+    input({ current_installment: "13" }),
+  );
 
   assert.equal(parsed.current_installment, 13);
 });
 
 test("parcela atual precisa ser pelo menos 1", () => {
-  assert.equal(installmentEditSchema.safeParse(input({ current_installment: "0" })).success, false);
-  assert.equal(installmentEditSchema.safeParse(input({ current_installment: "-2" })).success, false);
+  assert.equal(
+    installmentEditSchema.safeParse(input({ current_installment: "0" }))
+      .success,
+    false,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ current_installment: "-2" }))
+      .success,
+    false,
+  );
 });
 
 test("categoria é obrigatória", () => {
@@ -228,9 +265,18 @@ test("categoria é obrigatória", () => {
 });
 
 test("end_date precisa estar no formato do rótulo", () => {
-  assert.equal(installmentEditSchema.safeParse(input({ end_date: "Ago/2026" })).success, true);
-  assert.equal(installmentEditSchema.safeParse(input({ end_date: "2026-08-01" })).success, false);
-  assert.equal(installmentEditSchema.safeParse(input({ end_date: "" })).success, false);
+  assert.equal(
+    installmentEditSchema.safeParse(input({ end_date: "Ago/2026" })).success,
+    true,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ end_date: "2026-08-01" })).success,
+    false,
+  );
+  assert.equal(
+    installmentEditSchema.safeParse(input({ end_date: "" })).success,
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -271,7 +317,9 @@ test("reporta todos os campos inválidos de uma vez", () => {
   });
 
   assert.equal(result.success, false);
-  const campos = [...new Set(result.error!.issues.map((i) => i.path[0]))].sort();
+  const campos = [
+    ...new Set(result.error!.issues.map((i) => i.path[0])),
+  ].sort();
   assert.deepEqual(campos, [
     "category_id",
     "current_installment",

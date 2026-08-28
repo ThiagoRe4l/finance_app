@@ -67,7 +67,12 @@ const SEED_ICON_NAMES = [
  * As quatro entram juntas porque o custo é o mesmo e elas cobrem o vocabulário
  * que deve reaparecer em categorias novas de receita/poupança.
  */
-const MONEY_ICON_NAMES = ["Wallet", "CircleDollarSign", "PiggyBank", "TrendingUp"];
+const MONEY_ICON_NAMES = [
+  "Wallet",
+  "CircleDollarSign",
+  "PiggyBank",
+  "TrendingUp",
+];
 
 test("resolve os nomes conhecidos para o componente certo", () => {
   assert.equal(resolveCategoryIcon("Home"), Home);
@@ -126,7 +131,10 @@ test("nome desconhecido cai no fallback em vez de undefined", () => {
 test("string vazia, null e undefined caem no fallback", () => {
   assert.equal(resolveCategoryIcon(""), FALLBACK_ICON);
   assert.equal(resolveCategoryIcon(null as unknown as string), FALLBACK_ICON);
-  assert.equal(resolveCategoryIcon(undefined as unknown as string), FALLBACK_ICON);
+  assert.equal(
+    resolveCategoryIcon(undefined as unknown as string),
+    FALLBACK_ICON,
+  );
 });
 
 test("o fallback é neutro, não um ícone de erro", () => {

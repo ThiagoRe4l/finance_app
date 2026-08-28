@@ -117,7 +117,14 @@ test("total zero não gera divisão por zero", () => {
 
 test("percentual nunca sai do intervalo 0–100", () => {
   const casos: Array<[number, number]> = [
-    [1, 12], [2, 12], [12, 12], [13, 12], [20, 12], [0, 12], [1, 0], [-5, 12],
+    [1, 12],
+    [2, 12],
+    [12, 12],
+    [13, 12],
+    [20, 12],
+    [0, 12],
+    [1, 0],
+    [-5, 12],
   ];
 
   for (const [current, total] of casos) {
