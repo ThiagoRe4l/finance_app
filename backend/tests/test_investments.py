@@ -2,48 +2,15 @@ from decimal import Decimal
 
 from tests.conftest import money
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.database import Base, get_db
-from app.main import app
-
-# Configuração de um banco de dados SQLite limpo em memória para isolamento dos testes
-SQLALCHEMY_DATABASE_URL = "sqlite://"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@pytest.fixture(name="session")
-def session_fixture():
-    # Cria todas as tabelas para a sessão de teste
-    Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine)
-
-@pytest.fixture(name="client")
-def client_fixture(session):
-    # Sobrescreve a dependência get_db para usar a nossa sessão de teste limpa
-    def override_get_db():
-        try:
-            yield session
-        finally:
-            pass
-    
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    del app.dependency_overrides[get_db]
+# ⚠️ As fixtures locais de engine saíram daqui (28/08/2026).
+#
+# Este arquivo carregava a própria cópia do setup de SQLite — débito já
+# registrado no CLAUDE.md ("migrar quando forem tocados"). O pivô para Postgres
+# os toca: com engine próprio e `create_all()`, estes testes escapariam tanto do
+# schema construído pela migration quanto do job de Postgres do CI, e ficariam
+# verdes contra um schema que ninguém mais usa.
+#
+# `session`/`client` vêm do `conftest.py`.
 
 
 def test_create_and_list_investments(client):

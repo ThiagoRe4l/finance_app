@@ -1,17 +1,19 @@
-from app.database import engine, Base, SessionLocal
+"""Seed one-off: popula conta e categorias padrão.
+
+⚠️ **Este script NÃO cria tabelas.** Antes do pivô ele chamava `create_all()` e
+rodava no entrypoint do container. Agora o schema é responsabilidade do
+**Alembic** (D-Vercel-6), nos dois ambientes — `alembic upgrade head` antes
+daqui. Manter um `create_all()` de atalho para o SQLite local recriaria
+exatamente a divergência dev/prod que a D-Vercel-1 existe para evitar: o schema
+local viria dos models e o de produção da migration, e os dois poderiam
+discordar sem nada denunciar.
+"""
+
+import argparse
+
+from app.database import SessionLocal
 # Importamos todos os modelos para garantir que são registrados na Base.metadata
 from app.models import Account, Transaction, Investment, InvestmentHistory, Category, Installment
-
-def init_database():
-    print("Criando tabelas no banco de dados SQLite...")
-    Base.metadata.create_all(bind=engine)
-    print("Banco de dados inicializado com sucesso!")
-
-    db = SessionLocal()
-    try:
-        seed_data(db)
-    finally:
-        db.close()
 
 def seed_data(db):
     """Popula o banco com conta e categorias padrão. **Idempotente.**
@@ -60,5 +62,40 @@ def seed_data(db):
         print(f"Erro ao popular dados iniciais: {e}")
         db.rollback()
 
+def main(argv=None):
+    """Entrada do script de seed. Exige `--yes` explícito.
+
+    Antes do pivô isto rodava no entrypoint do container, a cada boot. Em
+    serverless **não há boot**: cada invocação é fria e isolada, e o schema
+    passa a ser responsabilidade do Alembic (D-Vercel-6).
+
+    O seed vira script one-off, rodado à mão — e rodado **contra o banco de
+    produção**. A confirmação existe porque o comando perdeu a rede de proteção
+    que tinha quando só executava em container efêmero: um engano aqui escreve
+    no Neon.
+    """
+    parser = argparse.ArgumentParser(
+        description="Cria as tabelas e popula conta e categorias padrão."
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirma a execução contra o banco apontado por DATABASE_URL",
+    )
+    args = parser.parse_args(argv)
+
+    if not args.yes:
+        parser.error(
+            "esta operação escreve no banco apontado por DATABASE_URL. "
+            "Repita com --yes para confirmar."
+        )
+
+    db = SessionLocal()
+    try:
+        seed_data(db)
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
-    init_database()
+    main()

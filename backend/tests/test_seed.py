@@ -8,6 +8,8 @@ as tabelas, então não há como rodá-lo uma vez só — e isso transforma a
 idempotência em requisito de produção, não conveniência.
 """
 
+import pytest
+
 from app import models
 
 
@@ -43,3 +45,34 @@ def test_seed_keeps_the_default_account_balance(session):
     seed_data(session)
 
     assert session.query(models.Account).one().initial_balance == 42
+
+
+# ---------------------------------------------------------------------------
+# D-Vercel-6: o seed vira script one-off com --yes
+# ---------------------------------------------------------------------------
+
+def test_seed_script_refuses_to_run_without_confirmation():
+    """🔴 Sem entrypoint de container, o seed passa a ser rodado à mão.
+
+    E passa a ser rodado **contra o banco de produção**. A confirmação
+    explícita existe porque o comando deixa de ter a rede de proteção que tinha
+    quando só rodava em container efêmero: um engano aqui escreve no Neon.
+    """
+    from app.init_db import main
+
+    with pytest.raises(SystemExit):
+        main([])
+
+
+def test_seed_script_runs_with_yes(session, monkeypatch):
+    """Com `--yes`, executa e é idempotente como qualquer outro caminho."""
+    import app.init_db as init_db
+
+    monkeypatch.setattr(init_db, "SessionLocal", lambda: session)
+    monkeypatch.setattr(session, "close", lambda: None)
+
+    init_db.main(["--yes"])
+    init_db.main(["--yes"])
+
+    assert session.query(models.Account).count() == 1
+    assert session.query(models.Category).count() == 10

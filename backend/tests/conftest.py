@@ -11,47 +11,114 @@ migração deles acontece junto da implementação.
 """
 
 import datetime
+import os
+import pathlib
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
 
-SQLALCHEMY_DATABASE_URL = "sqlite://"
+BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
+
+# SQLite em memória por default; o job de Postgres do CI aponta para o serviço
+# real (D-Vercel-1). Uma variável separada de `DATABASE_URL` de propósito: rodar
+# a suíte não pode, por acidente de ambiente, apagar o banco de trabalho.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite://")
+IS_SQLITE = TEST_DATABASE_URL.startswith("sqlite")
 
 
 def _build_engine():
-    return create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    if IS_SQLITE:
+        # StaticPool + memória: uma conexão só, compartilhada — é o que faz o
+        # banco sobreviver entre a fixture e o TestClient.
+        return create_engine(
+            TEST_DATABASE_URL,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+    from app.settings import engine_options_for
+
+    return create_engine(TEST_DATABASE_URL, **engine_options_for(TEST_DATABASE_URL))
+
+
+def _create_schema(target_engine):
+    """Constrói o schema **pela migration do Alembic**, não por `create_all()`.
+
+    Esta é a diferença que dá valor à verificação: com `create_all()` a suíte
+    validaria os *models*, e a migration poderia divergir deles sem nada
+    denunciar — que é exatamente o risco do `--autogenerate` registrado na
+    D-Vercel-6. Rodando a migration, qualquer divergência vira teste vermelho.
+
+    A conexão é injetada em `config.attributes` porque o SQLite em memória
+    morre se o Alembic abrir a própria conexão.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+
+    with target_engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
+
+
+def _truncate_all(target_engine):
+    """Esvazia as tabelas entre testes, preservando o schema da migration."""
+    with target_engine.begin() as connection:
+        if IS_SQLITE:
+            for table in reversed(Base.metadata.sorted_tables):
+                connection.execute(table.delete())
+        else:
+            tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
+            # RESTART IDENTITY: os testes assumem ids começando em 1.
+            connection.execute(
+                text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE")
+            )
 
 
 engine = _build_engine()
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@pytest.fixture(name="session")
-def session_fixture():
-    """Banco limpo, **sem** enforcement de FK.
+@pytest.fixture(scope="session", autouse=True)
+def _schema():
+    """Schema criado uma vez por sessão, pela migration."""
+    _create_schema(engine)
+    yield
 
-    Reproduz o SQLite como o app o usa hoje (PRAGMA foreign_keys desligado por
+
+@pytest.fixture(name="session")
+def session_fixture(_schema):
+    """Banco limpo, **sem** enforcement de FK (no SQLite).
+
+    Reproduz o SQLite como o app o usa (PRAGMA foreign_keys desligado por
     default). Os testes de 404 rodam aqui de propósito: a validação do router
     tem que funcionar por si, sem depender do banco para segurar a barra.
+
+    ⚠️ **No Postgres não existe esse "sem enforcement"** — a FK é sempre
+    aplicada, e esta fixture passa a ser indistinguível de `fk_session`.
+
+    Os testes de 404 continuam válidos nos dois bancos: o router recusa antes de
+    chegar ao banco. O que **não** foi possível verificar daqui é se algum teste
+    depende de conseguir inserir linha órfã — isso exigiria um Postgres em
+    execução, que este ambiente não tem (sem Docker, ver Common Hurdles). Se o
+    job de Postgres do CI acusar falha nesse ponto, a correção é marcar o teste
+    como específico de SQLite; não presuma que já está tratado.
     """
-    Base.metadata.create_all(bind=engine)
+    _truncate_all(engine)
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(name="client")
@@ -68,7 +135,7 @@ def client_fixture(session):
 
 
 @pytest.fixture(name="fk_session")
-def fk_session_fixture():
+def fk_session_fixture(_schema):
     """Banco limpo **com** enforcement de FK ligado.
 
     O listener vem de `app.database` de propósito — não é um workaround do
@@ -76,13 +143,26 @@ def fk_session_fixture():
     aplicação real continua sem enforcement, que é exatamente o falso positivo
     que estes testes existem para impedir.
     """
-    from app.database import enable_sqlite_foreign_keys  # implementação pendente
+    from app.database import enable_sqlite_foreign_keys
+
+    if not IS_SQLITE:
+        # Postgres aplica FK nativamente e sempre. A fixture continua existindo
+        # para que os mesmos testes rodem nos dois bancos — no Postgres ela é
+        # equivalente a `session`, e é justamente aí que `test_fk_cascade.py`
+        # exercita CASCADE/RESTRICT/SET NULL contra o motor de produção.
+        _truncate_all(engine)
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+        return
 
     fk_engine = _build_engine()
     enable_sqlite_foreign_keys(fk_engine)
     FkSession = sessionmaker(autocommit=False, autoflush=False, bind=fk_engine)
 
-    Base.metadata.create_all(bind=fk_engine)
+    _create_schema(fk_engine)
     db = FkSession()
     try:
         yield db
