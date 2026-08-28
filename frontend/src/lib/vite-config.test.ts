@@ -9,8 +9,8 @@
  *   `userNitroOpts.preset ?? process.env.NITRO_PRESET ?? "cloudflare-module"`.
  *
  * Ou seja, remover a linha do `vite.config.ts` não quebra nada visível — o
- * build continua "verde" e passa a produzir um Cloudflare Worker em vez de um
- * servidor Node. O deploy no Railway falha só depois, sem mensagem que aponte
+ * build continua "verde" e passa a produzir um Cloudflare Worker em vez da
+ * saída `.vercel/output` que a Vercel consome. O deploy no Railway falha só depois, sem mensagem que aponte
  * para a causa.
  *
  * ⚠️ Este teste NÃO substitui um build de verdade. Ele confirma a declaração,
@@ -29,8 +29,11 @@ const viteConfig = readFileSync(
   "utf8",
 );
 
-test("o preset do Nitro está fixado como node-server", () => {
-  assert.match(viteConfig, /preset:\s*["']node-server["']/);
+test("o preset do Nitro está fixado como vercel", () => {
+  // Era `node-server` no alvo Railway. Este teste falhou na troca de
+  // plataforma, que é exatamente o trabalho dele: o preset não muda em
+  // silêncio, e o fallback para `cloudflare-module` não passa despercebido.
+  assert.match(viteConfig, /preset:\s*["']vercel["']/);
 });
 
 test("o preset não é lido do ambiente", () => {

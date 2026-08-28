@@ -14,12 +14,13 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // ⚠️ `nitro.preset` é OBRIGATÓRIO e vai fixado aqui, não em `NITRO_PRESET`.
 //
 // O default do preset é `cloudflare-module`: sem esta linha, `npm run build`
-// produz um Cloudflare Worker em vez de um servidor Node, e o deploy no
-// Railway falha de forma silenciosa — build "verde", serviço que não sobe.
-// Via variável de ambiente, uma variável faltando reintroduz o mesmo silêncio.
+// produz um Cloudflare Worker, e o deploy falha de forma silenciosa — build
+// "verde", serviço que não sobe. Via variável de ambiente, uma variável
+// faltando no build reintroduz o mesmo silêncio.
 //
-// Saída: `.output/server/index.mjs`, executável com `node`.
-// Ver "🚢 Deploy → D-Deploy-1" no CLAUDE.md.
+// `vercel` emite `.vercel/output` (Build Output API v3), que é o que a Vercel
+// consome. Era `node-server` enquanto o alvo era o Railway; mudou com o pivô
+// de 28/08/2026 — ver "🚢 Deploy — Vercel + Neon" no CLAUDE.md.
 export default defineConfig({
-  nitro: { preset: "node-server" },
+  nitro: { preset: "vercel" },
 });
