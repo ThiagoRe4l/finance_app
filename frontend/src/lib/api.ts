@@ -37,13 +37,13 @@ export async function apiFetch<T>(
 
 export const api = {
   get: <T>(endpoint: string) => apiFetch<T>(endpoint, { method: "GET" }),
-  post: <T>(endpoint: string, data: any) =>
+  post: <T>(endpoint: string, data: unknown) =>
     apiFetch<T>(endpoint, {
       method: "POST",
       body: JSON.stringify(data),
     }),
   // Só PATCH: toda edição de tela é parcial e cada verbo custa um método aqui.
-  patch: <T>(endpoint: string, data: any) =>
+  patch: <T>(endpoint: string, data: unknown) =>
     apiFetch<T>(endpoint, {
       method: "PATCH",
       body: JSON.stringify(data),
