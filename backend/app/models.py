@@ -8,11 +8,19 @@ from app.database import Base
 
 # Tipo único para dinheiro. 12 dígitos, 2 casas: até 9.999.999.999,99.
 #
-# ⚠️ O SQLite **não** tem tipo decimal nativo — `NUMERIC` é só afinidade e o
-# valor é gravado como REAL (`typeof()` devolve `real`). O que se ganha aqui é a
-# conversão float→Decimal **na leitura**, quantizada nesta escala, que absorve o
-# epsilon do ponto flutuante antes de o valor chegar a qualquer comparação ou ao
-# JSON. Não é armazenamento exato; ver a decisão registrada no CLAUDE.md.
+# ⚠️ Sob **SQLite** isto não é armazenamento exato: o SQLite não tem tipo
+# decimal nativo, `NUMERIC` é só afinidade e o valor vai para o disco como REAL.
+# O que se ganha é a conversão float→Decimal **na leitura**, quantizada nesta
+# escala, que absorve o epsilon antes de o valor chegar a uma comparação ou ao
+# JSON.
+#
+# ⚠️ **Isso foi apurado à mão, não é coberto por teste.** Um `typeof()` num
+# console em 08/08/2026 (SQLAlchemy 2.0.51 / SQLite 3.40.1); nenhuma asserção da
+# suíte verifica o tipo de armazenamento, e nenhuma regressão aqui seria pega
+# automaticamente. Trate como observação datada, não como invariante travada.
+#
+# Sob **Postgres** a ressalva não se aplica: `NUMERIC(12,2)` é exato de verdade.
+# Ver a decisão do pivô no CLAUDE.md.
 MONEY = Numeric(12, 2)
 
 class Account(Base):
