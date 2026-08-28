@@ -34,7 +34,7 @@ import datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app import models
 from tests.conftest import create_account, create_category, create_transaction, money
@@ -58,7 +58,10 @@ def test_accounts_table_has_no_current_balance_column(session):
     Campo que ninguém mais atualiza é campo que alguém preenche errado — e
     voltaria a divergir do ledger sem nada denunciar.
     """
-    columns = {row[1] for row in session.execute(text("PRAGMA table_info(accounts)"))}
+    # `inspect()` em vez de `PRAGMA table_info`: PRAGMA é sintaxe inválida no
+    # Postgres, e a intenção aqui é "olhar o schema", não "executar um comando
+    # do SQLite". Ver `test_dialect_portability.py`.
+    columns = {c["name"] for c in inspect(session.get_bind()).get_columns("accounts")}
 
     assert "initial_balance" in columns
     assert "current_balance" not in columns

@@ -113,3 +113,57 @@ def test_cors_splits_on_comma_and_trims_whitespace():
 
 def test_cors_blank_falls_back_to_wildcard():
     assert _settings().resolve_cors_origins({"CORS_ALLOW_ORIGINS": ""}) == ["*"]
+
+
+# ---------------------------------------------------------------------------
+# Opções do engine por dialeto (D-Vercel-1, D-Vercel-2 e o pool serverless)
+# ---------------------------------------------------------------------------
+
+def test_sqlite_keeps_check_same_thread():
+    """🔴 `check_same_thread` é exclusivo do SQLite e quebra no psycopg.
+
+    Hoje ele está fixo em `database.py`. Com dois dialetos, precisa ser
+    decidido por URL.
+    """
+    options = _settings().engine_options_for("sqlite:////workspace/backend/database.db")
+
+    assert options["connect_args"]["check_same_thread"] is False
+
+
+def test_postgres_does_not_receive_sqlite_connect_args():
+    options = _settings().engine_options_for("postgresql+psycopg://u:p@h/d")
+
+    assert "check_same_thread" not in options["connect_args"]
+
+
+def test_postgres_disables_prepared_statements():
+    """🔴 A armadilha do pooler em transaction mode.
+
+    O psycopg3 promove queries a prepared statements depois de algumas
+    execuções. O pooler não garante a mesma sessão entre elas, e a query falha
+    com `prepared statement "_pg3_0" does not exist` — intermitente, só sob
+    concorrência, e invisível em conexão direta. Nenhum teste de integração
+    pegaria isso; por isso o contrato é travado aqui.
+    """
+    options = _settings().engine_options_for("postgresql+psycopg://u:p@h/d")
+
+    assert options["connect_args"]["prepare_threshold"] is None
+
+
+def test_postgres_uses_null_pool():
+    """Serverless: cada instância importa o módulo e criaria o próprio pool.
+
+    Com o pooler externo do Neon, um pool do SQLAlchemy por instância empilha
+    dois níveis de pooling e estoura o limite de conexões do free tier.
+    """
+    from sqlalchemy.pool import NullPool
+
+    assert _settings().engine_options_for("postgresql+psycopg://u:p@h/d")["poolclass"] is NullPool
+
+
+def test_sqlite_does_not_use_null_pool():
+    """O SQLite local não tem pooler externo — `NullPool` aqui seria perda de
+    desempenho sem contrapartida."""
+    options = _settings().engine_options_for("sqlite:////tmp/x.db")
+
+    assert "poolclass" not in options

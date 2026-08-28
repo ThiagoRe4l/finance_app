@@ -306,16 +306,32 @@ def test_recent_transactions_carry_nested_category(client, default_account, defa
 # Enforcement no banco — dependem do PRAGMA foreign_keys ligado
 # ---------------------------------------------------------------------------
 
-def test_foreign_keys_pragma_is_enabled_on_app_engine():
-    """O app real tem que abrir conexão com FK ligada.
+def test_foreign_keys_are_enforced_on_app_engine():
+    """O app real tem que abrir conexão com FK aplicada.
 
-    Sem isso, `ondelete` é decorativo: hoje o projeto declara CASCADE em
-    `account_id` e SET NULL em `installment_id`, e o SQLite ignora os dois.
+    Sem isso, `ondelete` é decorativo: o projeto declara CASCADE em
+    `account_id` e SET NULL em `installment_id`, e o SQLite ignora os dois
+    quando o PRAGMA está desligado.
+
+    ⚠️ **A verificação é por dialeto, não uma só.** `PRAGMA foreign_keys` é
+    sintaxe inválida no Postgres, onde a FK é nativa e sempre ativa — lá o
+    equivalente é confirmar que o listener do SQLite **não** foi aplicado
+    (D-Vercel-4). Um teste só, com asserção diferente para cada banco, mantém
+    a mesma garantia nos dois.
     """
+    from sqlalchemy import text
+
     from app.database import engine as app_engine
+    from app.database import should_enable_sqlite_foreign_keys
+    from app.settings import resolve_database_url
+
+    url = resolve_database_url()
+
+    if not should_enable_sqlite_foreign_keys(url):
+        assert app_engine.dialect.name != "sqlite"
+        return
 
     with app_engine.connect() as conn:
-        from sqlalchemy import text
         assert conn.execute(text("PRAGMA foreign_keys")).scalar() == 1
 
 

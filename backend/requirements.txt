@@ -8,3 +8,13 @@ fastapi==0.139.2
 uvicorn==0.51.0
 sqlalchemy==2.0.51
 pydantic==2.13.4
+
+# Postgres em produção (D-Vercel-2). `psycopg` v3, não `psycopg2-binary`, que é
+# legado. O extra `[binary]` traz a lib compilada e evita exigir toolchain de C
+# no build da função serverless.
+psycopg[binary]==3.3.4
+
+# Schema é responsabilidade do Alembic nos dois ambientes (D-Vercel-6). Fica em
+# produção, e não em dev, porque `alembic upgrade head` roda contra o banco
+# real — não é ferramenta de teste.
+alembic==1.19.1

@@ -18,7 +18,7 @@ isso, `pytest` e `docker compose up` passariam a exigir `.env`.
 """
 
 import os
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional
 
 # Valor que estava hardcoded em `database.py` até a fatia de deploy.
 #
@@ -89,3 +89,42 @@ def resolve_cors_origins(env: Mapping[str, str] = os.environ) -> list[str]:
     origins = [item for item in origins if item]
 
     return origins or list(DEFAULT_CORS_ORIGINS)
+
+
+def engine_options_for(url: str) -> dict[str, Any]:
+    """Argumentos de `create_engine` que dependem do dialeto.
+
+    Existe porque o projeto passa a rodar em **dois** bancos: SQLite no
+    desenvolvimento local e Postgres em produção (D-Vercel-1). Cada um precisa
+    de opções que quebram no outro.
+
+    SQLite
+    ------
+    `check_same_thread=False` é exclusivo do driver `sqlite3` e o psycopg
+    rejeita o argumento. Sem `poolclass`: o pool default do SQLAlchemy serve, e
+    não há pooler externo com quem coordenar.
+
+    Postgres
+    --------
+    `poolclass=NullPool` — cada instância serverless importa `database.py` e
+    criaria o próprio pool. Empilhado sobre o pooler do Neon, dá dois níveis de
+    pooling e estoura o limite de conexões do free tier. Com `NullPool` a
+    conexão é aberta e fechada por request e o pooling fica com quem sabe
+    fazê-lo.
+
+    🔴 `prepare_threshold=None` — **a armadilha desta fatia.** O psycopg3
+    promove queries a *prepared statements* depois de algumas execuções. O
+    pooler em transaction mode não garante a mesma sessão entre elas, e a query
+    falha com `prepared statement "_pg3_0" does not exist`: **intermitente, só
+    sob concorrência, e invisível em conexão direta**. Nenhum teste de
+    integração pega isso — daí o contrato estar travado por teste unitário.
+    """
+    if url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+
+    from sqlalchemy.pool import NullPool
+
+    return {
+        "connect_args": {"prepare_threshold": None},
+        "poolclass": NullPool,
+    }

@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-from app.settings import resolve_database_url, sqlite_path_from_url
+from app.settings import engine_options_for, resolve_database_url, sqlite_path_from_url
 
 # Vem de `DATABASE_URL`; sem a variável, o mesmo caminho que era hardcoded aqui.
 # A resolução mora em `app/settings.py` porque o engine é criado no import deste
@@ -19,10 +19,21 @@ _sqlite_path = sqlite_path_from_url(SQLALCHEMY_DATABASE_URL)
 if _sqlite_path:
     os.makedirs(os.path.dirname(_sqlite_path), exist_ok=True)
 
-# Cria o engine do SQLAlchemy (necessário para SQLite habilitar multithreading em desenvolvimento)
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# As opções dependem do dialeto — ver `engine_options_for`. SQLite e Postgres
+# precisam de argumentos que quebram um no outro.
+engine = create_engine(SQLALCHEMY_DATABASE_URL, **engine_options_for(SQLALCHEMY_DATABASE_URL))
+
+
+def should_enable_sqlite_foreign_keys(url: str) -> bool:
+    """O listener de PRAGMA só faz sentido no SQLite.
+
+    O Postgres aplica FK nativamente e sempre; `PRAGMA foreign_keys` nem é
+    sintaxe válida lá. Mas o listener **não pode simplesmente sair** (D-Vercel-4):
+    o desenvolvimento local continua em SQLite, e sem ele o banco local volta a
+    aceitar linha órfã em silêncio — o que transformaria `test_fk_cascade.py`
+    inteiro em teste de nada.
+    """
+    return url.startswith("sqlite")
 
 
 def enable_sqlite_foreign_keys(target_engine):
@@ -46,7 +57,8 @@ def enable_sqlite_foreign_keys(target_engine):
     return target_engine
 
 
-enable_sqlite_foreign_keys(engine)
+if should_enable_sqlite_foreign_keys(SQLALCHEMY_DATABASE_URL):
+    enable_sqlite_foreign_keys(engine)
 
 # Cria a classe SessionLocal para sessões de banco de dados
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
