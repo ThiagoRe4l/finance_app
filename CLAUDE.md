@@ -2000,6 +2000,70 @@ testpaths = tests
 Agora `.venv/bin/pytest` roda direto, sem `PYTHONPATH`. Se o erro voltar, confirme que o
 `pytest.ini` existe e que você está executando a partir de `/workspace/backend`.
 
+### 5. Backend deployado devolvia 404 em TODA rota, inclusive `/health`
+
+**Sintoma (02/10/2026).** `{"detail":"Not Found"}` em `/health` e em
+`/api/accounts` no backend deployado na Vercel. `/health` não exige
+autenticação, então não era 401 disfarçado.
+
+**Como o diagnóstico foi fechado sem acesso ao deploy.** Duas evidências
+independentes:
+
+* **O formato da resposta.** `{"detail":"Not Found"}` é do FastAPI/Starlette —
+  a Vercel devolveria HTML. `content-length: 22` casa **exatamente** com esse
+  corpo. E um caminho inexistente de propósito devolveu resposta idêntica: tudo
+  chegava ao app, sempre no mesmo caminho errado.
+  * ⚠️ O `vary: Origin` da resposta **não** é do nosso `CORSMiddleware` —
+    verificado local, com e sem header `Origin`. Vem do edge da Vercel. A
+    impressão digital do app é o corpo de 22 bytes.
+  * A prova decisiva foi `/api/accounts/`: com o caminho íntegro, a resposta
+    seria **401 em português**. Vindo `Not Found`, o app nunca viu essa rota.
+* **O log de build**, que explicitou o mecanismo:
+
+      WARNING! Internal rewrites in backend framework projects now route
+      requests using the rewritten destination path. This behavior was
+      previously unsupported and may change which application route handles
+      a request.
+
+**Causa.** `backend/vercel.json` tinha
+`{"rewrites": [{"source": "/(.*)", "destination": "/api/index"}]}`. O
+`destination` passou a ser o caminho que **roteia** a requisição, então o app
+ASGI recebia `/api/index` em toda chamada — rota que ele não tem.
+
+Duas coisas se encaixam no aviso: o comportamento era *"previously
+unsupported"*, ou seja **mudou depois** de a configuração ser escrita; e o log
+chama o projeto de *"backend framework project"*, indicando que a Vercel
+**detecta o FastAPI nativamente** (instalou de `backend/requirements.txt` sem
+nenhum `builds` declarado). O rewrite competia com a detecção e vencia.
+
+**Como foi resolvido.** `backend/vercel.json` **removido** — a detecção nativa
+já roteia para o app ASGI, e o arquivo só existia para fazer o que ela faz.
+`tests/test_deploy_config.py` impede o retorno: se o arquivo voltar a existir,
+nenhum rewrite pode ter `destination` de caminho, e `routes` legado também é
+recusado.
+
+> O teste **não** exige que o arquivo não exista: um dia pode ser preciso
+> declarar `headers`, `regions` ou `maxDuration`. O que não pode voltar é o
+> rewrite por caminho.
+
+**Achado secundário do mesmo log: produção rodava Python 3.12.**
+
+      No Python version specified in .python-version, pyproject.toml, or
+      Pipfile.lock. Using python version: 3.12
+
+A `.venv` e os dois jobs de CI rodam **3.11**. Divergência dev/prod silenciosa —
+nada havia quebrado, e é a classe de problema que a D-Vercel-1 existe para
+evitar. Resolvido com `backend/.python-version` (`3.11`), e há teste travando
+que ele bate com **todos** os `setup-python` do workflow: pin que divergir do
+CI é pior que pin nenhum, porque a suíte ficaria verde contra um interpretador
+que não é o de produção.
+
+**Lição.** Configuração de plataforma não tem teste de comportamento possível
+localmente, mas tem **contrato verificável sobre arquivo** — e foi isso que
+sobrou como proteção nos dois casos. Vale também registrar que o aviso estava
+no log desde o primeiro deploy: o diagnóstico levou duas rodadas por ele não
+ter sido lido antes.
+
 ### 4. `PermissionError` no CI ao criar `/workspace` — caminho de máquina no código
 
 **Sintoma (primeiro CI, 02/10/2026).** Os jobs `backend` **e** `backend-postgres` falharam com

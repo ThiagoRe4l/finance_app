@@ -35,5 +35,39 @@ segue existindo para o desenvolvimento local.
 5. Preencher o `destination` do rewrite em `frontend/vercel.json` e deployar o
    frontend.
 
-Smoke, nesta ordem: `/health` → `/api/accounts/` (saldo `"10000.00"`) →
-`/api/dashboard/summary` (`total_balance` idêntico) → as cinco telas.
+## ⚠️ Não há `vercel.json` neste projeto, e isso é deliberado
+
+A Vercel detecta o FastAPI nativamente ("backend framework project" no log de
+build) e roteia todas as rotas para o app ASGI. Qualquer `rewrites` aqui
+**compete com essa detecção e vence** — com consequência concreta:
+
+    {"rewrites": [{"source": "/(.*)", "destination": "/api/index"}]}
+
+Essa configuração fez o backend devolver `{"detail":"Not Found"}` em **toda**
+rota, inclusive `/health`. O log explicou:
+
+    WARNING! Internal rewrites in backend framework projects now route requests
+    using the rewritten destination path.
+
+O `destination` passou a ser o caminho que roteia, então o app recebia
+`/api/index` em toda chamada. Há teste de contrato impedindo o retorno disso
+(`tests/test_deploy_config.py`).
+
+## Smoke pós-deploy
+
+Nesta ordem:
+
+| Passo | Esperado |
+|---|---|
+| `GET /health` | `200 {"status":"healthy"}` |
+| `GET /api/accounts/` | **`401`** `{"detail":"Não autenticado."}` |
+| login pelo frontend | cookie de sessão gravado |
+| `GET /api/accounts/` autenticado | `200`, saldo `"10000.00"` |
+
+🔴 **O 401 em português é o sinal que importa no segundo passo.** Ele prova que
+o caminho chegou íntegro ao app: um `404 {"detail":"Not Found"}` ali significa
+que o roteamento voltou a reescrever o caminho, e não que falta autenticação.
+
+Depois do login, vale fechar com `/api/dashboard/summary` (o `total_balance`
+tem que ser idêntico ao saldo de `/api/accounts/`) e as cinco telas do
+frontend.
