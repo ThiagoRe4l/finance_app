@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+
+import { UserMenu } from "@/components/auth/UserMenu.tsx";
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -41,9 +43,12 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="mt-auto text-xs text-muted-foreground">
-        Dados armazenados localmente
-      </div>
+      {/*
+        Substitui "Dados armazenados localmente", que deixou de ser verdade
+        quando o banco virou Postgres gerenciado no Neon (D-Vercel-2). Texto
+        desatualizado sobre onde mora dado financeiro é pior que texto nenhum.
+      */}
+      <UserMenu />
     </aside>
   );
 }
