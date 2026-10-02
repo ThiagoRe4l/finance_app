@@ -40,9 +40,41 @@ test("o preset não é lido do ambiente", () => {
   // Via variável, uma variável faltando no build reintroduz o fallback
   // silencioso para Cloudflare — que é justamente o que se quer impedir.
   //
-  // A asserção mira `process.env` e não a string "NITRO_PRESET": a primeira
-  // versão deste teste proibia a palavra e falhava contra o comentário do
-  // próprio `vite.config.ts` que explica por que não usá-la. Proibir o
-  // mecanismo permite documentar a decisão.
-  assert.doesNotMatch(viteConfig, /process\.env/);
+  // ⚠️ Esta asserção já foi larga demais **duas vezes**, e as duas correções
+  // ensinam a mesma coisa: ela precisa mirar o mecanismo exato, não vizinhança.
+  //
+  //   1ª versão: proibia a string "NITRO_PRESET" e falhava contra o próprio
+  //      comentário que explica por que não usá-la.
+  //   2ª versão: proibia `process.env` em qualquer lugar do arquivo, e falhou
+  //      quando o guard do proxy (D-Auth-7) passou a ler `process.env`
+  //      legitimamente, para outra finalidade.
+  //
+  // Agora proíbe só o que importa: o preset vindo do ambiente.
+  assert.doesNotMatch(viteConfig, /preset:\s*process\.env/);
+  assert.doesNotMatch(viteConfig, /process\.env\.NITRO_PRESET/);
+  assert.doesNotMatch(viteConfig, /process\.env\[\s*["'`]NITRO_PRESET/);
+});
+
+// ---------------------------------------------------------------------------
+// Proxy `/api` do dev server — D-Auth-7
+// ---------------------------------------------------------------------------
+//
+// Mesma natureza dos testes acima: contrato sobre arquivo. O proxy é o que faz
+// o desenvolvimento ser mesma origem, e sem ele o cookie de sessão não é
+// enviado — o login simplesmente não funciona local, sem erro que aponte para
+// a causa.
+
+test("o dev server declara o proxy /api", () => {
+  assert.match(viteConfig, /proxy/);
+  assert.match(viteConfig, /["'`]\/api["'`]/);
+});
+
+test("o proxy aponta para a porta do backend", () => {
+  assert.match(viteConfig, /localhost:8000|127\.0\.0\.1:8000/);
+});
+
+test("o guarda do sandbox é invocado no config", () => {
+  // Importar a função e não chamá-la deixaria o check decorativo — que é
+  // exatamente o estado que a D-Auth-7 recusou ("não deixa só em comentário").
+  assert.match(viteConfig, /assertProxySurvives\s*\(/);
 });

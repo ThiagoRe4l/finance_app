@@ -11,6 +11,12 @@
 // o deploy — corrigido em 23/08/2026.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+import { assertProxySurvives } from "./src/lib/dev-proxy.ts";
+
+// Falha no boot se o preset for descartar o proxy (D-Auth-7). Invocado, não só
+// importado: check importado e não chamado é decoração.
+assertProxySurvives(process.env);
+
 // ⚠️ `nitro.preset` é OBRIGATÓRIO e vai fixado aqui, não em `NITRO_PRESET`.
 //
 // O default do preset é `cloudflare-module`: sem esta linha, `npm run build`
@@ -23,4 +29,21 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // de 28/08/2026 — ver "🚢 Deploy — Vercel + Neon" no CLAUDE.md.
 export default defineConfig({
   nitro: { preset: "vercel" },
+
+  // Proxy `/api` para o backend local (D-Auth-7).
+  //
+  // Faz o desenvolvimento ser **mesma origem**, igual ao rewrite do
+  // `vercel.json` em produção. É o que permite o cookie de sessão viajar sem
+  // `credentials: "include"` no `apiFetch` e sem reabrir a D-Deploy-6
+  // (CORS com credenciais).
+  vite: {
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://localhost:8000",
+          changeOrigin: false,
+        },
+      },
+    },
+  },
 });

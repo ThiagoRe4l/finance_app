@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
+import { AuthGate } from "@/components/auth/AuthGate.tsx";
 
 import appCss from "../styles.css?url";
 
@@ -121,7 +122,17 @@ function RootComponent() {
         usuário além da lista mudando.
       */}
       <Toaster position="top-right" richColors />
-      <Outlet />
+      {/*
+        Gate de autenticação (D-Auth-6). Envolve o `Outlet`, então as 5 telas
+        herdam a proteção sem cada rota precisar lembrar — adicionar uma rota
+        nova não cria um buraco.
+
+        ⚠️ É UX, não segurança: a proteção real é a dependency `current_user`
+        no backend. Ver o comentário no próprio AuthGate.
+      */}
+      <AuthGate>
+        <Outlet />
+      </AuthGate>
     </QueryClientProvider>
   );
 }
