@@ -2043,9 +2043,35 @@ engine da suíte, e `test_foreign_keys_are_enforced_on_app_engine` rodava o ramo
 `test_the_default_database_lives_inside_the_backend_package` compara o caminho derivado de
 `__file__` com o esperado — e aqui os dois **coincidem**, porque o checkout realmente mora em
 `/workspace/backend`. Ele só ficaria vermelho na máquina onde o bug aparece, que é a máquina
-onde não rodamos. O teste que **consegue** distinguir olha o código-fonte e proíbe literal
-`/workspace` em `settings.py` — contrato sobre arquivo, no mesmo espírito de
+onde não rodamos. O teste que **consegue** distinguir varre `app/` e proíbe literal
+`/workspace` no código — contrato sobre arquivo, no mesmo espírito de
 `test_every_requirement_is_pinned`.
+
+### O CI seguinte falhou, e a falha confirmou a correção
+
+`test_database_url_defaults_to_todays_hardcoded_path` comparava
+`resolve_database_url({})` com `"sqlite:////workspace/backend/database.db"` **escrito à
+mão**. Depois da correção, no runner o default passou a resolver para o checkout real
+(`/home/runner/work/.../backend/database.db`) e o teste ficou vermelho — a expectativa era a
+única coisa que seguia presa ao caminho deste container.
+
+É a **imagem espelhada** do falso verde acima: o mesmo acoplamento, visível só na máquina
+oposta. Localmente passava e no CI falhava; o outro passava no CI e falhava localmente.
+
+A expectativa agora é **derivada do local do próprio arquivo de teste**, não de
+`settings.BACKEND_DIR`. São duas derivações independentes do mesmo fato: concordarem é
+verificação, enquanto reusar a constante da implementação seria tautologia — passaria mesmo
+se `BACKEND_DIR` apontasse para o lugar errado. O nome passou a
+`test_database_url_defaults_to_the_file_inside_the_backend_package`, porque "hardcoded path"
+deixou de descrever o que o teste verifica.
+
+Junto entrou `test_the_default_database_stays_inside_the_package`, que expressa o invariante
+sem depender de qual é o caminho: o nome do arquivo pode mudar, mas o default não pode sair
+de `backend/`.
+
+**Verificado rodando a suíte de um checkout copiado para fora de `/workspace`**, sem
+`.env.local` e sem `DATABASE_URL` — as mesmas condições do runner: 374 passed, nos dois
+cenários de job.
 
 **Lição.** Caminho absoluto escrito à mão é bomba-relógio de ambiente: funciona na máquina de
 quem escreveu e falha em toda outra. A seção "Ambiente de Execução" já registra que

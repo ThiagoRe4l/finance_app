@@ -184,24 +184,27 @@ def test_the_default_directory_already_exists():
 # código-fonte e exige que o caminho seja **derivado**, não escrito. É contrato
 # sobre arquivo, no mesmo espírito de `test_every_requirement_is_pinned`.
 
-def test_settings_does_not_hardcode_a_machine_specific_path():
+def test_no_module_hardcodes_a_machine_specific_path():
     """🔴 Verificável nesta máquina, ao contrário do teste acima.
 
     `/workspace` é o bind mount do container de desenvolvimento. Nenhum
     caminho absoluto dele pode estar escrito no código: no runner do CI e em
     qualquer laptop ele não existe, e foi assim que os dois jobs morreram.
 
-    `ENV_FILE` já deriva de `__file__`; o default do banco passa a derivar do
-    mesmo lugar.
+    `ENV_FILE` já derivava de `__file__`; o default do banco passou a derivar
+    do mesmo lugar.
+
+    ⚠️ **Cobre o pacote inteiro, não só `settings.py`.** A primeira versão
+    olhava um arquivo só — e o mesmo literal pode nascer em qualquer módulo que
+    precise de caminho. Varrer `app/` custa o mesmo e fecha a classe toda.
     """
-    source = (pathlib.Path(__file__).resolve().parent.parent / "app" / "settings.py").read_text(
-        encoding="utf-8"
-    )
-    offending = [
-        line.strip()
-        for line in source.splitlines()
-        if "/workspace" in line and not line.strip().startswith("#")
-    ]
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+
+    offending = []
+    for module in sorted(app_dir.rglob("*.py")):
+        for number, line in enumerate(module.read_text(encoding="utf-8").splitlines(), 1):
+            if "/workspace" in line and not line.strip().startswith("#"):
+                offending.append(f"{module.name}:{number}: {line.strip()}")
 
     assert not offending, (
         "caminho específico do container de desenvolvimento no código: "

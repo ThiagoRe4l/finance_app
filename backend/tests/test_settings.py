@@ -13,6 +13,8 @@ suíte. `resolve_*` recebe o ambiente por parâmetro pelo mesmo motivo que
 exatamente a função que a aplicação usa, sem uma segunda implementação.
 """
 
+import pathlib
+
 import pytest
 
 
@@ -36,14 +38,42 @@ def _settings():
 # DATABASE_URL
 # ---------------------------------------------------------------------------
 
-def test_database_url_defaults_to_todays_hardcoded_path():
-    """Sem a variável, o comportamento é **idêntico** ao de hoje.
+def test_database_url_defaults_to_the_file_inside_the_backend_package():
+    """Sem a variável, o banco é `database.db` **dentro de `backend/`**.
 
     O default não é conveniência: sem ele, `pytest` e `docker compose up`
     passariam a exigir `.env`, e "suíte verde é obrigatória" viraria refém de
     configuração de ambiente.
+
+    ⚠️ **Este teste já comparou contra `/workspace/backend/database.db` escrito
+    à mão**, e foi ele que derrubou o job `backend` no CI *depois* da correção
+    do caminho específico de máquina. A falha confirmou que a correção
+    funcionou: no runner o default passou a resolver para o checkout real
+    (`/home/runner/work/.../backend/database.db`), e só a expectativa do teste
+    seguia presa ao caminho deste container.
+
+    A expectativa agora é **derivada do local deste arquivo de teste**, não de
+    `settings.BACKEND_DIR`. São duas derivações independentes do mesmo fato:
+    concordarem é verificação, enquanto reusar a constante da implementação
+    seria tautologia — passaria mesmo se `BACKEND_DIR` apontasse para o lugar
+    errado.
     """
-    assert _settings().resolve_database_url({}) == "sqlite:////workspace/backend/database.db"
+    backend_dir = pathlib.Path(__file__).resolve().parent.parent
+
+    assert _settings().resolve_database_url({}) == f"sqlite:///{backend_dir / 'database.db'}"
+
+
+def test_the_default_database_stays_inside_the_package():
+    """O invariante, sem depender de qual é o caminho.
+
+    É o que o teste acima não expressa sozinho: o default pode mudar de nome de
+    arquivo, mas não pode sair de `backend/` — sair é como ele voltaria a
+    apontar para um diretório que não existe na máquina de quem rodar.
+    """
+    backend_dir = pathlib.Path(__file__).resolve().parent.parent
+    path = _settings().sqlite_path_from_url(_settings().resolve_database_url({}))
+
+    assert pathlib.Path(path).is_relative_to(backend_dir)
 
 
 def test_database_url_comes_from_the_environment():
@@ -126,7 +156,7 @@ def test_sqlite_keeps_check_same_thread():
     Hoje ele está fixo em `database.py`. Com dois dialetos, precisa ser
     decidido por URL.
     """
-    options = _settings().engine_options_for("sqlite:////workspace/backend/database.db")
+    options = _settings().engine_options_for("sqlite:////var/data/app.db")
 
     assert options["connect_args"]["check_same_thread"] is False
 
@@ -258,7 +288,7 @@ def test_the_default_sqlite_url_is_not_affected():
 # A definição é a D-Vercel-1: **ambiente local é o que roda em SQLite.**
 
 def test_sqlite_is_the_local_environment():
-    assert _settings().is_local_environment("sqlite:////workspace/backend/database.db") is True
+    assert _settings().is_local_environment("sqlite:////var/data/app.db") is True
 
 
 def test_postgres_is_not_the_local_environment():
