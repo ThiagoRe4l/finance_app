@@ -102,7 +102,7 @@ Duas restrições do arquivo que não são estéticas:
   `http://localhost:8000/api` hardcoded em `src/lib/api.ts` — não é comunicação
   container→container. O `depends_on` serve para ordem de subida, não para roteamento.
 
-> Não há Dockerfile: os serviços rodam sobre imagens oficiais (`python:3.11-slim`,
+> Não há Dockerfile: os serviços rodam sobre imagens oficiais (`python:3.12-slim`,
 > `node:22-slim`) e instalam dependências na subida. Só vale extrair um Dockerfile se
 > aparecer passo de build próprio (compilar extensão nativa, etc.).
 
@@ -1133,7 +1133,7 @@ Workflow do GitHub Actions com dois jobs paralelos, em PR e em push para `main`:
 
 | Job | Passos |
 |---|---|
-| `backend` | `setup-python@3.11` → `pip install -r requirements-dev.txt` → `pytest` |
+| `backend` | `setup-python@3.12` → `pip install -r requirements-dev.txt` → `pytest` |
 | `frontend` | `setup-node@22` + cache npm → `npm ci` → `tsc --noEmit` → `npm test` → `npm run lint` |
 
 `package-lock.json` existe, então `npm ci` é viável — e em Linux ele resolve os binários
@@ -2051,12 +2051,56 @@ recusado.
       No Python version specified in .python-version, pyproject.toml, or
       Pipfile.lock. Using python version: 3.12
 
-A `.venv` e os dois jobs de CI rodam **3.11**. Divergência dev/prod silenciosa —
-nada havia quebrado, e é a classe de problema que a D-Vercel-1 existe para
-evitar. Resolvido com `backend/.python-version` (`3.11`), e há teste travando
-que ele bate com **todos** os `setup-python` do workflow: pin que divergir do
-CI é pior que pin nenhum, porque a suíte ficaria verde contra um interpretador
-que não é o de produção.
+A `.venv` e os dois jobs de CI rodavam **3.11**. Divergência dev/prod
+silenciosa — nada havia quebrado, e é a classe de problema que a D-Vercel-1
+existe para evitar.
+
+🔴 **A primeira correção pinou 3.11 e quebrou o deploy.** A Vercel não oferece
+3.11 no ambiente gerenciado do uv:
+
+      No interpreter found for Python 3.11 in managed installations or
+      search path
+
+**A direção foi invertida: produção manda.** `.python-version`, os dois
+`setup-python` do CI e a imagem do `docker-compose.yml` passaram todos a
+**3.12** — o invariante "nenhuma divergência entre dev/CI/produção" é o mesmo,
+com o valor que a plataforma realmente aceita em vez do que o container de
+desenvolvimento usa.
+
+⚠️ **O erro de direção foi barato porque a intenção estava certa.** O que
+custaria caro seria pinar e não verificar: o valor errado só aparece na
+instalação do build, não em teste nenhum.
+
+**Verificado sob 3.12 de verdade**, não por "é só uma minor acima": instalado
+um CPython 3.12.15 pelo próprio uv, venv limpo com as mesmas versões pinadas de
+`requirements-dev.txt`, e a suíte rodada completa — **379 passed**, incluindo a
+simulação dos dois jobs de CI de um checkout fora de `/workspace`. Zero
+`DeprecationWarning` originada em `app/`, e nenhum uso de API removida em 3.12
+(`utcnow`, `distutils`, `pkg_resources`).
+
+**Três testes guardam o invariante, e a divisão entre eles importa:**
+
+| Teste | Natureza |
+|---|---|
+| `..._is_pinned_to_what_vercel_supports` | **absoluto** — literal `3.12` |
+| `..._matches_every_ci_job` | **relativo** — pin × `setup-python` |
+| `..._dev_container_image_matches_the_pinned_version` | **relativo** — pin × `docker-compose.yml` |
+
+O literal do primeiro não é a mesma coisa que o caminho hardcoded do item 4:
+ele codifica uma **restrição externa**, não um fato derivável do repositório. E
+é ele que impede alguém de subir dev e CI juntos para 3.13 sem confirmar a
+Vercel — os dois relativos ficariam verdes, e só o deploy falharia.
+
+> Observado ao escrever: com tudo uniformemente em 3.11, **só o teste absoluto
+> ficou vermelho**. Os relativos passavam, porque consistência errada ainda é
+> consistência. É a demonstração de por que os três existem.
+
+⬜ **Divergência que sobra e não tem como fechar aqui:** o container do agente
+tem só Python 3.11, então a `.venv` usada no dia a dia continua 3.11 enquanto
+CI, compose e produção são 3.12. Não é corrigível pelo repositório — a imagem do
+container do agente não é nossa. A mitigação é o **job de CI ser a autoridade**:
+ele roda 3.12 em todo push, e foi em 3.12 que esta fatia foi validada. Quem
+rodar a suíte só aqui está num interpretador que não é o de produção.
 
 **Lição.** Configuração de plataforma não tem teste de comportamento possível
 localmente, mas tem **contrato verificável sobre arquivo** — e foi isso que

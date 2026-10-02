@@ -105,22 +105,57 @@ def _ci_python_versions() -> list[str]:
     return re.findall(r'python-version:\s*"([^"]+)"', source)
 
 
-def test_python_version_is_pinned_for_vercel():
+# A versão é **3.12 porque é a que a Vercel oferece**, não porque é a mais nova
+# nem a do container de desenvolvimento.
+#
+# A primeira tentativa pinou **3.11**, para casar com o container local. O
+# deploy falhou: `No interpreter found for Python 3.11 in managed installations
+# or search path` — o uv da Vercel só tem 3.12 nas instalações gerenciadas. A
+# direção foi invertida: produção manda, e dev/CI acompanham.
+VERCEL_PYTHON_VERSION = "3.12"
+
+
+def test_python_version_is_pinned_to_what_vercel_supports():
     """🔴 Sem `.python-version`, a Vercel escolhe a versão dela.
 
-    Escolheu **3.12** no deploy real, contra 3.11 em todo o resto do projeto.
+    O literal aqui é deliberado e não é a mesma coisa que o caminho hardcoded
+    do item 4 dos Common Hurdles. Ele codifica uma **restrição externa** — o
+    que a Vercel aceita —, não um fato derivável do repositório.
+
+    O valor é o que impede alguém de subir dev e CI juntos para 3.13 sem antes
+    confirmar que a Vercel suporta: a consistência entre os três (teste abaixo)
+    ficaria verde, e só o deploy falharia.
+
+    ⚠️ Mudar este valor exige confirmar suporte na Vercel primeiro. O sintoma
+    de errar é falha de instalação no build, não teste vermelho.
     """
-    assert _pinned_python_version() == "3.11"
+    assert _pinned_python_version() == VERCEL_PYTHON_VERSION
 
 
 def test_the_pinned_version_matches_every_ci_job():
     """O pin só vale se não divergir do que a suíte exercita.
 
-    Se o CI subir para 3.12 e este arquivo ficar em 3.11, produção passa a
-    rodar numa versão que nenhum teste tocou — e o contrário é pior, porque a
-    suíte ficaria verde contra um interpretador que não é o de produção.
+    Se o CI subir de versão e este arquivo ficar atrás, produção passa a rodar
+    numa versão que nenhum teste tocou — e o contrário é pior, porque a suíte
+    ficaria verde contra um interpretador que não é o de produção.
     """
     versions = _ci_python_versions()
 
     assert versions, "nenhum setup-python encontrado no workflow"
     assert set(versions) == {_pinned_python_version()}
+
+
+def test_the_dev_container_image_matches_the_pinned_version():
+    """O invariante é dev **+** CI **+** produção, não só os dois últimos.
+
+    `docker-compose.yml` é o ambiente de desenvolvimento canônico do projeto
+    (ver "Comandos de Execução"). Deixá-lo numa minor diferente reintroduz
+    exatamente a divergência que o pin existe para fechar — e no lugar onde ela
+    é menos visível, porque nada falha: o código só roda em dois interpretadores
+    diferentes e um deles nunca é exercitado por produção.
+    """
+    compose = (REPO_DIR / "docker-compose.yml").read_text(encoding="utf-8")
+    images = re.findall(r"image:\s*python:([0-9]+\.[0-9]+)", compose)
+
+    assert images, "nenhuma imagem python: encontrada no docker-compose.yml"
+    assert set(images) == {_pinned_python_version()}

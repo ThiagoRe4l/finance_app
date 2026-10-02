@@ -25,7 +25,7 @@ jobs:
         with:
           # Mesma minor do Dockerfile e do docker-compose. Divergir aqui é como
           # a suíte fica verde contra um interpretador que não é o de produção.
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
@@ -92,7 +92,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
