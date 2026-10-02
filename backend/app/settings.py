@@ -88,6 +88,14 @@ DEFAULT_CORS_ORIGINS = ["*"]
 
 SQLITE_PREFIX = "sqlite:///"
 
+# Driver Postgres do projeto (D-Vercel-2): psycopg v3, não o psycopg2 legado.
+POSTGRES_DRIVER = "postgresql+psycopg"
+
+# Esquemas Postgres que chegam **sem** driver e precisam ganhar um.
+# `postgres` é a forma curta que vários painéis ainda usam; o SQLAlchemy a
+# rejeita desde a 1.4, com erro sobre plugin de dialeto que não ajuda ninguém.
+BARE_POSTGRES_SCHEMES = ("postgresql", "postgres")
+
 
 def _value(env: Mapping[str, str], key: str) -> Optional[str]:
     raw = env.get(key)
@@ -110,6 +118,31 @@ def _value(env: Mapping[str, str], key: str) -> Optional[str]:
 load_env_file()
 
 
+def normalize_database_url(url: str) -> str:
+    """Garante um driver explícito em URL de Postgres.
+
+    O console do Neon entrega `postgresql://` nu. O SQLAlchemy resolve esquema
+    sem driver para o dialeto do **psycopg2**, que não está instalado — e a
+    falha é `ModuleNotFoundError: No module named 'psycopg2'`, que não diz nada
+    sobre o que está errado de verdade. Era o terceiro dos três problemas
+    encontrados ao aplicar o schema no Neon, e o único que ficou sem correção
+    de código: até aqui se consertava a URL à mão, o que resolvia uma string e
+    não o problema.
+
+    ⚠️ **Só preenche o que está ausente.** URL com driver explícito passa
+    intacta, inclusive `postgresql+psycopg2://` e `postgresql+asyncpg://`:
+    reescrevê-las seria trocar em silêncio uma escolha de quem as escreveu.
+    SQLite também não é tocado.
+    """
+    scheme, separator, rest = url.partition("://")
+    if not separator:
+        return url
+    if "+" in scheme or scheme.lower() not in BARE_POSTGRES_SCHEMES:
+        return url
+
+    return f"{POSTGRES_DRIVER}://{rest}"
+
+
 def resolve_database_url(env: Mapping[str, str] = os.environ) -> str:
     """URL do banco. Sem `DATABASE_URL`, o caminho de sempre.
 
@@ -117,7 +150,7 @@ def resolve_database_url(env: Mapping[str, str] = os.environ) -> str:
     ecossistema e é o que deixa a troca para Postgres ser mudança de config em
     vez de mudança de código (ver a alternativa descartada na D-Deploy-2).
     """
-    return _value(env, "DATABASE_URL") or DEFAULT_DATABASE_URL
+    return normalize_database_url(_value(env, "DATABASE_URL") or DEFAULT_DATABASE_URL)
 
 
 def sqlite_path_from_url(url: str) -> Optional[str]:

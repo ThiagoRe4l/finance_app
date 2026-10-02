@@ -558,11 +558,19 @@ A suíte está insulada por `TEST_DATABASE_URL` (default `sqlite://`), que é va
 da suíte continua SQLite mesmo com `.env.local` presente. Sem ele, a proteção seria
 coincidência de nomes.
 
-⚠️ **O esquema `postgresql://` do console do Neon não funciona.** O SQLAlchemy resolve o
-esquema nu para o dialeto do **psycopg2**, que não está instalado — `ModuleNotFoundError`.
-Precisa ser `postgresql+psycopg://` (D-Vercel-2). Hoje isso é corrigido **no arquivo**, à
-mão. Normalizar em `resolve_database_url` foi proposto e **não** decidido: enquanto não for,
-cada URL nova colada do painel do Neon vai esbarrar nisso.
+✅ **O esquema é normalizado automaticamente** (decidido e implementado em 28/08/2026).
+`resolve_database_url` passa por `normalize_database_url`, que preenche o driver quando ele
+está ausente: `postgresql://` e `postgres://` viram `postgresql+psycopg://` (D-Vercel-2).
+Connection string colada direto do painel do Neon funciona sem correção manual — verificado
+com o arquivo no formato cru.
+
+Sem isso, o esquema nu resolvia para o dialeto do **psycopg2**, que não está instalado, e a
+falha era `ModuleNotFoundError: No module named 'psycopg2'` — que não diz nada sobre a causa
+real.
+
+⚠️ **A normalização só preenche o que falta.** URL com driver explícito passa intacta,
+inclusive `postgresql+psycopg2://` e `postgresql+asyncpg://`: reescrevê-las seria trocar em
+silêncio a escolha de quem as escreveu. Há teste para cada caso.
 
 **A resolução das três vive em função pura**, não espalhada pelo módulo:
 `app/settings.py` no backend (`resolve_database_url`, `resolve_cors_origins`) e

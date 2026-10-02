@@ -167,3 +167,79 @@ def test_sqlite_does_not_use_null_pool():
     options = _settings().engine_options_for("sqlite:////tmp/x.db")
 
     assert "poolclass" not in options
+
+
+# ---------------------------------------------------------------------------
+# Normalização do esquema (fecha a pendência de 28/08/2026)
+# ---------------------------------------------------------------------------
+#
+# O console do Neon entrega `postgresql://` nu. O SQLAlchemy resolve o esquema
+# sem driver para o dialeto do **psycopg2**, que não está instalado — e a falha
+# é `ModuleNotFoundError: No module named 'psycopg2'`, que não diz nada sobre o
+# que está errado de verdade.
+#
+# Até aqui a correção era manual, no arquivo. Isso resolvia uma URL, não o
+# problema: a próxima colada do painel esbarrava igual.
+
+def test_bare_postgresql_scheme_gets_the_psycopg_driver():
+    """🔴 O formato que o painel do Neon entrega."""
+    assert _settings().resolve_database_url(
+        {"DATABASE_URL": "postgresql://u:p@h/d"}
+    ) == "postgresql+psycopg://u:p@h/d"
+
+
+def test_explicit_psycopg_scheme_is_left_alone():
+    """Idempotente: quem já colou no formato certo não vê diferença."""
+    assert _settings().resolve_database_url(
+        {"DATABASE_URL": "postgresql+psycopg://u:p@h/d"}
+    ) == "postgresql+psycopg://u:p@h/d"
+
+
+def test_short_postgres_scheme_is_also_normalized():
+    """`postgres://` é a forma curta que vários painéis ainda usam.
+
+    O SQLAlchemy a **rejeita** desde a 1.4, com erro sobre plugin de dialeto
+    que não ajuda ninguém. Mesma classe de problema, mesma correção.
+    """
+    assert _settings().resolve_database_url(
+        {"DATABASE_URL": "postgres://u:p@h/d"}
+    ) == "postgresql+psycopg://u:p@h/d"
+
+
+def test_an_explicit_other_driver_is_respected():
+    """🔴 Driver explícito é escolha de quem escreveu — não se reescreve.
+
+    Normalizar `postgresql+asyncpg://` para psycopg seria trocar o driver do
+    usuário em silêncio. A normalização só preenche o que está **ausente**.
+    """
+    for url in (
+        "postgresql+asyncpg://u:p@h/d",
+        "postgresql+psycopg2://u:p@h/d",
+    ):
+        assert _settings().resolve_database_url({"DATABASE_URL": url}) == url
+
+
+def test_sqlite_urls_are_untouched():
+    assert _settings().resolve_database_url(
+        {"DATABASE_URL": "sqlite:////data/database.db"}
+    ) == "sqlite:////data/database.db"
+
+
+def test_the_rest_of_the_url_survives_normalization():
+    """Credencial, porta, caminho e query precisam passar intactos.
+
+    A string do Neon tem `?sslmode=require`; perdê-la na reescrita derrubaria a
+    conexão com erro de TLS, não de esquema.
+    """
+    normalized = _settings().resolve_database_url({
+        "DATABASE_URL": "postgresql://user:s3nh%40@ep-x-pooler.aws.neon.tech:5432/neondb?sslmode=require"
+    })
+
+    assert normalized == (
+        "postgresql+psycopg://user:s3nh%40@ep-x-pooler.aws.neon.tech:5432/neondb?sslmode=require"
+    )
+
+
+def test_the_default_sqlite_url_is_not_affected():
+    """O caminho sem variável nenhuma continua idêntico."""
+    assert _settings().resolve_database_url({}).startswith("sqlite:////")

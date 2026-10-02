@@ -11,7 +11,10 @@ boot onde `create_all()` pudesse rodar.
 
 | Variável | Valor |
 |---|---|
-| `DATABASE_URL` | `postgresql+psycopg://...@ep-xxx-pooler.../neondb?sslmode=require` |
+| `DATABASE_URL` | a connection string do pooler, como o painel do Neon a entrega |
+
+O esquema não precisa de ajuste: `postgresql://` recebe o driver `+psycopg`
+automaticamente (`normalize_database_url`).
 
 ⚠️ **Use o endpoint com pooler** (host com `-pooler`), não o direto. E veja a
 seção "Pool de conexão" no CLAUDE.md: o `NullPool` e o
