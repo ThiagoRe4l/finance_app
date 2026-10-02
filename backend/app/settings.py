@@ -228,3 +228,119 @@ def engine_options_for(url: str) -> dict[str, Any]:
         "connect_args": {"prepare_threshold": None},
         "poolclass": NullPool,
     }
+
+
+# ---------------------------------------------------------------------------
+# Ambiente: um conceito, não duas checagens (D-Auth-5 e D-Auth-8)
+# ---------------------------------------------------------------------------
+
+def is_local_environment(url: str) -> bool:
+    """`True` no desenvolvimento local.
+
+    A definição é a D-Vercel-1: **ambiente local é o que roda em SQLite.**
+    Produção é Postgres no Neon, sempre.
+
+    Existe nomeado **uma vez** porque duas decisões dependem de "estamos em
+    desenvolvimento?" — o default de `SESSION_SECRET` (D-Auth-5) e o
+    desligamento de `/docs` (D-Auth-8). Duas checagens ad-hoc é como as duas
+    divergiriam depois, e uma delas divergindo para o lado errado abre a
+    produção.
+
+    ⚠️ Não depende de `normalize_database_url` ter rodado antes: um chamador
+    futuro pode passar a URL crua, e errar para o lado de "é local"
+    desativaria a exigência do segredo em produção.
+    """
+    return url.startswith("sqlite")
+
+
+# ---------------------------------------------------------------------------
+# Allowlist de e-mails (D-Auth-2)
+# ---------------------------------------------------------------------------
+
+def resolve_allowed_emails(env: Mapping[str, str] = os.environ) -> frozenset[str]:
+    """E-mails autorizados a entrar, normalizados em minúsculo.
+
+    Mesma forma de `resolve_cors_origins`: lista por vírgula, `strip` por item,
+    itens vazios descartados.
+
+    🔴 **Fail closed: variável ausente ou vazia devolve conjunto vazio, e
+    ninguém entra.** É o oposto do padrão "todo default equivale ao
+    comportamento de hoje" que vale para as outras variáveis — e é de
+    propósito. O modo de falha do outro lado é liberar um app de finanças
+    pessoais para qualquer conta Google do mundo.
+
+    O minúsculo é obrigatório, não cosmético: o domínio de e-mail é
+    case-insensitive por RFC, e o Google pode devolver a parte local com a
+    caixa que a pessoa cadastrou. Guardar a allowlist com caixa diferente da
+    claim recusaria um e-mail legítimo, e o sintoma ("allowlist não funciona")
+    manda procurar no lugar errado.
+    """
+    raw = _value(env, "AUTH_ALLOWED_EMAILS")
+    if raw is None:
+        return frozenset()
+
+    emails = (item.strip().lower() for item in raw.split(","))
+
+    return frozenset(email for email in emails if email)
+
+
+def is_email_allowed(email: str, allowed: frozenset[str]) -> bool:
+    """Checagem case-insensitive contra a allowlist.
+
+    E-mail vazio nunca passa, mesmo que a allowlist tenha uma entrada vazia —
+    `resolve_allowed_emails` já descarta itens vazios, e esta é a segunda
+    camada do mesmo cuidado.
+    """
+    if not email:
+        return False
+
+    return email.strip().lower() in allowed
+
+
+# ---------------------------------------------------------------------------
+# Segredo de sessão (D-Auth-5)
+# ---------------------------------------------------------------------------
+
+# ⚠️ Nomeado para ser impossível de confundir com um segredo de verdade. Se
+# parecesse plausível, alguém o copiaria para a Vercel e as sessões passariam a
+# ser forjáveis por quem leu o repositório. Há teste exigindo este formato.
+DEV_SESSION_SECRET = "dev-only-insecure-session-secret-never-use-in-production"
+
+
+def resolve_session_secret(env: Mapping[str, str] = os.environ) -> str:
+    """Segredo que assina o cookie de sessão.
+
+    🔴 **Esta função rompe deliberadamente a regra "toda variável tem default
+    igual ao valor de hoje"**, registrada em "🔐 Variáveis de Ambiente". Segredo
+    com default é segredo conhecido.
+
+    A regra existia para `pytest` e `docker compose up` não passarem a exigir
+    `.env`. Isso é preservado **só** no caminho local (SQLite). Em produção, a
+    ausência é `RuntimeError` — barulhento, no boot, e não um 500 obscuro na
+    primeira requisição autenticada.
+    """
+    secret = _value(env, "SESSION_SECRET")
+    if secret:
+        return secret
+
+    if is_local_environment(resolve_database_url(env)):
+        return DEV_SESSION_SECRET
+
+    raise RuntimeError(
+        "SESSION_SECRET é obrigatória fora do desenvolvimento local. "
+        "Defina-a no projeto do backend na Vercel com um valor aleatório de "
+        "pelo menos 32 bytes. Não há default: segredo com default é segredo "
+        "conhecido, e qualquer pessoa com acesso ao repositório forjaria "
+        "sessão para qualquer e-mail."
+    )
+
+
+def resolve_google_client_id(env: Mapping[str, str] = os.environ) -> str:
+    """Client ID do OAuth do Google. Público — não é segredo (D-Auth-1).
+
+    Devolve **string vazia** quando ausente, não `None`: vazio faz
+    `verify_google_claims` recusar todo token (há teste), enquanto `None`
+    arriscaria um `aud == None` casando com algo em algum caminho de
+    comparação.
+    """
+    return _value(env, "GOOGLE_CLIENT_ID") or ""

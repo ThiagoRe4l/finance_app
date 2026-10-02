@@ -13,6 +13,7 @@ suíte. `resolve_*` recebe o ambiente por parâmetro pelo mesmo motivo que
 exatamente a função que a aplicação usa, sem uma segunda implementação.
 """
 
+import pytest
 
 
 def _settings():
@@ -243,3 +244,97 @@ def test_the_rest_of_the_url_survives_normalization():
 def test_the_default_sqlite_url_is_not_affected():
     """O caminho sem variável nenhuma continua idêntico."""
     assert _settings().resolve_database_url({}).startswith("sqlite:////")
+
+
+# ---------------------------------------------------------------------------
+# Ambiente local — conceito único (D-Auth-5 e D-Auth-8)
+# ---------------------------------------------------------------------------
+#
+# "Estamos em desenvolvimento?" é respondido em UM lugar e consumido por duas
+# decisões: o default de `SESSION_SECRET` e o desligamento de `/docs`. Duas
+# checagens ad-hoc é como as duas divergiriam depois — e uma delas divergindo
+# para o lado errado abre a produção.
+#
+# A definição é a D-Vercel-1: **ambiente local é o que roda em SQLite.**
+
+def test_sqlite_is_the_local_environment():
+    assert _settings().is_local_environment("sqlite:////workspace/backend/database.db") is True
+
+
+def test_postgres_is_not_the_local_environment():
+    assert _settings().is_local_environment("postgresql+psycopg://u:p@h/d") is False
+
+
+def test_the_bare_postgres_scheme_is_also_not_local():
+    """A normalização roda antes, mas esta função não pode depender disso: um
+    chamador futuro pode passar a URL crua, e errar para o lado de "é local"
+    desligaria a exigência do segredo em produção."""
+    assert _settings().is_local_environment("postgresql://u:p@h/d") is False
+
+
+# ---------------------------------------------------------------------------
+# SESSION_SECRET (D-Auth-5)
+# ---------------------------------------------------------------------------
+
+def test_session_secret_comes_from_the_environment():
+    assert _settings().resolve_session_secret(
+        {"SESSION_SECRET": "s3gr3d0-de-verdade-com-tamanho", "DATABASE_URL": "sqlite://"}
+    ) == "s3gr3d0-de-verdade-com-tamanho"
+
+
+def test_missing_session_secret_is_fatal_in_production():
+    """🔴 A quebra consciente do padrão "toda variável tem default".
+
+    Segredo com default é segredo conhecido: qualquer pessoa com acesso ao
+    repositório forjaria sessão para qualquer e-mail. Em produção, ausência tem
+    que ser **erro de inicialização** — barulhento, no boot, não um 500 obscuro
+    na primeira requisição.
+    """
+    with pytest.raises(RuntimeError, match="SESSION_SECRET"):
+        _settings().resolve_session_secret({"DATABASE_URL": "postgresql+psycopg://u:p@h/d"})
+
+
+def test_blank_session_secret_is_also_fatal_in_production():
+    """Campo definido vazio no painel é indistinguível de esquecido."""
+    with pytest.raises(RuntimeError, match="SESSION_SECRET"):
+        _settings().resolve_session_secret({
+            "SESSION_SECRET": "   ",
+            "DATABASE_URL": "postgresql+psycopg://u:p@h/d",
+        })
+
+
+def test_local_development_gets_a_default_secret():
+    """A regra original — `pytest` e `docker compose up` não passam a exigir
+    `.env` — é preservada **só** no caminho SQLite."""
+    secret = _settings().resolve_session_secret({"DATABASE_URL": "sqlite:////tmp/x.db"})
+
+    assert secret
+
+
+def test_the_development_default_is_not_usable_in_production():
+    """O default local não pode ser um segredo plausível.
+
+    Se ele parecer um segredo de verdade, alguém o copia para a Vercel e as
+    sessões passam a ser forjáveis por quem leu o repositório. O valor é
+    explicitamente marcado como inseguro.
+    """
+    secret = _settings().resolve_session_secret({"DATABASE_URL": "sqlite://"})
+
+    assert "insecure" in secret.lower() or "dev" in secret.lower()
+
+
+# ---------------------------------------------------------------------------
+# GOOGLE_CLIENT_ID
+# ---------------------------------------------------------------------------
+
+def test_google_client_id_comes_from_the_environment():
+    assert _settings().resolve_google_client_id(
+        {"GOOGLE_CLIENT_ID": "123-abc.apps.googleusercontent.com"}
+    ) == "123-abc.apps.googleusercontent.com"
+
+
+def test_missing_google_client_id_is_empty_not_none():
+    """Vazio faz `verify_google_claims` recusar tudo — ver
+    `test_empty_client_id_rejects_everything`. `None` arriscaria um
+    `aud == None` casando com algo em algum caminho de comparação."""
+    assert _settings().resolve_google_client_id({}) == ""
