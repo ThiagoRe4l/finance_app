@@ -13,7 +13,7 @@ router = APIRouter(
     tags=["Categories"]
 )
 
-@router.post("/", response_model=schemas.CategoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.CategoryResponse, status_code=status.HTTP_201_CREATED)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
     db_category = db.query(models.Category).filter(models.Category.name == category.name).first()
     if db_category:
@@ -106,7 +106,7 @@ def _to_response(row) -> schemas.CategoryResponse:
     )
 
 
-@router.get("/", response_model=List[schemas.CategoryResponse])
+@router.get("", response_model=List[schemas.CategoryResponse])
 def list_categories(db: Session = Depends(get_db)):
     return [_to_response(row) for row in _aggregated_rows(db)]
 

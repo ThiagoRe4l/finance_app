@@ -10,7 +10,7 @@ router = APIRouter(
     tags=["Investments"]
 )
 
-@router.post("/", response_model=schemas.InvestmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.InvestmentResponse, status_code=status.HTTP_201_CREATED)
 def create_investment(investment: schemas.InvestmentCreate, db: Session = Depends(get_db)):
     # Evita duplicidade de investimentos com o mesmo nome
     db_investment = db.query(models.Investment).filter(models.Investment.name == investment.name).first()
@@ -30,7 +30,7 @@ def create_investment(investment: schemas.InvestmentCreate, db: Session = Depend
     db.refresh(new_investment)
     return new_investment
 
-@router.get("/", response_model=List[schemas.InvestmentResponse])
+@router.get("", response_model=List[schemas.InvestmentResponse])
 def list_investments(db: Session = Depends(get_db)):
     return db.query(models.Investment).all()
 

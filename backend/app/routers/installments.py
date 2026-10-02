@@ -54,7 +54,7 @@ def get_installments_summary(db: Session = Depends(get_db)):
     )
 
 
-@router.post("/", response_model=schemas.InstallmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.InstallmentResponse, status_code=status.HTTP_201_CREATED)
 def create_installment(installment: schemas.InstallmentCreate, db: Session = Depends(get_db)):
     account = db.query(models.Account).filter(models.Account.id == installment.account_id).first()
     if not account:
@@ -87,7 +87,7 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
     db.refresh(new_installment)
     return _to_response(new_installment)
 
-@router.get("/", response_model=List[schemas.InstallmentResponse])
+@router.get("", response_model=List[schemas.InstallmentResponse])
 def list_installments(db: Session = Depends(get_db)):
     installments = db.query(models.Installment).options(
         joinedload(models.Installment.category)

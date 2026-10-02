@@ -28,7 +28,7 @@ def _to_response(row) -> schemas.AccountResponse:
     )
 
 
-@router.post("/", response_model=schemas.AccountResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.AccountResponse, status_code=status.HTTP_201_CREATED)
 def create_account(account: schemas.AccountCreate, db: Session = Depends(get_db)):
     # Evita duplicidade de contas com o mesmo nome
     db_account = db.query(models.Account).filter(models.Account.name == account.name).first()
@@ -54,7 +54,7 @@ def create_account(account: schemas.AccountCreate, db: Session = Depends(get_db)
     )
 
 
-@router.get("/", response_model=List[schemas.AccountResponse])
+@router.get("", response_model=List[schemas.AccountResponse])
 def list_accounts(db: Session = Depends(get_db)):
     """Contas com o saldo calculado na leitura.
 

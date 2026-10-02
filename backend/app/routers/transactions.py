@@ -10,7 +10,7 @@ router = APIRouter(
     tags=["Transactions"]
 )
 
-@router.post("/", response_model=schemas.TransactionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     # 1. Busca a conta correspondente
     account = db.query(models.Account).filter(models.Account.id == transaction.account_id).first()
@@ -71,7 +71,7 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
 
     return db_transaction
 
-@router.get("/", response_model=List[schemas.TransactionResponse])
+@router.get("", response_model=List[schemas.TransactionResponse])
 def list_transactions(db: Session = Depends(get_db)):
     return db.query(models.Transaction).options(
         joinedload(models.Transaction.installment),

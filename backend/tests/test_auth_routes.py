@@ -323,7 +323,9 @@ def test_the_versioned_openapi_schema_is_still_generatable():
     schema = create_app(local=False).openapi()
 
     assert schema["info"]["title"]
-    assert "/api/accounts/" in schema["paths"]
+    # Sem barra final: a forma canônica mudou quando o 307 foi eliminado
+    # (ver `test_trailing_slash.py`).
+    assert "/api/accounts" in schema["paths"]
 
 
 # ---------------------------------------------------------------------------

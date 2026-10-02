@@ -271,14 +271,21 @@ def test_average_savings_is_the_six_month_mean(client, default_account, default_
     assert _overview(client)["average_savings"] == pytest.approx(1000.0 / REPORT_MONTHS)
 
 
-def test_overview_route_has_no_trailing_slash(client):
-    """✅ **Já passa hoje.** Rota específica, como `/dashboard/summary`.
+def test_overview_route_answers_both_slash_forms(client):
+    """⚠️ **Este teste asseria o 307 como comportamento correto.**
 
-    Com barra o FastAPI responde 307 e cada chamada custa um round-trip a mais.
-    O front consome sem barra.
+    A versão anterior exigia `307` na forma com barra, porque era o que o
+    FastAPI fazia e o que a tabela de barra final do CLAUDE.md documentava. Em
+    02/10/2026 esse 307 virou **o defeito**: atrás do rewrite `/api` ele
+    redireciona para o domínio do backend, o cookie host-only não acompanha, e
+    três telas quebraram com `"Não autenticado."`.
+
+    Fica como lembrete de que teste pode fossilizar um comportamento ruim: ele
+    estava verde, e o que ele protegia era a causa. O invariante agora é o
+    oposto — nenhuma rota redireciona por barra. Ver `test_trailing_slash.py`.
     """
     assert client.get("/api/reports/overview", follow_redirects=False).status_code == 200
-    assert client.get("/api/reports/overview/", follow_redirects=False).status_code == 307
+    assert client.get("/api/reports/overview/", follow_redirects=False).status_code == 200
 
 
 # ---------------------------------------------------------------------------

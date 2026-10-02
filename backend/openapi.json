@@ -85,14 +85,14 @@
         }
       }
     },
-    "/api/accounts/": {
+    "/api/accounts": {
       "get": {
         "tags": [
           "Accounts"
         ],
         "summary": "List Accounts",
         "description": "Contas com o saldo calculado na leitura.\n\nCusto: `LEFT JOIN` + `GROUP BY` em vez de um `SELECT` de coluna. A agregação\ncresce com o total histórico de transações, não com o número de contas —\nirrelevante na ordem de grandeza de finanças pessoais, e o índice de\n`account_id` que a FK já cria cobre o join.",
-        "operationId": "list_accounts_api_accounts__get",
+        "operationId": "list_accounts_api_accounts_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -103,7 +103,7 @@
                     "$ref": "#/components/schemas/AccountResponse"
                   },
                   "type": "array",
-                  "title": "Response List Accounts Api Accounts  Get"
+                  "title": "Response List Accounts Api Accounts Get"
                 }
               }
             }
@@ -115,7 +115,7 @@
           "Accounts"
         ],
         "summary": "Create Account",
-        "operationId": "create_account_api_accounts__post",
+        "operationId": "create_account_api_accounts_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -150,13 +150,13 @@
         }
       }
     },
-    "/api/transactions/": {
+    "/api/transactions": {
       "get": {
         "tags": [
           "Transactions"
         ],
         "summary": "List Transactions",
-        "operationId": "list_transactions_api_transactions__get",
+        "operationId": "list_transactions_api_transactions_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -167,7 +167,7 @@
                     "$ref": "#/components/schemas/TransactionResponse"
                   },
                   "type": "array",
-                  "title": "Response List Transactions Api Transactions  Get"
+                  "title": "Response List Transactions Api Transactions Get"
                 }
               }
             }
@@ -179,7 +179,7 @@
           "Transactions"
         ],
         "summary": "Create Transaction",
-        "operationId": "create_transaction_api_transactions__post",
+        "operationId": "create_transaction_api_transactions_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -301,13 +301,13 @@
         }
       }
     },
-    "/api/investments/": {
+    "/api/investments": {
       "get": {
         "tags": [
           "Investments"
         ],
         "summary": "List Investments",
-        "operationId": "list_investments_api_investments__get",
+        "operationId": "list_investments_api_investments_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -318,7 +318,7 @@
                     "$ref": "#/components/schemas/InvestmentResponse"
                   },
                   "type": "array",
-                  "title": "Response List Investments Api Investments  Get"
+                  "title": "Response List Investments Api Investments Get"
                 }
               }
             }
@@ -330,7 +330,7 @@
           "Investments"
         ],
         "summary": "Create Investment",
-        "operationId": "create_investment_api_investments__post",
+        "operationId": "create_investment_api_investments_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -461,13 +461,13 @@
         }
       }
     },
-    "/api/categories/": {
+    "/api/categories": {
       "get": {
         "tags": [
           "Categories"
         ],
         "summary": "List Categories",
-        "operationId": "list_categories_api_categories__get",
+        "operationId": "list_categories_api_categories_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -478,7 +478,7 @@
                     "$ref": "#/components/schemas/CategoryResponse"
                   },
                   "type": "array",
-                  "title": "Response List Categories Api Categories  Get"
+                  "title": "Response List Categories Api Categories Get"
                 }
               }
             }
@@ -490,7 +490,7 @@
           "Categories"
         ],
         "summary": "Create Category",
-        "operationId": "create_category_api_categories__post",
+        "operationId": "create_category_api_categories_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -634,13 +634,13 @@
         }
       }
     },
-    "/api/installments/": {
+    "/api/installments": {
       "get": {
         "tags": [
           "Installments"
         ],
         "summary": "List Installments",
-        "operationId": "list_installments_api_installments__get",
+        "operationId": "list_installments_api_installments_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -651,7 +651,7 @@
                     "$ref": "#/components/schemas/InstallmentResponse"
                   },
                   "type": "array",
-                  "title": "Response List Installments Api Installments  Get"
+                  "title": "Response List Installments Api Installments Get"
                 }
               }
             }
@@ -663,7 +663,7 @@
           "Installments"
         ],
         "summary": "Create Installment",
-        "operationId": "create_installment_api_installments__post",
+        "operationId": "create_installment_api_installments_post",
         "requestBody": {
           "content": {
             "application/json": {

@@ -458,16 +458,29 @@ Precedência decidida em 10/08/2026: **ENTRADA sempre vence**. Entrada fixa ou p
 colapsa para "Receita" **sem meta** — exibir "Receita 2/12" sugeriria parcela a pagar, o
 oposto do que uma entrada é. Aceito como v1.
 
-⚠️ **Barra final: casa com o padrão da rota declarada, não "sempre use barra".** O
-FastAPI responde **307** quando o caminho não bate exatamente, e cada redirect custa um
-round-trip:
+✅ **Barra final: as duas formas funcionam, e nenhuma redireciona** (desde 02/10/2026).
 
-| Rota no router | Chamada correta | A errada |
-|---|---|---|
-| `@router.get("/")` (coleção) | `/transactions/`, `/categories/`, `/installments/` | sem barra → 307 |
-| `@router.get("/summary")` | `/dashboard/summary` | **com** barra → 307 |
+⚠️ **Esta seção dizia o contrário, e foi o que causou um defeito de produção.** A versão
+anterior instruía a casar a barra com a rota declarada — coleção **com** barra, rota
+específica **sem** —, porque o FastAPI respondia 307 na forma errada. O front seguiu a tabela
+à risca, e foi exatamente por isso que Transações, Categorias e Parcelamentos quebraram com
+`"Não autenticado."` atrás do rewrite: eram as três que chamavam com barra.
 
-A suíte do backend não pega isso: o `TestClient` segue redirect em silêncio.
+A causa e a correção estão em "Common Hurdles → 7". Em resumo: a Vercel **remove** a barra
+final e o FastAPI **adicionava** — normalizações opostas, então o backend nunca recebia a
+forma que exigia, e o 307 dele apontava para o próprio domínio, fora do alcance do cookie
+host-only.
+
+Hoje `redirect_slashes=False` e um middleware normaliza para a forma canônica (**sem**
+barra). Chamar com ou sem barra dá a mesma rota e o mesmo resultado.
+
+> Preferir **sem barra** continua valendo, mas por outro motivo: a Vercel emite um 307
+> same-origin para remover a barra, então a forma com barra custa um round-trip a mais por
+> chamada. É desempenho, não correção.
+
+⚠️ A suíte do backend não pegava o 307 porque o `TestClient` segue redirect em silêncio.
+`test_trailing_slash.py` usa `follow_redirects=False` de propósito, e varre as duas formas de
+toda rota GET sem parâmetro.
 
 **Cliente HTTP:** `lib/api.ts` expõe `get`, `post`, `patch` e `delete`. **Não há `put` e não
 deve haver** — ver a decisão em "Operações de escrita". `apiFetch` trata **204 sem corpo**
@@ -2256,6 +2269,75 @@ artefato passou a trazer `config.json`, `static/assets/` e
 sobrescrevendo configuração de preset é invisível no código do projeto — o `vite.config.ts`
 dizia `preset: "vercel"` e parecia correto. O que expôs foi **ler o código do preset
 instalado**, não o nosso.
+
+### 7. Três telas com `"Não autenticado."` — 307 de barra final perdendo o cookie
+
+**Sintoma (02/10/2026).** Login funcionando, Dashboard e Relatórios carregando, mas
+Transações, Categorias e Parcelamentos com `"Não autenticado."` no banner de erro.
+
+**A correlação não era sobre as telas.** As três que falhavam eram exatamente as que
+chamavam rota de **coleção com barra final**:
+
+| Tela | Endpoints | Barra | Status |
+|---|---|---|---|
+| Dashboard | `/dashboard/summary` | não | ✅ |
+| Relatórios | `/reports/overview`, `/installments/summary` | não | ✅ |
+| Transações | `/transactions/` | **sim** | 🔴 |
+| Categorias | `/categories/` | **sim** | 🔴 |
+| Parcelamentos | `/installments/` + `/installments/summary` | **sim** | 🔴 |
+
+Isso descartou query key, timing e chamadas simultâneas: Relatórios faz duas chamadas e
+funciona. E descartou endpoint de escrita: nenhuma dessas telas escreve ao carregar.
+
+**A cadeia, provada hop a hop em produção:**
+
+      GET https://<front>/api/transactions/
+        → 307  location: /api/transactions                     (Vercel, RELATIVO, REMOVE a barra)
+      GET https://<front>/api/transactions
+        → 307  location: https://<backend>/api/transactions/   (FastAPI, ABSOLUTO, domínio do BACKEND)
+      GET https://<backend>/api/transactions/
+        → 401  "Não autenticado."
+
+A URL final fica no **domínio do backend**. O cookie de sessão é host-only no domínio do
+**frontend** (D-Auth-3, sem `Domain`) — não acompanha, e `current_user` recusa.
+
+Contraste medido: a rota que funciona faz **0 redirects** e termina no domínio do frontend; a
+que falha faz **2** e termina no do backend.
+
+🔴 **A chave é que as duas plataformas normalizam em direções opostas.** A Vercel remove a
+barra final; o FastAPI adiciona. O backend nunca recebia a forma que exigia.
+
+⚠️ **O risco estava registrado e não foi verificado.** A D-Vercel-3 dizia: *"o 307 de barra
+final atravessando o rewrite merece verificação própria. O 307 não desapareceu com o uvicorn;
+só mudou de proxy."* Ficou escrito e não foi exercitado até quebrar.
+
+**Como foi resolvido.** `redirect_slashes=False` e um middleware `NormalizeTrailingSlash`
+que resolve `/x` e `/x/` para a mesma rota. A forma canônica das rotas passou a ser **sem**
+barra (10 decoradores de coleção de `"/"` para `""`).
+
+Alternativa descartada: alinhar `trailingSlash` no `vercel.json`. Seria depender de
+comportamento de plataforma que **já mudou sem aviso duas vezes nesta sessão** — o rewrite
+por caminho (item 5) e o diretório de saída do build (item 6). Sem redirect, não há para onde
+o cookie se perder.
+
+Middleware em vez de duplicar 18 decoradores: repetição em que alguém esquece um é como o
+defeito volta numa rota só, e aí o sintoma é uma tela quebrada entre cinco.
+
+⚠️ **Dois testes existentes codificavam o comportamento antigo**, e um deles asseria o
+defeito como correto: `test_overview_route_has_no_trailing_slash` exigia **307** na forma com
+barra. Estava verde, e o que ele protegia era a causa. Renomeado e invertido, com o registro
+dentro dele — teste pode fossilizar comportamento ruim.
+
+**O `openapi.json` mudou:** os 5 paths de coleção perderam a barra.
+
+⬜ **Resta um 307 same-origin**, da Vercel removendo a barra, em cada chamada que a leva.
+É um round-trip a mais nas três telas, não erro. Tirar as barras das 7 chamadas do front
+eliminaria — desempenho, não correção, e fatia própria.
+
+**Lição.** Comportamento de normalização de URL não é detalhe: duas camadas normalizando em
+direções opostas produzem um bug que não aparece em nenhuma das duas isoladamente. E o
+`TestClient` segue redirect em silêncio, então a suíte não via o 307 — `follow_redirects=False`
+é obrigatório para testar isso.
 
 ### 3. API "no ar" mas inacessível do Windows (`curl` exit 7)
 
