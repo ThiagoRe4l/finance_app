@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://SUBSTITUIR-PELO-DOMINIO-DO-BACKEND.vercel.app/api/:path*"
+      "destination": "https://finance-app-six-iota-76.vercel.app/api/:path*"
     }
   ]
 }

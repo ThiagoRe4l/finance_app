@@ -15,10 +15,18 @@ problemas de uma vez (D-Vercel-3):
   variável ser inlinada em tempo de build: caminho relativo não tem domínio
   para envelhecer.
 
-⚠️ **`destination` acima é um placeholder.** Precisa do domínio real do projeto
-do backend antes do primeiro deploy. Diferente das variáveis `VITE_*`, este
-valor é lido pela Vercel em tempo de request, então trocá-lo **não** exige
-rebuild do frontend — só um redeploy da configuração.
+✅ **`destination` preenchido em 02/10/2026** com o domínio do projeto do
+backend, depois de ele estar confirmado em produção (`/health` → 200,
+`/api/accounts/` → 401 em português).
+
+Diferente das variáveis `VITE_*`, este valor é lido pela Vercel em tempo de
+request: trocá-lo **não** exige rebuild do frontend, só um redeploy da
+configuração. Se o domínio do backend mudar, é aqui que se mexe.
+
+`src/lib/vercel-config.test.ts` guarda quatro invariantes deste arquivo — em
+especial que o `:path*` exista nas **duas** pontas. Sem ele no destino, toda
+rota da API colapsa num caminho só: o rewrite existe, o domínio está certo, e
+`/api/accounts/` e `/api/dashboard/summary` chegam no mesmo lugar.
 
 ## Variável de ambiente
 
