@@ -6,6 +6,85 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/auth/google": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login With Google",
+        "description": "Troca um ID token do Google por uma sessão.\n\n**401 e 403 significam coisas diferentes aqui, e a distinção é deliberada:**\n\n* **401** — o token não presta (assinatura, audiência, expirado).\n* **403** — o token é legítimo e a pessoa simplesmente não tem acesso.\n\nEm nenhum dos dois um cookie é emitido. Se um 403 deixasse sessão para\ntrás, a allowlist viraria decoração.",
+        "operationId": "login_with_google_api_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleCredential"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUser"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Read Current User",
+        "description": "Quem está logado. 401 sem sessão — é o sinal que o gate do front lê.",
+        "operationId": "read_current_user_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Logout",
+        "description": "Descarta a sessão. **Idempotente de propósito.**\n\nNão depende de `current_user`: cookie expirado ou ausente tem que poder ser\nlimpo, senão a pessoa fica presa num estado que só o devtools resolve.",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
     "/api/accounts/": {
       "get": {
         "tags": [
@@ -733,6 +812,7 @@
     "/health": {
       "get": {
         "summary": "Health Check",
+        "description": "Pública: o smoke pós-deploy e o monitoramento batem aqui.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -1112,6 +1192,21 @@
           "monthly_committed_amount"
         ],
         "title": "DashboardSummary"
+      },
+      "GoogleCredential": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential",
+            "description": "ID token (JWT) emitido pelo Google"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "GoogleCredential",
+        "description": "Payload do botão do Google Identity Services.\n\nO campo chama `credential` porque é o nome que o GIS usa na resposta — o\nfront repassa o que recebeu, sem renomear."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1577,6 +1672,19 @@
           "top_categories"
         ],
         "title": "ReportSummary"
+      },
+      "SessionUser": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "SessionUser"
       },
       "TransactionCreate": {
         "properties": {

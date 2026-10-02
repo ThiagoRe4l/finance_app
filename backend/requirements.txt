@@ -18,3 +18,13 @@ psycopg[binary]==3.3.4
 # produção, e não em dev, porque `alembic upgrade head` roda contra o banco
 # real — não é ferramenta de teste.
 alembic==1.19.1
+
+# Autenticação (D-Auth-4). Uma biblioteca para os dois lados: RS256 para
+# verificar o ID token do Google e HS256 para assinar o cookie de sessão. O
+# `PyJWKClient` embutido usa `urllib` da stdlib, então nenhum cliente HTTP novo
+# entra em produção.
+#
+# O extra `[crypto]` traz `cryptography`, necessária para RS256. É wheel grande
+# e pesa no cold start — mitigado por construção: RS256 só roda no login, e
+# toda requisição seguinte valida um HMAC local.
+pyjwt[crypto]==2.15.1

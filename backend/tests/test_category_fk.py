@@ -322,13 +322,15 @@ def test_foreign_keys_are_enforced_on_app_engine():
     from sqlalchemy import text
 
     from app.database import engine as app_engine
-    from app.database import should_enable_sqlite_foreign_keys
-    from app.settings import resolve_database_url
 
-    url = resolve_database_url()
-
-    if not should_enable_sqlite_foreign_keys(url):
-        assert app_engine.dialect.name != "sqlite"
+    # ⚠️ O dialeto vem do **engine**, não de `resolve_database_url()`.
+    #
+    # O engine é criado no import de `app.database`; a URL do ambiente pode ter
+    # mudado depois (a fixture `_auth_environment` fixa `DATABASE_URL` para
+    # tornar o ambiente de teste determinístico). Comparar com a URL de agora
+    # faria o teste rodar `PRAGMA` contra um engine Postgres.
+    if app_engine.dialect.name != "sqlite":
+        # No Postgres a FK é nativa e sempre ativa; não há PRAGMA a conferir.
         return
 
     with app_engine.connect() as conn:

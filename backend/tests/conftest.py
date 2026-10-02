@@ -21,8 +21,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.auth import current_user
 from app.database import Base, get_db
 from app.main import app
+
+# E-mail da sessão usada pela fixture `client`. Qualquer valor serve — o que
+# importa é ele ser diferente do `intruso@` dos testes de allowlist.
+TEST_USER_EMAIL = "pessoa@example.com"
 
 BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 
@@ -121,8 +126,68 @@ def session_fixture(_schema):
         db.close()
 
 
+@pytest.fixture(autouse=True)
+def _auth_environment(monkeypatch):
+    """Ambiente de autenticação determinístico para toda a suíte.
+
+    Sem isto, `AUTH_ALLOWED_EMAILS` viria do `.env.local` da máquina (ou de
+    lugar nenhum, e a allowlist *fail closed* recusaria tudo) — e a suíte
+    passaria ou falharia conforme a configuração local, que é exatamente o tipo
+    de dependência de ambiente que a seção 0.1 do CLAUDE.md registra como
+    problema.
+
+    `autouse` porque vale para os 300+ testes que não falam de autenticação:
+    eles só precisam que o ambiente seja previsível.
+    """
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", f"{TEST_USER_EMAIL},outra@example.com")
+    monkeypatch.setenv("SESSION_SECRET", "segredo-de-teste-deterministico")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+
+    # 🔴 `DATABASE_URL` precisa estar fixada aqui, e o motivo não é o banco.
+    #
+    # `settings.load_env_file()` carrega `backend/.env.local` no import — e lá
+    # mora a URL do **Neon de produção**. Com ela, `is_local_environment()`
+    # devolve False, o cookie de sessão sai com `Secure`, e o `TestClient`
+    # (que fala `http://testserver`) **descarta** cookie Secure sobre http.
+    #
+    # O efeito era a suíte passar no CI (onde não há `.env.local`) e falhar na
+    # máquina de quem tem o arquivo — exatamente a classe de problema que a
+    # seção 0.1 do CLAUDE.md registra. O banco de teste em si nunca vem daqui:
+    # vem de `TEST_DATABASE_URL`.
+    monkeypatch.setenv("DATABASE_URL", "sqlite://")
+
+
 @pytest.fixture(name="client")
 def client_fixture(session):
+    """Cliente **autenticado**. É o default porque 251 das 300+ chamadas da
+    suíte não são sobre autenticação.
+
+    ⚠️ **O override é o risco desta fatia.** Ele deixa a suíte verde sem
+    exercitar `current_user`, então uma rota desprotegida passaria batido — o
+    mesmo falso positivo que `fk_session`/`fk_client` existem para evitar. O
+    contrapeso são os quatro testes de enumeração em `test_auth_routes.py`, que
+    rodam com `anon_client` e com introspecção, **sem** este override.
+    """
+    def override_get_db():
+        try:
+            yield session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[current_user] = lambda: TEST_USER_EMAIL
+    yield TestClient(app)
+    del app.dependency_overrides[get_db]
+    del app.dependency_overrides[current_user]
+
+
+@pytest.fixture(name="anon_client")
+def anon_client_fixture(session):
+    """Cliente **sem sessão**, com `current_user` real.
+
+    É o cliente dos testes de 401 e do fluxo de login. Só o banco é
+    substituído; a autenticação roda de verdade.
+    """
     def override_get_db():
         try:
             yield session
@@ -132,6 +197,33 @@ def client_fixture(session):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     del app.dependency_overrides[get_db]
+
+
+@pytest.fixture(name="fake_google")
+def fake_google_fixture(monkeypatch):
+    """Substitui a verificação do ID token do Google.
+
+    Nenhum teste fala com o Google: seria lento, instável e exigiria
+    credencial. A injeção acontece no ponto mais estreito possível —
+    `verify_google_id_token` —, então tudo o que vem depois (allowlist, emissão
+    de cookie, status codes) é exercitado de verdade.
+
+    Chame com um e-mail para simular token válido, ou com `None` para simular
+    token recusado.
+    """
+    from app import auth as auth_module
+
+    def _install(email):
+        def fake(token, client_id, signing_key_resolver=None):
+            if email is None:
+                raise auth_module.InvalidGoogleToken("token de teste inválido")
+            return email
+
+        monkeypatch.setattr(auth_module, "verify_google_id_token", fake)
+        # O router importa o módulo, não a função, mas a troca acima já cobre
+        # os dois caminhos — fica explícito para quem vier depois.
+
+    return _install
 
 
 @pytest.fixture(name="fk_session")
@@ -173,6 +265,12 @@ def fk_session_fixture(_schema):
 
 @pytest.fixture(name="fk_client")
 def fk_client_fixture(fk_session):
+    """Como `client`, mas com enforcement de FK — e **também autenticado**.
+
+    A autenticação não é detalhe: sem ela os 11 testes de `test_fk_cascade.py`
+    e `test_category_fk.py` passariam a medir 401 em vez de CASCADE/RESTRICT, e
+    o arquivo que protege as cláusulas `ondelete` deixaria de proteger nada.
+    """
     def override_get_db():
         try:
             yield fk_session
@@ -180,8 +278,10 @@ def fk_client_fixture(fk_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[current_user] = lambda: TEST_USER_EMAIL
     yield TestClient(app)
     del app.dependency_overrides[get_db]
+    del app.dependency_overrides[current_user]
 
 
 # ---------------------------------------------------------------------------
