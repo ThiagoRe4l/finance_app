@@ -18,7 +18,61 @@ isso, `pytest` e `docker compose up` passariam a exigir `.env`.
 """
 
 import os
-from typing import Any, Mapping, Optional
+import pathlib
+from typing import Any, Mapping, MutableMapping, Optional
+
+# Arquivo de ambiente do desenvolvimento local.
+#
+# Fica em `backend/`, não na raiz: é onde o backend roda e onde a documentação
+# manda colocá-lo. Está no `.gitignore` e nunca deve ser versionado — guarda a
+# credencial do Neon.
+ENV_FILE = pathlib.Path(__file__).resolve().parent.parent / ".env.local"
+
+
+def load_env_file(
+    path: pathlib.Path = ENV_FILE,
+    env: Optional[MutableMapping[str, str]] = None,
+) -> bool:
+    """Carrega `path` no ambiente, se der. Devolve se carregou algo.
+
+    **Condicional em duas dimensões**, e a segunda é a que importa não errar:
+
+    1. **O arquivo existir.** Toda máquina que nunca o criou segue funcionando
+       com os defaults — é o que mantém `pytest` e `docker compose up`
+       independentes de configuração.
+    2. **`python-dotenv` estar instalado.** Ele vive em `requirements-dev.txt`:
+       na Vercel as variáveis são injetadas pela plataforma e carregar arquivo
+       seria peso morto. Em produção este import falha, e um `ImportError` não
+       tratado derrubaria a função serverless no **primeiro import** — falha que
+       só apareceria no deploy. Daí o `except` largo e o no-op silencioso.
+
+    ⚠️ **`override=False`: variável real de ambiente sempre vence o arquivo.**
+    O contrário é o pior modo de falha possível aqui — um `.env.local` esquecido
+    apontaria a produção para outro banco, e o sintoma seria dado faltando, não
+    erro.
+    """
+    if env is None:
+        env = os.environ
+
+    if not path.is_file():
+        return False
+
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return False
+
+    # `dotenv_values` em vez de `load_dotenv`: devolve o conteúdo em vez de
+    # escrever direto em `os.environ`, e é o que permite receber o mapeamento
+    # por parâmetro — mesma razão de `resolve_*` não lerem `os.environ` no meio
+    # do módulo. Sem isso, o teste de precedência precisaria mexer no ambiente
+    # real do processo.
+    for key, value in dotenv_values(path).items():
+        if value is not None and key not in env:
+            env[key] = value
+
+    return True
+
 
 # Valor que estava hardcoded em `database.py` até a fatia de deploy.
 #
@@ -41,6 +95,19 @@ def _value(env: Mapping[str, str], key: str) -> Optional[str]:
         return None
     stripped = raw.strip()
     return stripped or None
+
+
+# Carrega o arquivo no import deste módulo.
+#
+# Efeito colateral de import é coisa que este projeto evita — aqui é
+# deliberado, e a alternativa é pior: chamar `load_env_file()` dentro de
+# `database.py` tornaria a configuração **dependente de ordem de import**, e
+# `main.py` resolve o CORS depois de importar os routers. Um dia alguém
+# reordena os imports e o CORS passa a ler o ambiente antes de ele existir.
+#
+# É no-op quando o arquivo não existe (toda máquina de CI) ou quando
+# `python-dotenv` não está instalado (produção).
+load_env_file()
 
 
 def resolve_database_url(env: Mapping[str, str] = os.environ) -> str:

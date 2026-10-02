@@ -7,3 +7,9 @@
 pytest==9.1.1
 # httpx é dependência do TestClient do Starlette, não uso direto do projeto.
 httpx==0.28.1
+
+# Carrega `backend/.env.local` no desenvolvimento local. **Dev-only de
+# propósito:** na Vercel as variáveis vêm da plataforma, e `load_env_file`
+# trata a ausência desta biblioteca como no-op silencioso — há teste cobrindo
+# esse caminho, que é justamente o que nunca roda localmente.
+python-dotenv==1.2.4

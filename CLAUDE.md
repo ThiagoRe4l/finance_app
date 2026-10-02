@@ -529,6 +529,41 @@ exatamente o erro que só aparece no primeiro redeploy, quando o dado some.
 Trocar o domínio do backend e reiniciar o serviço **não** tem efeito: é preciso rebuildar o
 frontend. Vale para qualquer `VITE_*` que venha a existir.
 
+### Carregamento de `.env.local` (decidido em 28/08/2026)
+
+Até aqui **nada no projeto lia arquivo de ambiente** — `settings.py` lê só `os.environ`. O
+`.env.example` descrevia um fluxo que o código não implementava, e isso só apareceu ao
+aplicar o schema no Neon: os comandos documentados rodariam contra o SQLite local e
+**relatariam sucesso**.
+
+`python-dotenv` entra em **`requirements-dev.txt`**, não em produção: na Vercel as variáveis
+são injetadas pela plataforma, e carregar arquivo lá seria peso morto. Por isso o
+carregamento é **duplamente condicional** — ao arquivo existir **e** à biblioteca estar
+instalada. Em produção o import falha e a função é no-op silencioso.
+
+**O arquivo é `backend/.env.local`**, não na raiz: é onde o backend roda e onde
+`settings.py` procura. O arquivo estava na raiz e era ignorado por completo.
+
+⚠️ **`override=False`: variável real de ambiente sempre vence o arquivo.** O contrário faria
+um `.env.local` esquecido na máquina sobrescrever a configuração de produção, que é o pior
+modo de falha possível para este arquivo.
+
+🔴 **O risco que esta decisão cria, e o guard contra ele.** `.env.local` guarda a URL do
+**Neon de produção**. Com carregamento automático, qualquer coisa rodada localmente passa a
+apontar para produção por default — inclusive `pytest`, porque `app/database.py` cria o
+engine no import.
+
+A suíte está insulada por `TEST_DATABASE_URL` (default `sqlite://`), que é variável
+**separada** de `DATABASE_URL` exatamente por isso. Há teste travando o invariante: o engine
+da suíte continua SQLite mesmo com `.env.local` presente. Sem ele, a proteção seria
+coincidência de nomes.
+
+⚠️ **O esquema `postgresql://` do console do Neon não funciona.** O SQLAlchemy resolve o
+esquema nu para o dialeto do **psycopg2**, que não está instalado — `ModuleNotFoundError`.
+Precisa ser `postgresql+psycopg://` (D-Vercel-2). Hoje isso é corrigido **no arquivo**, à
+mão. Normalizar em `resolve_database_url` foi proposto e **não** decidido: enquanto não for,
+cada URL nova colada do painel do Neon vai esbarrar nisso.
+
 **A resolução das três vive em função pura**, não espalhada pelo módulo:
 `app/settings.py` no backend (`resolve_database_url`, `resolve_cors_origins`) e
 `src/lib/config.ts` no front (`resolveApiBaseUrl`). Mesmo motivo de `periods.py` e
