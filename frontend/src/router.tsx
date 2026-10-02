@@ -1,14 +1,25 @@
 import { createRouter, useRouter } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
-function DefaultErrorComponent({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+// ⚠️ As props vêm do tipo da **biblioteca**, não de um literal nosso.
+//
+// A atualização de segurança do CVE-2026-102989 trouxe `@tanstack/react-router`
+// 1.170.41, que mudou `ErrorComponentProps.error` de `Error` para `unknown`
+// (via `ErrorBoundaryTypes`). O literal anterior (`error: Error`) deixou de ser
+// compatível e o `tsc` quebrou — foi a única incompatibilidade da subida, e
+// quem a pegou foi o `tsc --noEmit` do CI, já que componente React não tem
+// teste neste projeto.
+//
+// Usar `ErrorComponentProps` em vez de redeclarar faz o componente acompanhar a
+// biblioteca na próxima mudança, em vez de divergir de novo em silêncio.
+function DefaultErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
+
+  // `error` é `unknown`: estreitar é obrigatório antes de ler `.message`, e
+  // também é mais honesto — o que chega aqui pode ser qualquer valor lançado,
+  // não necessariamente um `Error`.
+  const message = error instanceof Error ? error.message : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -35,9 +46,9 @@ function DefaultErrorComponent({
         <p className="mt-2 text-sm text-muted-foreground">
           An unexpected error occurred. Please try again.
         </p>
-        {import.meta.env.DEV && error.message && (
+        {import.meta.env.DEV && message && (
           <pre className="mt-4 max-h-40 overflow-auto rounded-md bg-muted p-3 text-left font-mono text-xs text-destructive">
-            {error.message}
+            {message}
           </pre>
         )}
         <div className="mt-6 flex items-center justify-center gap-3">
