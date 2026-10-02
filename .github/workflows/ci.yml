@@ -31,6 +31,13 @@ jobs:
 
       - run: pip install -r requirements-dev.txt
 
+      # ⚠️ Este job **não** define `DATABASE_URL`, de propósito: é o único lugar
+      # que exercita o **default** de `resolve_database_url` num filesystem que
+      # não é o container de desenvolvimento. Foi exatamente aí que o primeiro
+      # CI quebrou — o default era `/workspace/backend/database.db`, caminho que
+      # só existe aqui dentro. Definir a variável deixaria o default sem
+      # cobertura e o bug voltaria sem ninguém notar.
+      #
       # Sem PYTHONPATH: `backend/pytest.ini` tem `pythonpath = .`
       - run: pytest
 
@@ -68,7 +75,17 @@ jobs:
           --health-retries 5
 
     env:
+      # Governa o engine da **suíte** (`conftest`).
       TEST_DATABASE_URL: postgresql+psycopg://finance:finance@localhost:5432/finance_test
+      # Governa o engine da **aplicação**, criado no import de `app.database`.
+      #
+      # 🔴 Sem esta linha o job não testava o que diz testar: `DATABASE_URL`
+      # caía no default SQLite, então o engine da aplicação era SQLite mesmo
+      # neste job, e foi assim que ele tentou preparar um diretório de SQLite e
+      # morreu com PermissionError. Com ela, nenhum caminho de SQLite é tocado
+      # aqui — e `test_foreign_keys_are_enforced_on_app_engine` passa a
+      # exercitar o ramo Postgres, como sempre foi a intenção.
+      DATABASE_URL: postgresql+psycopg://finance:finance@localhost:5432/finance_test
 
     steps:
       - uses: actions/checkout@v4

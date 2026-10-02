@@ -26,7 +26,16 @@ from typing import Any, Mapping, MutableMapping, Optional
 # Fica em `backend/`, não na raiz: é onde o backend roda e onde a documentação
 # manda colocá-lo. Está no `.gitignore` e nunca deve ser versionado — guarda a
 # credencial do Neon.
-ENV_FILE = pathlib.Path(__file__).resolve().parent.parent / ".env.local"
+# Raiz do pacote do backend, derivada do próprio arquivo. Tudo o que precisa de
+# caminho absoluto sai daqui — nada é escrito à mão.
+#
+# 🔴 Caminho específico de máquina no código foi o que derrubou o primeiro CI:
+# o default do banco era `/workspace/backend/database.db`, que é o bind mount
+# **deste** container. No runner do GitHub esse diretório não existe, e criá-lo
+# exige escrever na raiz do filesystem — `PermissionError` nos dois jobs.
+BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
+
+ENV_FILE = BACKEND_DIR / ".env.local"
 
 
 def load_env_file(
@@ -74,13 +83,13 @@ def load_env_file(
     return True
 
 
-# Valor que estava hardcoded em `database.py` até a fatia de deploy.
+# Banco de desenvolvimento, **dentro do pacote** — acompanha o checkout.
 #
 # ⚠️ **Quatro barras.** `sqlite:///` (três) é caminho **relativo** ao diretório
-# de trabalho do processo; a quarta barra é a raiz do caminho absoluto. Com três
-# o banco nasce fora do volume e o dado some no primeiro redeploy — o modo de
-# falha mais caro desta fatia, e o mais silencioso.
-DEFAULT_DATABASE_URL = "sqlite:////workspace/backend/database.db"
+# de trabalho do processo; a quarta vem da raiz do caminho absoluto que
+# `BACKEND_DIR` já traz. Com três, o banco nasce onde quem chamou estava, e o
+# dado some no primeiro redeploy — o modo de falha mais silencioso daqui.
+DEFAULT_DATABASE_URL = f"sqlite:///{BACKEND_DIR / 'database.db'}"
 
 # Liberado, como estava em `main.py`. Restringir é decisão de deploy (D-Deploy-6),
 # não de desenvolvimento.

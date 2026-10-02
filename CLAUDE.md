@@ -1929,6 +1929,58 @@ testpaths = tests
 Agora `.venv/bin/pytest` roda direto, sem `PYTHONPATH`. Se o erro voltar, confirme que o
 `pytest.ini` existe e que você está executando a partir de `/workspace/backend`.
 
+### 4. `PermissionError` no CI ao criar `/workspace` — caminho de máquina no código
+
+**Sintoma (primeiro CI, 02/10/2026).** Os jobs `backend` **e** `backend-postgres` falharam com
+o mesmo traceback: `PermissionError` em `os.makedirs`, tentando criar `/workspace` no runner
+do GitHub Actions.
+
+⚠️ **A causa não é a que o traceback sugere.** O `makedirs` parecia rodar
+incondicionalmente, inclusive no job de Postgres — mas ele **sempre** foi guardado por
+`sqlite_path_from_url`, que devolve `None` para Postgres. Verificado, não suposto. O
+mecanismo real tem quatro passos:
+
+1. **Nenhum dos dois jobs definia `DATABASE_URL`.** O de Postgres definia só
+   `TEST_DATABASE_URL`, que governa o engine da **suíte**, não o da aplicação.
+2. No runner não existe `backend/.env.local`, então nada preenchia a variável.
+3. `resolve_database_url()` caía no **default**: `sqlite:////workspace/backend/database.db` —
+   caminho absoluto do bind mount **deste** container.
+4. O guard então acertava ao ver uma URL SQLite, e tentava criar `/workspace`, o que exige
+   escrever na raiz do filesystem.
+
+O guard funcionava; o defeito era o **default**. O sintoma apareceu no `makedirs` porque é a
+primeira linha que toca o disco.
+
+**Consequência que passou despercebida junto:** no job `backend-postgres`, o engine da
+**aplicação** nunca foi Postgres — era o SQLite do default. O job testava Postgres apenas no
+engine da suíte, e `test_foreign_keys_are_enforced_on_app_engine` rodava o ramo SQLite ali.
+
+**Como foi resolvido.**
+
+* `BACKEND_DIR` derivado de `__file__`, e `DEFAULT_DATABASE_URL` construído a partir dele —
+  mesmo padrão que `ENV_FILE` já usava. O default acompanha o checkout.
+* `prepare_sqlite_directory(url, makedirs=...)` extraída, com `makedirs` **injetável**: o
+  comportamento que importa é *não haver chamada* no caminho Postgres, e com `monkeypatch`
+  global não há como distinguir "não chamou" de "chamou outra coisa".
+* O job `backend-postgres` passa a definir `DATABASE_URL` também, então nenhum caminho de
+  SQLite é tocado nele e o ramo Postgres é de fato exercitado.
+* O job `backend` **continua sem** `DATABASE_URL`, de propósito: é o único lugar que exercita
+  o default num filesystem que não é este container. Definir a variável deixaria o default
+  sem cobertura e o bug voltaria sem ninguém notar.
+
+⚠️ **Um dos testes novos é falso verde nesta máquina, e está rotulado como tal.**
+`test_the_default_database_lives_inside_the_backend_package` compara o caminho derivado de
+`__file__` com o esperado — e aqui os dois **coincidem**, porque o checkout realmente mora em
+`/workspace/backend`. Ele só ficaria vermelho na máquina onde o bug aparece, que é a máquina
+onde não rodamos. O teste que **consegue** distinguir olha o código-fonte e proíbe literal
+`/workspace` em `settings.py` — contrato sobre arquivo, no mesmo espírito de
+`test_every_requirement_is_pinned`.
+
+**Lição.** Caminho absoluto escrito à mão é bomba-relógio de ambiente: funciona na máquina de
+quem escreveu e falha em toda outra. A seção "Ambiente de Execução" já registra que
+`/workspace` é bind mount específico deste container — faltava a consequência de que ele não
+pode vazar para o código.
+
 ### 3. API "no ar" mas inacessível do Windows (`curl` exit 7)
 
 **Sintoma:** o uvicorn sobe sem erro, loga `Uvicorn running on http://0.0.0.0:8000`, e

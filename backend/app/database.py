@@ -1,4 +1,6 @@
 import os
+from typing import Optional
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
@@ -9,15 +11,37 @@ from app.settings import engine_options_for, resolve_database_url, sqlite_path_f
 # módulo — ver a explicação lá.
 SQLALCHEMY_DATABASE_URL = resolve_database_url()
 
-# Garante o diretório de persistência. Num volume recém-criado ele pode não
-# existir ainda, e o SQLite não cria diretório — falharia com "unable to open
-# database file" no primeiro boot.
-#
-# `sqlite_path_from_url` devolve None para Postgres, então este bloco vira
-# no-op se o banco mudar, sem precisar de `if` sobre o driver.
-_sqlite_path = sqlite_path_from_url(SQLALCHEMY_DATABASE_URL)
-if _sqlite_path:
-    os.makedirs(os.path.dirname(_sqlite_path), exist_ok=True)
+def prepare_sqlite_directory(url: str, makedirs=os.makedirs) -> Optional[str]:
+    """Cria o diretório do arquivo SQLite, se houver arquivo. Devolve o que criou.
+
+    Existe para o caso do volume ou da pasta nova: o SQLite **não** cria
+    diretório, e sem isto o primeiro boot falharia com "unable to open database
+    file".
+
+    ⚠️ **Só age quando o banco em uso é SQLite com caminho absoluto.** Postgres,
+    SQLite em memória e caminho relativo devolvem `None` sem tocar o disco — o
+    último porque depende do diretório de trabalho do processo, e criar
+    diretório a partir dele é imprevisível.
+
+    `makedirs` é injetável para que o teste possa verificar **a ausência de
+    chamada**, que é o comportamento que importa no caminho Postgres. Com
+    `monkeypatch` global não haveria como distinguir "não chamou" de "chamou
+    outra coisa".
+    """
+    path = sqlite_path_from_url(url)
+    if path is None:
+        return None
+
+    directory = os.path.dirname(path)
+    if not directory:
+        return None
+
+    makedirs(directory, exist_ok=True)
+
+    return directory
+
+
+prepare_sqlite_directory(SQLALCHEMY_DATABASE_URL)
 
 # As opções dependem do dialeto — ver `engine_options_for`. SQLite e Postgres
 # precisam de argumentos que quebram um no outro.
