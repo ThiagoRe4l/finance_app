@@ -78,3 +78,46 @@ test("o guarda do sandbox é invocado no config", () => {
   // exatamente o estado que a D-Auth-7 recusou ("não deixa só em comentário").
   assert.match(viteConfig, /assertProxySurvives\s*\(/);
 });
+
+// ---------------------------------------------------------------------------
+// Diretórios de saída do Nitro — o que quebrou o primeiro deploy do frontend
+// ---------------------------------------------------------------------------
+//
+// 🔴 Preset certo com output errado é o estado que derrubou o deploy. O
+// `@lovable.dev/vite-tanstack-config` **hardcoda** os diretórios e sobrescreve
+// os que o preset `vercel` do Nitro declara:
+//
+//     const output = {
+//       dir: "dist", serverDir: "dist/server", publicDir: "dist/client",
+//       ...userNitroOpts.output        // <- a única saída
+//     };
+//
+// Resultado: `dist/` com `client/`+`server/` e um `config.json` de Build Output
+// API v3 solto dentro. Não é BOA v3 válida — falta `static/` e `functions/` —,
+// então a Vercel não acha output nenhum e devolve o 404 genérico dela.
+//
+// ⚠️ Nenhuma configuração na interface da Vercel corrige isso: o *layout* está
+// errado, não o caminho. Apontar "Output Directory" para `dist` não ajudaria.
+//
+// Estes três asserts existem porque o teste do preset sozinho ficava verde no
+// estado quebrado.
+
+test("o diretório de saída do Nitro é .vercel/output", () => {
+  assert.match(viteConfig, /dir:\s*["'`]\.vercel\/output["'`]/);
+});
+
+test("a função serverless vai para functions/__server.func", () => {
+  // É o nome que a BOA v3 espera e que o próprio preset do Nitro usa nos
+  // comandos de preview — mudar o nome quebra sem mensagem.
+  assert.match(
+    viteConfig,
+    /serverDir:\s*["'`][^"'`]*functions\/__server\.func["'`]/,
+  );
+});
+
+test("os assets do cliente vão para static/", () => {
+  // `dist/client` era o valor hardcoded do preset da Lovable. A BOA v3 serve
+  // estáticos de `static/`; com o nome errado, toda rota cai na função e os
+  // assets voltam 404.
+  assert.match(viteConfig, /publicDir:\s*["'`][^"'`]*\/static["'`]/);
+});

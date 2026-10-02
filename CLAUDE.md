@@ -1939,11 +1939,11 @@ deploy não depende disso.
   `wrangler`/`miniflare`/`sharp`/`undici`, responsáveis por boa parte dos 12 avisos `high` do
   `npm audit`. Com o preset `vercel` (D-Vercel-3), **nada disso é usado**. Removê-lo é
   limpeza de superfície de segurança — fatia própria, não decidida.
-* ⬜ **O build emite `dist/`, não `.vercel/output`.** `dist/config.json` é Build Output API
-  **v3 válido** (`"version": 3`), e `nitro.json` confirma `preset: vercel` — mas o diretório
-  não é o que a BOA v3 descreve. **Não é regressão desta atualização** (`nitro` não mudou de
-  versão). Fica como ponto a conferir no primeiro deploy do frontend: se a Vercel não achar a
-  saída, o ajuste é o *Output Directory* do projeto, não o preset.
+* ✅ **O build emitia `dist/`, não `.vercel/output`** — e isso de fato derrubou o primeiro
+  deploy do frontend. **Resolvido em 02/10/2026**; ver "Common Hurdles → 6".
+  🔴 A hipótese registrada aqui estava **errada**: eu disse que o ajuste seria o *Output
+  Directory* do projeto na Vercel. Não era, e não poderia ser — o *layout* estava errado, não
+  o caminho. A correção é em `vite.config.ts`.
 
 ---
 
@@ -2185,6 +2185,77 @@ cenários de job.
 quem escreveu e falha em toda outra. A seção "Ambiente de Execução" já registra que
 `/workspace` é bind mount específico deste container — faltava a consequência de que ele não
 pode vazar para o código.
+
+### 6. Frontend deployado devolvia o 404 **da Vercel** — artefato no lugar e formato errados
+
+**Sintoma (02/10/2026).** `This page doesn't exist` — o 404 genérico da plataforma, não um
+erro da aplicação. Indício de que a Vercel não achou output nenhum para servir.
+
+⚠️ **Sintoma oposto ao do item 5, e a diferença é o diagnóstico.** No backend o 404 era
+`{"detail":"Not Found"}` — formato do FastAPI, prova de que o app era alcançado. Aqui o 404
+é HTML da Vercel: nada nosso respondeu.
+
+**A causa.** O preset `vercel` do Nitro declara corretamente a Build Output API v3:
+
+```js
+output: {
+  dir: "{{ rootDir }}/.vercel/output",
+  serverDir: "{{ output.dir }}/functions/__server.func",
+  publicDir: "{{ output.dir }}/static/{{ baseURL }}"
+}
+```
+
+Mas o **`@lovable.dev/vite-tanstack-config` sobrescreve**, hardcodando `dist` para qualquer
+preset:
+
+```js
+const output = {
+  dir: "dist", serverDir: "dist/server", publicDir: "dist/client",
+  ...userNitroOpts.output        // <- a única saída
+};
+```
+
+O resultado é um **híbrido que não é BOA v3 válida**: `dist/` com `client/`+`server/` e um
+`config.json` de BOA v3 solto dentro, faltando `static/` e `functions/`. Reproduzido com
+build real: `.vercel` e `*.func` não existiam em lugar nenhum do projeto.
+
+Coerente com o `nitro.json` gerado, que referenciava `../../static` e
+`./functions/__server.func/index.mjs` — nomes da BOA v3 — enquanto os diretórios reais eram
+outros. O preset *queria* emitir BOA v3 e era impedido.
+
+🔴 **Nenhuma configuração na interface da Vercel corrigiria isso.** Minha hipótese registrada
+antes — "o ajuste é o *Output Directory* do projeto" — estava **errada**: o layout estava
+errado, não o caminho. Apontar a Vercel para `dist` não ajudaria, porque sem `static/` e
+`functions/*.func` não há o que ela consuma em diretório nenhum.
+
+**O log de build confirmou as duas pontas.** Três linhas:
+
+      [start] [nitro] Building [Nitro] (preset: `vercel`, ...)   <- preset ativo
+      [success] [nitro] Generated public dist/client             <- publicDir sobrescrito
+      [info] Generated dist/nitro.json                           <- dir sobrescrito
+
+E respondeu a dúvida que sobrava: **a Vercel NÃO detectou framework no frontend.** O log vai
+de `vercel build` direto para `Installing dependencies` e `npm run build`, sem nenhuma linha
+de detecção — ao contrário do backend, que anunciou *"backend framework projects"*. Logo não
+há *Framework Preset* a ajustar: a Vercel só executa o build e coleta o que achar em
+`.vercel/output`.
+
+**Como foi resolvido.** `nitro.output` explícito no `vite.config.ts` — a última linha do
+objeto da Lovable (`...userNitroOpts.output`) é o que permite. Verificado por build real: o
+artefato passou a trazer `config.json`, `static/assets/` e
+`functions/__server.func/` com `index.mjs` e `.vc-config.json`
+(`launcherType: Nodejs`), e `dist/` deixou de ser criado. A linha do log virou
+`Generated public .vercel/output/static`.
+
+`.vercel/` entrou no `.gitignore` — o artefato passou a ser candidato a commit acidental.
+
+**Três asserts novos em `vite-config.test.ts`**, porque o teste do preset sozinho ficava
+**verde no estado quebrado**: preset certo com output sobrescrito era exatamente a falha.
+
+**Lição, a mesma dos itens 4 e 5 por outro caminho:** valor default de biblioteca de terceiro
+sobrescrevendo configuração de preset é invisível no código do projeto — o `vite.config.ts`
+dizia `preset: "vercel"` e parecia correto. O que expôs foi **ler o código do preset
+instalado**, não o nosso.
 
 ### 3. API "no ar" mas inacessível do Windows (`curl` exit 7)
 
