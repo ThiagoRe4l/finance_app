@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db, owner_id
 from app import models, schemas, account_balance
 
 router = APIRouter(
@@ -29,7 +29,7 @@ def _to_response(row) -> schemas.AccountResponse:
 
 
 @router.post("", response_model=schemas.AccountResponse, status_code=status.HTTP_201_CREATED)
-def create_account(account: schemas.AccountCreate, db: Session = Depends(get_db)):
+def create_account(account: schemas.AccountCreate, db: Session = Depends(owned_db)):
     # Evita duplicidade de contas com o mesmo nome
     db_account = db.query(models.Account).filter(models.Account.name == account.name).first()
     if db_account:
@@ -39,6 +39,7 @@ def create_account(account: schemas.AccountCreate, db: Session = Depends(get_db)
         )
 
     new_account = models.Account(
+        owner_id=owner_id(db),
         name=account.name,
         initial_balance=account.initial_balance,
     )
@@ -55,7 +56,7 @@ def create_account(account: schemas.AccountCreate, db: Session = Depends(get_db)
 
 
 @router.get("", response_model=List[schemas.AccountResponse])
-def list_accounts(db: Session = Depends(get_db)):
+def list_accounts(db: Session = Depends(owned_db)):
     """Contas com o saldo calculado na leitura.
 
     Custo: `LEFT JOIN` + `GROUP BY` em vez de um `SELECT` de coluna. A agregação

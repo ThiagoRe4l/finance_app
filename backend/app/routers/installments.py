@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db, owner_id
 from app import models, schemas
 from app import installment_metrics
 
@@ -38,7 +38,7 @@ def _to_response(installment: models.Installment) -> schemas.InstallmentResponse
 # `/installments/summary` casa com aquele padrão, e o FastAPI tentaria converter
 # "summary" em int. Ver `test_summary_route_is_not_shadowed_by_an_id_route`.
 @router.get("/summary", response_model=schemas.InstallmentSummary)
-def get_installments_summary(db: Session = Depends(get_db)):
+def get_installments_summary(db: Session = Depends(owned_db)):
     """Totais do cabeçalho da tela de parcelamentos.
 
     Os três números numa requisição só. `active_count` e
@@ -55,7 +55,7 @@ def get_installments_summary(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.InstallmentResponse, status_code=status.HTTP_201_CREATED)
-def create_installment(installment: schemas.InstallmentCreate, db: Session = Depends(get_db)):
+def create_installment(installment: schemas.InstallmentCreate, db: Session = Depends(owned_db)):
     account = db.query(models.Account).filter(models.Account.id == installment.account_id).first()
     if not account:
         raise HTTPException(
@@ -73,6 +73,7 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
         )
 
     new_installment = models.Installment(
+        owner_id=owner_id(db),
         title=installment.title,
         category_id=installment.category_id,
         total_amount=installment.total_amount,
@@ -88,7 +89,7 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
     return _to_response(new_installment)
 
 @router.get("", response_model=List[schemas.InstallmentResponse])
-def list_installments(db: Session = Depends(get_db)):
+def list_installments(db: Session = Depends(owned_db)):
     installments = db.query(models.Installment).options(
         joinedload(models.Installment.category)
     ).all()
@@ -105,7 +106,7 @@ LOCKED_ONCE_LAUNCHED = ("installment_amount", "total_installments", "total_amoun
 def update_installment(
     installment_id: int,
     payload: schemas.InstallmentUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(owned_db)
 ):
     """Edição parcial. Não toca saldo — parcelamento nunca tocou.
 

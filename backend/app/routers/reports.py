@@ -5,7 +5,7 @@ import datetime
 from decimal import Decimal
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db
 from app import models, schemas
 from app.routers.dashboard import get_dashboard_summary
 from app.periods import trailing_months_bounds
@@ -16,7 +16,7 @@ router = APIRouter(
 )
 
 @router.get("/overview", response_model=schemas.ReportSummary)
-def get_report_overview(db: Session = Depends(get_db)):
+def get_report_overview(db: Session = Depends(owned_db)):
     # 1. Reutiliza parte da lógica do dashboard para pegar o fluxo mensal
     dash = get_dashboard_summary(db)
     

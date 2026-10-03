@@ -199,6 +199,58 @@ def anon_client_fixture(session):
     del app.dependency_overrides[get_db]
 
 
+@pytest.fixture(name="client_as")
+def client_as_fixture(session, monkeypatch):
+    """Fábrica de clientes autenticados **de verdade**, um por e-mail (D-Tenant-8).
+
+    É o cliente da varredura de isolamento e do provisionamento. Três escolhas,
+    cada uma fechando um falso verde possível:
+
+    * **Cookie real** (`issue_session`), sem override de `current_user`. O
+      override global de `dependency_overrides` é um só por app — dois usuários
+      ao mesmo tempo seriam impossíveis com ele, e o caminho de resolução do
+      dono ficaria fora do teste.
+    * **Uma sessão de banco por requisição**, como em produção. Com a sessão
+      compartilhada da fixture `session`, o mapa de identidade do SQLAlchemy
+      guardaria objetos de A entre requisições — a ressalva 2 da D-Tenant-3.
+    * **A allowlist é montada aqui**, por e-mail pedido. `revoke(email)` tira
+      um e-mail depois, para os cenários de quem saiu do app.
+
+    Depende de `session` só para herdar o banco limpo (`_truncate_all`).
+    """
+    from app.auth import issue_session
+
+    allowed = {TEST_USER_EMAIL, "outra@example.com"}
+
+    def _sync_allowlist():
+        monkeypatch.setenv("AUTH_ALLOWED_EMAILS", ",".join(sorted(allowed)))
+
+    def per_request_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = per_request_db
+
+    def _make(email):
+        allowed.add(email.lower())
+        _sync_allowlist()
+        token = issue_session(email, "segredo-de-teste-deterministico")
+        return TestClient(app, cookies={"session": token})
+
+    def _revoke(email):
+        allowed.discard(email.lower())
+        _sync_allowlist()
+
+    _make.revoke = _revoke
+
+    yield _make
+
+    app.dependency_overrides.pop(get_db, None)
+
+
 @pytest.fixture(name="fake_google")
 def fake_google_fixture(monkeypatch):
     """Substitui a verificação do ID token do Google.
@@ -311,6 +363,21 @@ def money(raw) -> Decimal:
 # ---------------------------------------------------------------------------
 # Helpers de domínio
 # ---------------------------------------------------------------------------
+
+def owner_id_of(db, email=TEST_USER_EMAIL):
+    """Id do dono de um e-mail — para os testes que escrevem direto no banco.
+
+    A linha em `users` nasce na primeira requisição do cliente (D-Tenant-5),
+    então chame depois de pelo menos uma chamada à API.
+
+    ⚠️ Não é detalhe nos testes que **esperam** `IntegrityError`: sem o dono
+    certo, o insert falharia pelo `owner_id NOT NULL` e o teste ficaria verde
+    pelo motivo errado.
+    """
+    from app import models
+
+    return db.query(models.User).filter(models.User.email == email).one().id
+
 
 def create_category(client, name="Alimentação", icon_name="UtensilsCrossed",
                     budget=800.0, color="oklch(0.6 0.15 155)"):

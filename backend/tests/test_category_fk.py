@@ -29,6 +29,7 @@ from tests.conftest import (
     create_category,
     create_transaction,
     installment_payload,
+    owner_id_of,
 )
 
 CATEGORIA_INEXISTENTE = 9999
@@ -375,6 +376,7 @@ def test_orphan_category_id_rejected_at_database_level(fk_session, fk_client):
         amount=10.0,
         date=datetime.date(2026, 8, 7),
         category_id=CATEGORIA_INEXISTENTE,
+        owner_id=owner_id_of(fk_session),
         account_id=account_id,
     ))
 

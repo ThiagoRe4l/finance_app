@@ -37,7 +37,7 @@ import pytest
 from sqlalchemy import inspect, text
 
 from app import models
-from tests.conftest import create_account, create_category, create_transaction, money
+from tests.conftest import create_account, create_category, create_transaction, money, owner_id_of
 
 
 def _balance(client, index=0) -> Decimal:
@@ -155,6 +155,7 @@ def test_balance_reflects_a_transaction_inserted_outside_the_router(session, cli
         date=datetime.date.today(),
         category_id=default_category["id"],
         account_id=default_account,
+        owner_id=owner_id_of(session),
     ))
     session.commit()
 
