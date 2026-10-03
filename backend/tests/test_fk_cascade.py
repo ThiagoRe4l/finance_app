@@ -40,6 +40,7 @@ from tests.conftest import (
     create_category,
     create_transaction,
     installment_payload,
+    owner_id_of,
 )
 
 
@@ -224,6 +225,7 @@ def test_orphan_installment_id_rejected_at_database_level(fk_session, fk_client)
         category_id=category["id"],
         account_id=account_id,
         installment_id=9999,
+        owner_id=owner_id_of(fk_session),
     ))
 
     with pytest.raises(IntegrityError):

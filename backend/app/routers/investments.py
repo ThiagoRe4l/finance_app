@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db, owner_id
 from app import models, schemas
 
 router = APIRouter(
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 @router.post("", response_model=schemas.InvestmentResponse, status_code=status.HTTP_201_CREATED)
-def create_investment(investment: schemas.InvestmentCreate, db: Session = Depends(get_db)):
+def create_investment(investment: schemas.InvestmentCreate, db: Session = Depends(owned_db)):
     # Evita duplicidade de investimentos com o mesmo nome
     db_investment = db.query(models.Investment).filter(models.Investment.name == investment.name).first()
     if db_investment:
@@ -22,6 +22,7 @@ def create_investment(investment: schemas.InvestmentCreate, db: Session = Depend
     
     # Cria o novo investimento
     new_investment = models.Investment(
+        owner_id=owner_id(db),
         name=investment.name,
         current_balance=investment.current_balance
     )
@@ -31,7 +32,7 @@ def create_investment(investment: schemas.InvestmentCreate, db: Session = Depend
     return new_investment
 
 @router.get("", response_model=List[schemas.InvestmentResponse])
-def list_investments(db: Session = Depends(get_db)):
+def list_investments(db: Session = Depends(owned_db)):
     return db.query(models.Investment).all()
 
 
@@ -39,7 +40,7 @@ def list_investments(db: Session = Depends(get_db)):
 def create_investment_history(
     investment_id: int,
     history: schemas.InvestmentHistoryCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(owned_db)
 ):
     # 1. Busca o investimento pelo investment_id
     investment = db.query(models.Investment).filter(models.Investment.id == investment_id).first()
@@ -68,7 +69,7 @@ def create_investment_history(
 
 
 @router.get("/{investment_id}/history", response_model=List[schemas.InvestmentHistoryResponse])
-def list_investment_history(investment_id: int, db: Session = Depends(get_db)):
+def list_investment_history(investment_id: int, db: Session = Depends(owned_db)):
     # 1. Busca o investimento pelo investment_id para validar sua existência
     investment = db.query(models.Investment).filter(models.Investment.id == investment_id).first()
     if not investment:

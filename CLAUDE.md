@@ -977,6 +977,364 @@ funcional exigiria um domínio estável apontado para ele. Registrado antes de s
 
 ---
 
+## 👥 Multiusuário — dados por dono e despesa compartilhada
+
+**Decidido em 03/10/2026, antes da implementação.** Testes vermelhos aprovados em 03/10/2026.
+**Fatia 1 implementada** (ver "Fatia 1 — o que foi entregue" no fim da seção); fatias 2–4
+pendentes.
+
+Até aqui a autenticação era só um portão: todo e-mail da allowlist via **os mesmos** dados
+(uma `Account`, um conjunto de categorias). Esta fatia introduz, pela primeira vez, o conceito
+de **dono por registro**, e sobre ele um mecanismo de despesa dividida entre usuários.
+
+🔴 **O risco de maior severidade é um usuário ver dado de outro** por um endpoint que esqueceu
+de filtrar. É ele que dita a forma de toda a parte de isolamento: o filtro é por construção
+(D-Tenant-3) e a verificação é por varredura (D-Tenant-7), não endpoint a endpoint.
+
+Quatro fatias, nesta ordem: **(1)** `users` + migration → **(2)** escopo por usuário + varredura
+→ **(3)** provisionamento/login → **(4)** despesa compartilhada.
+
+### Defeitos presentes que esta fatia fecha
+
+Encontrados no mapeamento; hoje são "inofensivos" só porque todos veem tudo de qualquer jeito.
+
+* **Nome único global** em `accounts`, `categories` e `investments`. O segundo usuário a entrar
+  não conseguiria receber as categorias padrão — "Moradia" já existe.
+* **PATCH/DELETE buscam só por id.** Qualquer usuário altera dado de outro trocando o número
+  na URL.
+* **POST aceita FK de outro usuário.** `account_id`/`category_id` são conferidos por
+  *existência*, não por dono.
+* **Funções chamadas direto, sem `Depends`:** `reports` → `get_dashboard_summary(db)` →
+  `list_categories(db)`. Filtro passado como parâmetro injetado se perderia aqui.
+* **O `total_balance` soma `Transaction` sem passar por `Account`.** Filtro só em `Account` não
+  o alcançaria.
+
+### D-Tenant-1: tabela `users` leve — identidade, não autorização
+
+`users(id, email)`, e-mail único e sempre minúsculo.
+
+**Alternativa descartada: e-mail direto em cada tabela.** A despesa compartilhada precisa de
+FK real para participante; a linha em `users` é o marcador natural de "já provisionado"
+(D-Tenant-5); e um e-mail espalhado em 5 tabelas é 5 lugares para divergir.
+
+⚠️ **`users` não substitui a allowlist.** Estar na tabela não dá acesso a nada; a allowlist
+continua reconferida a cada requisição (D-Auth-2) e continua sendo o que revoga.
+
+### D-Tenant-2: `owner_id` nas 5 tabelas, com FK composta
+
+`owner_id NOT NULL → users.id ON DELETE RESTRICT` em `accounts`, `categories`, `investments`,
+`installments` e `transactions`. `investment_history` **não** ganha coluna: é filha com CASCADE
+e herda o dono pelo pai.
+
+* **`UNIQUE(owner_id, name)`** substitui o `UNIQUE(name)` global nas três tabelas que o têm.
+* **FK composta** `(account_id, owner_id) → accounts(id, owner_id)` e
+  `(category_id, owner_id) → categories(id, owner_id)`, em `transactions` e em `installments`.
+  Exige `UNIQUE(id, owner_id)` nos pais. Com isso o **banco** recusa transação de A na conta de
+  B — o terceiro defeito acima fica impossível por construção, em vez de depender de cada router
+  lembrar. Mesmo raciocínio do saldo derivado.
+
+⚠️ **`installment_id` fica FK simples.** Uma FK composta com `ON DELETE SET NULL` anularia
+**também** `owner_id`, que é `NOT NULL`. O Postgres 15+ aceita `SET NULL (installment_id)`, mas
+o SQLite não, e a D-Vercel-1 exige o mesmo schema nos dois. A proteção ali é o filtro
+(D-Tenant-3): o parcelamento de outro dono não é encontrado, e a vinculação dá 404.
+
+**Alternativa descartada: `owner_id` só nas raízes** (contas, categorias, investimentos), com
+transações e parcelamentos herdando pela conta. Toda consulta de agregação precisaria de join
+até a conta só para filtrar — e o quinto defeito acima é exatamente uma consulta que não faz
+esse join.
+
+### D-Tenant-3: o filtro é automático, na sessão do banco
+
+Uma dependency `owned_db` (em `app/tenancy.py`, junto de `current_owner`) recebe o `db` de
+`get_db` e o usuário de `current_owner`, e marca a
+sessão com o dono. Um evento `do_orm_execute` aplica `with_loader_criteria(<modelos com
+owner_id>, owner_id == dono)` em todo `SELECT` dessa sessão. Os routers trocam
+`Depends(get_db)` por `Depends(owned_db)`; na criação, `owner_id` vem do servidor, **nunca**
+do payload.
+
+**Verificado empiricamente antes de decidir**, com o SQLAlchemy do projeto e os formatos de
+consulta que o código usa hoje (script descartável, fora do repositório):
+
+| Formato | SQL gerado | Vazou? |
+|---|---|---|
+| `sum` de coluna (dashboard) | `WHERE t.owner_id = ?` | não |
+| `sum` com `CASE` (`ledger_delta`) | `WHERE t.owner_id = ?` | não |
+| `outerjoin` com data no `ON` (`_aggregated_rows`) | `LEFT JOIN t ON … AND t.owner_id = ?` + `WHERE c.owner_id = ?` | não |
+| `join` categoria + transação (`top_categories`) | `JOIN t ON … AND t.owner_id = ?` | não |
+| `select()` 2.0 | `WHERE t.owner_id = ?` | não |
+| busca por id de outro dono | `WHERE t.id = ? AND t.owner_id = ?` → `None` | não |
+
+**O filtro decide ON × WHERE sozinho, e decide certo**: na tabela do `outerjoin` vai para o
+`ON`, na principal para o `WHERE`. Categoria sem transação no mês continua aparecendo zerada —
+o cuidado registrado em `_aggregated_rows` é preservado.
+
+⚠️ **Três ressalvas, registradas de propósito:**
+
+1. **Escrita não passa pelo filtro** — ele só age em `SELECT`. Mitigado por três camadas:
+   `owner_id` preenchido pelo servidor, FK composta (D-Tenant-2), e toda edição/exclusão
+   carregando o objeto antes (o carregamento passa pelo filtro). O projeto não usa
+   `UPDATE`/`DELETE` em massa — se passar a usar, essa linha não é filtrada.
+2. **Mapa de identidade da sessão.** `session.get` devolve sem SQL um objeto já carregado na
+   mesma sessão. Não morde porque a sessão vive uma requisição e só carrega o que passou pelo
+   filtro — mas é a razão de a fixture `client_as` abrir **uma sessão por requisição**, como
+   produção.
+3. **O grupo da despesa compartilhada não é "do dono"** — a visibilidade é "sou participante".
+   Fica fora do filtro automático, com regra explícita (D-Shared-9), e é coberto pela varredura.
+
+⚠️ **O escopo nunca vai dentro de `get_db`.** A suíte sobrescreve `get_db`; se o escopo
+morasse lá, o override o removeria junto.
+
+**Alternativas descartadas:** RLS do Postgres (não existe no SQLite — a suíte local ficaria cega
+a ele, contra a D-Vercel-1); filtro explícito em cada consulta (é exatamente o "endpoint que
+esqueceu de filtrar" que esta fatia existe para impedir).
+
+### D-Tenant-4: recurso de outro usuário é 404, com o mesmo `detail` do inexistente
+
+403 confirmaria que o id existe. O `detail` idêntico é o que torna as duas situações
+indistinguíveis — e o teste assere o `detail`, pela mesma razão registrada nos `*_write.py`.
+
+### D-Tenant-5: provisionamento ao criar o usuário, dentro da resolução da sessão
+
+Uma dependency `current_owner` (sobre `current_user`, que continua devolvendo o e-mail) resolve a
+linha de `users`. **Se a linha não existe, cria e provisiona:** "Conta Principal" com saldo
+inicial **R$ 0,00** e as 10 categorias padrão, donas do novo usuário.
+
+* **Só depois da allowlist.** E-mail revogado com cookie válido leva 401 e **não** cria linha.
+* **Por que na resolução e não só no login:** as sessões de 30 dias emitidas antes da migration
+  nunca passam pelo login de novo.
+* **Usuário pré-existente nunca é provisionado** — o gatilho é *criar a linha*, não "não ter
+  conta". É o que impede o dono migrado (D-Tenant-6) de ganhar uma segunda "Conta Principal".
+* Corrida de duas primeiras requisições simultâneas: `UNIQUE(email)` + nova leitura no conflito.
+  Não testável no SQLite em memória; registrado.
+* `GET /api/auth/me` passa a usar `current_owner` — é a primeira chamada que o front faz.
+
+**`init_db.py` e `test_seed.py` saem.** O seed global não tem dono a quem pertencer; o
+provisionamento por usuário é o substituto, com teste próprio.
+
+### D-Tenant-6: migration num passo só, com o dono passado na hora
+
+Uma revisão do Alembic, **sem expand/contract** (decidido em 03/10/2026): cria `users`, adiciona
+`owner_id` nulo, preenche, torna `NOT NULL`, troca os índices únicos e cria as FKs compostas.
+
+* **Os dados atuais são de uma pessoa só** (confirmado) e vão todos para um dono.
+* **O e-mail não fica no repositório:** `alembic upgrade head -x owner_email=...`, normalizado
+  em minúsculo. Mesmo motivo de a allowlist não ser hardcoded (D-Auth-2).
+* **Fail closed:** tabelas com dado e sem `owner_email` → a migration **levanta**. Em banco vazio
+  (a suíte, o dev novo) o argumento é dispensável.
+* **`downgrade` só com um dono.** Com dois, os nomes podem colidir no `UNIQUE(name)` global —
+  levanta em vez de perder dado.
+* ⚠️ **Janela aceita:** entre a migration e o deploy do código novo, o código antigo insere sem
+  `owner_id` e recebe 500. Aceito em troca de um passo só.
+
+**Backup antes de aplicar, em produção — nesta ordem:**
+
+1. Branch do Neon (snapshot instantâneo) **e** `pg_dump`.
+2. **Restaurar** o dump num branch descartável e conferir. Backup nunca restaurado não é backup
+   (D-Deploy-2).
+3. **Ensaiar a migration num branch do Neon** com cópia do dado real. É o único teste da
+   migração de dados contra Postgres com dado real — o teste da suíte roda em SQLite.
+4. Contagem de linhas por tabela antes e depois.
+
+### D-Tenant-7: a varredura de isolamento
+
+`tests/test_tenant_isolation.py`, no espírito de `test_auth_routes.py`:
+
+1. **Diferencial nas leituras.** B tira um retrato de **toda** rota GET sem parâmetro; A cria um
+   conjunto completo de dados; o retrato de B tem que sair **idêntico**. Pega vazamento em
+   agregado (`total_balance`, `monthly_flow`, `top_categories`), que busca por valor sentinela
+   não pegaria — uma soma vazada não contém o sentinela, contém o sentinela somado a outra
+   coisa.
+2. **Toda rota com `{id}`**, todo método: B usa o id de A → 404 com `detail` real, e o retrato
+   de A não muda. Parâmetro de rota fora do mapa conhecido **falha o teste**.
+3. **Todo campo `*_id` em corpo de POST/PATCH**, descoberto pelo schema: B envia o id de A → 404.
+   Campo novo não coberto falha o teste.
+4. **Estrutural:** todo model financeiro tem `owner_id`, ou consta numa lista explícita de
+   exceções com motivo.
+5. **Guarda contra varredura vazia**, como `test_the_behavioural_sweep_actually_covered_something`.
+
+### D-Tenant-8: fixtures
+
+* **`client_as(email)`** — cliente com **cookie de sessão real** (`issue_session`), `current_user`
+  e `current_owner` reais, e **uma sessão de banco por requisição**. Só `get_db` é substituído. É
+  o cliente de toda a varredura e do provisionamento.
+* **`client`/`fk_client`** passam a sobrescrever `current_owner` com um usuário **sem
+  provisionamento** — senão as 10 categorias padrão colidiriam com cada
+  `create_category(client, "Alimentação")` dos 387 testes. Mudança feita na implementação.
+* Testes que inserem linha direto no banco (`test_fk_cascade.py`, `test_category_fk.py`,
+  `test_derived_balance.py`) ganham `owner_id` na implementação — ajuste mecânico, sem mudança de
+  asserção.
+
+### D-Shared-1: cada participante debita só a própria parte
+
+R$ 100 divididos com 1 pessoa = SAÍDA de R$ 50 no ledger de cada um. **Sem registrar quem pagou e
+sem dívida entre participantes** (confirmado em 02/10/2026).
+
+⚠️ **Consequência aceita:** o saldo de quem pagou deixa de bater com o extrato do banco (app −50,
+banco −100), e o de quem não pagou mostra −50 que ainda não saiu. Nesta modalidade
+`current_balance` mede "custo meu", não "dinheiro na conta".
+
+**Descartadas:** pagador debita o total (saldo segue o caixa, mas saldo e despesa divergem);
+rastrear pagador e dívida, no estilo Splitwise (entidade e fluxo de acerto novos).
+
+### D-Shared-2: N transações ligadas por um grupo
+
+`shared_expenses(id, creator_id → users RESTRICT, title, total_amount MONEY, date)` e
+`transactions.shared_expense_id → shared_expenses ON DELETE CASCADE`, nulo para transação comum.
+Cada parte é **uma SAÍDA comum**, dona o participante, na conta e na categoria dele.
+
+**O que decide:** saldo derivado, `spent`, `monthly_flow`, `top_categories` e o filtro de dono
+funcionam **sem mudança nenhuma**. A soma das partes = total é garantida pelo servidor e por
+teste com `Decimal` exato, não pelo banco.
+
+**Descartada: entidade "despesa" com N "partes"** fora de `transactions`. `ledger_delta` e as 6
+agregações passariam a somar duas tabelas, cada uma com o próprio filtro — a duplicação de regra
+que `account_balance.py` existe para impedir.
+
+### D-Shared-3: divisão sempre igualitária
+
+Decisão final (reconfirmada em 03/10/2026). Parte = total ÷ N, truncada no centavo; **o centavo
+que sobra fica com o criador** (R$ 100 ÷ 3 → criador R$ 33,34, os outros R$ 33,33). Parte menor
+que R$ 0,01 é **422**. Sem valor nem percentual por pessoa na v1.
+
+### D-Shared-4: participantes, criador e consentimento
+
+* **O criador sempre participa.** `participants` lista os **outros**; incluir a si mesmo é 400.
+* **Universo = allowlist ∩ quem já tem linha em `users`**, menos o próprio. Sem sistema de
+  convite. Quem nunca logou não tem conta para receber a parte, e criar dado para quem nunca
+  entrou foi descartado. `GET /api/participants` expõe essa lista — o que **expõe os e-mails da
+  allowlist** aos outros usuários; aceito, é o mecanismo de seleção.
+* E-mail fora desse universo → **404**, como FK que não resolve.
+* **Sem aceite na v1:** a parte entra direto no ledger do participante, que vê e pode
+  recategorizar, mas não recusa.
+
+### D-Shared-5: em qual conta e categoria cai a parte do participante
+
+* **Conta:** a primeira dele (menor id), sem seletor — a mesma debt de "`account_id` sem seletor".
+* **Categoria:** a de **mesmo nome exato** entre as categorias dele; se não houver, uma categoria
+  **"Compartilhado"**, criada sob demanda. Ele pode trocar a categoria da própria parte depois.
+
+### D-Shared-6: o que se pode fazer com uma parte pelas rotas de transação
+
+* **`category_id` é livre**, pelo dono da parte (categoria é dele).
+* **`title`, `amount`, `date`, `type`, `is_fixed`, `installment_id` → 409.** Mexer neles
+  quebraria a soma do grupo; quem altera é o grupo.
+* **`DELETE /transactions/{id}` de uma parte → 409, para todos, inclusive o criador.** A exclusão
+  é do grupo.
+
+409 pela mesma natureza do bloqueio de parcelamento com transação lançada: escrita bloqueada por
+uma linha relacionada.
+
+### D-Shared-7: escopo da v1
+
+Só SAÍDA; sem parcelamento; sem `is_fixed`. O payload não tem esses campos e é
+`extra="forbid"` — enviá-los é 422.
+
+### D-Shared-8: edição e exclusão do grupo
+
+* **Só o criador** edita e exclui. Participante não criador → **403** (ele vê o grupo, então 404
+  seria mentira). Não participante → **404** (D-Tenant-4).
+* **Editar `amount` recalcula a parte de todos.** Editar `participants` cria/remove as partes e
+  recalcula. `title`/`date` propagam para todas as partes.
+* 🔴 **Editar `amount` ou `participants` quando isso afetaria alguém fora da allowlist → 409**
+  (decidido em 03/10/2026). Mudar o ledger de quem já saiu, sem ele poder ver, é o caso bloqueado.
+  `title`/`date` não estão no bloqueio.
+* **Excluir é sempre permitido** e remove a parte de todos, inclusive de quem saiu da allowlist.
+* ⚠️ **Consequência aceita:** criador que sai da allowlist deixa o grupo **congelado** — ninguém
+  mais edita nem exclui. As partes continuam nos ledgers.
+
+### D-Shared-9: quem vê o grupo
+
+Todos os participantes veem o grupo inteiro: total, criador e a parte de cada um, com e-mail. É a
+**única exceção deliberada** ao isolamento, e por isso tem regra explícita (fora do filtro
+automático) e cobertura própria: não participante não vê nada, nem por lista nem por id.
+
+### Contrato novo com o frontend
+
+| Endpoint | Observação |
+|---|---|
+| `GET /api/participants` | `[{"email"}]` — D-Shared-4 |
+| `POST /api/shared-expenses` | `{title, amount, date, account_id, category_id, participants: [email]}` → 201 |
+| `GET /api/shared-expenses` | grupos de que participo, inclusive os que criei |
+| `GET /api/shared-expenses/{id}` | 404 para não participante |
+| `PATCH /api/shared-expenses/{id}` | `{title?, amount?, date?, participants?}`, `extra="forbid"` |
+| `DELETE /api/shared-expenses/{id}` | 204 |
+
+Resposta do grupo: `{id, title, total_amount, date, creator, parts: [{email, amount}]}`.
+`TransactionResponse` ganha `shared_expense_id` (nulo para transação comum).
+
+Convenção de status estendida: **403** — o recurso é visível para você, mas a ação é só do criador.
+
+### Testes desta fatia
+
+Estado na entrega dos vermelhos (03/10/2026), sobre uma suíte de base com 387 verdes:
+
+| Fatia | Arquivo | Vermelhos | ✅ já passam (rotulados) |
+|---|---|---|---|
+| 1 | `tests/test_tenant_schema.py` | 29 | 1 — regressão |
+| 2 | `tests/test_tenant_isolation.py` | 8 | 4 — guardas e regressão |
+| 3 | `tests/test_provisioning.py` | 9 | 0 |
+| 4 | `tests/test_shared_expenses.py` | 56 | 0 |
+
+* **Fatias 1–3 falham pelo motivo certo**: tabela/coluna ausente, e — na 2 — **vazamento real**
+  medido (B lê os dados de A em 8 rotas, edita a categoria de A, lança na conta de A).
+* ⚠️ **Fatia 4 ainda não foi vista falhando pelo motivo certo.** 55 dos 56 param na guarda de
+  pré-requisito da fixture `people` (sem provisionamento e isolamento não há conta própria), e o
+  restante em `no such table: users`. **Antes de implementar a fatia 4**, rodar o arquivo com 1–3
+  verdes e conferir que cada um falha pela rota/regra ausente — e sinalizar qualquer um que passe.
+* Dois testes da fatia 1 foram **falso verde** na primeira versão (`upgrade head` sem migration
+  nova não faz nada, e "nada mudou" é trivialmente verdade). Ganharam a pré-condição
+  `_assert_migrated`.
+* A fixture `client_as` foi adicionada ao `conftest.py` já nesta etapa — funciona com o código de
+  hoje, e é o que permitiu medir o vazamento real em vez de falhar por fixture inexistente.
+
+### Fatia 1 — o que foi entregue (03/10/2026)
+
+Migration `b7d41c2e9a05_owner_per_row.py`, `User` e `owner_id` nos models, e **suíte com 413
+verdes** (387 − 4 de `test_seed.py` + 30 de `test_tenant_schema.py`). `openapi.json`
+regenerado sem diferença: a fatia não muda contrato.
+
+⚠️ **A fatia trouxe junto o carimbo do dono na escrita, que estava planejado para a 2.** Com
+`owner_id NOT NULL`, todo POST que não preenche o dono quebra — a suíte inteira ficaria
+vermelha entre as fatias. Então já entraram: `app/tenancy.py` com `current_owner` (cria a linha
+de `users`, **sem** provisionar) e `owned_db` (marca a sessão), os 7 routers usando `owned_db`, e
+os 5 pontos de criação carimbando `owner_id`. **O filtro de leitura não entrou** — continua sendo
+a fatia 2, e até ela a leitura ainda vê tudo.
+
+Também antecipado: a remoção de `init_db.py` e `test_seed.py` (o seed não sobrevive a
+`owner_id NOT NULL`), com `VERCEL.md` e o passo 2 do Checklist atualizados.
+
+**Como a migration acha as FKs antigas.** As da migration inicial não têm nome. O modo batch do
+SQLite as reconstrói com a convenção `<tabela>_<coluna>_fkey` — o nome que o Postgres dá por
+default — e assim um único `drop_constraint` serve aos dois bancos.
+
+🔴 **Nada desta fatia rodou contra Postgres.** Não há Postgres neste container. O nome
+`transactions_account_id_fkey` é o default documentado do Postgres, não um nome observado no Neon.
+A primeira verificação real é o job `backend-postgres` do CI (que constrói o schema pela
+migration), e a segunda é o ensaio num branch do Neon com dado real — **os dois antes de aplicar
+em produção**.
+
+🔴 **Gate de deploy (decidido em 03/10/2026):**
+
+1. **Nada das fatias 1 e 2 vai para produção separado.** "Dono existe mas filtro não" é um
+   estado em que cada usuário ainda vê o dado dos outros; só se resolve com as duas juntas.
+2. **Job de Postgres do CI verde** antes de qualquer outra coisa.
+3. **Ensaio no branch do Neon com dado real**, e nele **ver** os nomes das FKs antigas
+   (`\d transactions`, `\d installments`) antes de rodar a migration. O padrão
+   `<tabela>_<coluna>_fkey` é o default documentado do Postgres — **não** se assume sem ver no
+   banco de verdade.
+
+Os testes das fatias seguintes que ficaram verdes com esta entrega:
+
+| Teste | Por quê |
+|---|---|
+| `test_every_table_has_an_owner_or_is_a_declared_exception` | schema desta fatia — legítimo |
+| `test_every_data_route_uses_the_owner_scoped_session` | `owned_db` antecipado — legítimo, mas é só a parte **estrutural**; o comportamental da varredura segue vermelho |
+| `test_the_global_seed_script_is_gone` | remoção antecipada — legítimo |
+| `test_revoked_email_is_not_provisioned` | `current_owner` vem depois de `current_user` — legítimo |
+| ⚠️ `test_preexisting_user_is_never_provisioned` | **falso verde**: passa porque ninguém é provisionado ainda. Só vale junto dos testes de provisionamento, que seguem vermelhos |
+
+---
+
 ## 🗃️ Deploy — Railway (**SUPERADO em 28/08/2026**, mantido como histórico)
 
 > 🔴 **Esta seção não descreve o alvo atual.** O projeto migrou para
@@ -1859,23 +2217,18 @@ Rodar após **qualquer** mudança em `models.py` ou `schemas.py`:
    cd /workspace/backend && .venv/bin/pytest
    ```
 
-2. **Resetar o banco se o schema mudou.** `Base.metadata.create_all()` **não** executa
-   `ALTER TABLE` — ele ignora tabelas que já existem. Um `database.db` antigo continua com o
-   schema desatualizado e o servidor quebra com `no such column`. Como o banco só contém dados
-   de seed, recrie:
+2. **Migration, não reset.** Mudança de schema é uma revisão nova do Alembic (D-Vercel-6), e a
+   suíte já constrói o schema por ela — divergência entre migration e models vira teste
+   vermelho. Para atualizar o `database.db` local:
    ```bash
    cd /workspace/backend
-   rm -f database.db
-   PYTHONPATH=/workspace/backend .venv/bin/python app/init_db.py
-   ```
-   Confira as colunas novas:
-   ```bash
-   python3 -c "import sqlite3; print(*sqlite3.connect('database.db').execute('PRAGMA table_info(transactions)'), sep='\n')"
+   .venv/bin/alembic upgrade head -x owner_email=<seu e-mail>   # o -x só é exigido com dado
    ```
 
-   > ⚠️ **O reset só é seguro enquanto o banco tiver apenas dados de seed.** Não há Alembic no
-   > projeto: `create_all()` não migra nada. A partir do primeiro dado real, mudança de schema
-   > deixa de ser possível assim — é o gatilho para introduzir migrations.
+   > ⚠️ **Atualizado em 03/10/2026.** Este passo mandava apagar o `database.db` e rodar
+   > `init_db.py`. As duas coisas deixaram de valer: há Alembic desde o pivô, e o `init_db.py`
+   > saiu com a D-Tenant-5. Em produção, migration com dado real segue o roteiro de backup da
+   > D-Tenant-6 — nunca "resetar e recomeçar".
 
 3. **Regenerar o `openapi.json`.** O arquivo é versionado, então não basta o `/docs` em
    runtime — mas **nunca** edite à mão:

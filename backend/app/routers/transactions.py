@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db, owner_id
 from app import models, schemas
 
 router = APIRouter(
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 @router.post("", response_model=schemas.TransactionResponse, status_code=status.HTTP_201_CREATED)
-def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
+def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(owned_db)):
     # 1. Busca a conta correspondente
     account = db.query(models.Account).filter(models.Account.id == transaction.account_id).first()
     if not account:
@@ -54,6 +54,7 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
 
     # 5. Instancia a transação
     db_transaction = models.Transaction(
+        owner_id=owner_id(db),
         title=transaction.title,
         type=transaction.type,
         amount=transaction.amount,
@@ -72,7 +73,7 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
     return db_transaction
 
 @router.get("", response_model=List[schemas.TransactionResponse])
-def list_transactions(db: Session = Depends(get_db)):
+def list_transactions(db: Session = Depends(owned_db)):
     return db.query(models.Transaction).options(
         joinedload(models.Transaction.installment),
         joinedload(models.Transaction.category)
@@ -83,7 +84,7 @@ def list_transactions(db: Session = Depends(get_db)):
 def update_transaction(
     transaction_id: int,
     payload: schemas.TransactionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(owned_db)
 ):
     """Edição parcial.
 
@@ -158,7 +159,7 @@ def update_transaction(
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
+def delete_transaction(transaction_id: int, db: Session = Depends(owned_db)):
     """Exclui a transação.
 
     Sem estorno de saldo: a linha some do ledger e o saldo derivado acompanha.

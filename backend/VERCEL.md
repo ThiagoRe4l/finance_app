@@ -29,8 +29,11 @@ segue existindo para o desenvolvimento local.
 
 1. Criar o banco no Neon e copiar a connection string **do pooler**.
 2. `DATABASE_URL=... alembic upgrade head` — cria o schema.
-3. `DATABASE_URL=... python app/init_db.py --yes` — cria `Conta Principal`
-   (saldo inicial 10.000) e as 10 categorias padrão. É idempotente.
+3. ~~`init_db.py --yes`~~ — **removido em 03/10/2026** (D-Tenant-5). Não há
+   mais seed global: cada usuário recebe conta e categorias próprias no primeiro
+   acesso. Em banco **com dado**, a migration de dono exige
+   `alembic upgrade head -x owner_email=<e-mail>` — ver D-Tenant-6 e o roteiro
+   de backup antes de aplicar.
 4. Deployar o backend, gerar o domínio público.
 5. Preencher o `destination` do rewrite em `frontend/vercel.json` e deployar o
    frontend.

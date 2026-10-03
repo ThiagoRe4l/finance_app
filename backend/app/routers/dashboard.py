@@ -5,7 +5,7 @@ import datetime
 from decimal import Decimal
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db
 from app import models, schemas
 from app.routers.categories import list_categories
 from app.periods import current_month_bounds, month_bounds
@@ -26,7 +26,7 @@ ZERO = Decimal("0.00")
 
 
 @router.get("/summary", response_model=schemas.DashboardSummary)
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(db: Session = Depends(owned_db)):
     # 1. Saldo Total
     #
     # `SUM(initial_balance) + SUM(ENTRADA) − SUM(SAÍDA)`. Deixou de ser

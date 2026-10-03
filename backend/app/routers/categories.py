@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, case, and_
 from typing import List
 
-from app.database import get_db
+from app.tenancy import owned_db, owner_id
 from app import models, schemas
 from app.periods import current_month_bounds
 
@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 @router.post("", response_model=schemas.CategoryResponse, status_code=status.HTTP_201_CREATED)
-def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
+def create_category(category: schemas.CategoryCreate, db: Session = Depends(owned_db)):
     db_category = db.query(models.Category).filter(models.Category.name == category.name).first()
     if db_category:
         raise HTTPException(
@@ -23,6 +23,7 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
         )
     
     new_category = models.Category(
+        owner_id=owner_id(db),
         name=category.name,
         icon_name=category.icon_name,
         budget=category.budget,
@@ -107,7 +108,7 @@ def _to_response(row) -> schemas.CategoryResponse:
 
 
 @router.get("", response_model=List[schemas.CategoryResponse])
-def list_categories(db: Session = Depends(get_db)):
+def list_categories(db: Session = Depends(owned_db)):
     return [_to_response(row) for row in _aggregated_rows(db)]
 
 
@@ -115,7 +116,7 @@ def list_categories(db: Session = Depends(get_db)):
 def update_category(
     category_id: int,
     payload: schemas.CategoryUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(owned_db)
 ):
     """Edição parcial. Renomear categoria em uso é permitido (decisão C11)."""
     category = db.query(models.Category).filter(
@@ -152,7 +153,7 @@ def update_category(
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_id: int, db: Session = Depends(get_db)):
+def delete_category(category_id: int, db: Session = Depends(owned_db)):
     """Exclui a categoria; **409** se ela estiver em uso (decisões C9/C10).
 
     As duas FKs para `categories.id` são `ondelete="RESTRICT"`, então o banco já
