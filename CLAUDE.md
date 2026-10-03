@@ -980,7 +980,7 @@ funcional exigiria um domínio estável apontado para ele. Registrado antes de s
 ## 👥 Multiusuário — dados por dono e despesa compartilhada
 
 **Decidido em 03/10/2026, antes da implementação.** Testes vermelhos aprovados em 03/10/2026.
-**Fatia 1 implementada** (ver "Fatia 1 — o que foi entregue" no fim da seção); fatias 2–4
+**Fatias 1 e 2 implementadas** (ver "o que foi entregue" no fim da seção); fatias 3–4
 pendentes.
 
 Até aqui a autenticação era só um portão: todo e-mail da allowlist via **os mesmos** dados
@@ -1332,6 +1332,34 @@ Os testes das fatias seguintes que ficaram verdes com esta entrega:
 | `test_the_global_seed_script_is_gone` | remoção antecipada — legítimo |
 | `test_revoked_email_is_not_provisioned` | `current_owner` vem depois de `current_user` — legítimo |
 | ⚠️ `test_preexisting_user_is_never_provisioned` | **falso verde**: passa porque ninguém é provisionado ainda. Só vale junto dos testes de provisionamento, que seguem vermelhos |
+
+### Fatia 2 — o que foi entregue (03/10/2026)
+
+O evento `_scope_to_owner` em `app/tenancy.py`: todo `SELECT` de uma sessão marcada por
+`owned_db` recebe `with_loader_criteria(owner_id == dono)` nos 5 models com dono. **Nenhum
+router mudou** — os três defeitos de escrita do mapeamento (PATCH/DELETE por id, FK de outro
+dono no corpo, nome único global) fecham porque toda checagem já carregava o objeto por
+consulta, e a consulta agora é filtrada. É o ganho de o filtro ser por construção.
+
+Suíte: **425 passed** (413 + os 12 de `test_tenant_isolation.py`). `openapi.json` sem mudança.
+
+**Mutação, para provar que a varredura não está verde por vacuidade.** Removido um model de cada
+vez da lista filtrada, e a suíte de isolamento rodada:
+
+| Model fora do filtro | Testes que ficaram vermelhos |
+|---|---|
+| `Transaction` | 5 — diferencial, sentinela, rotas com id, campos de corpo, `total_balance` |
+| `Account` | 4 — diferencial, sentinela, campos de corpo, `total_balance` |
+
+**Sessão sem marca não é filtrada, e isso é escolha.** Scripts, migrations e a sessão direta dos
+testes não têm dono e precisam ver tudo. O "fail closed" é estrutural, não de runtime:
+`test_every_data_route_uses_the_owner_scoped_session` reprova rota de dados que pegue a sessão
+crua de `get_db`. Uma checagem em runtime exigiria distinguir "sessão de requisição" de "sessão de
+script" dentro de `get_db` — que a suíte sobrescreve.
+
+⚠️ **Lembrete do gate:** com 1 e 2 juntas o isolamento existe, mas um usuário novo ainda entra
+**sem conta nem categorias** até a fatia 3. Não é vazamento; é tela vazia e formulário sem conta
+para lançar.
 
 ---
 
