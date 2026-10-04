@@ -25,6 +25,7 @@ from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 from app import models
 from app.auth import current_user
 from app.database import get_db
+from app.provisioning import provision_user
 
 OWNER_KEY = "owner_id"
 
@@ -80,17 +81,29 @@ def _scope_to_owner(state: ORMExecuteState) -> None:
     )
 
 
-def current_owner(
-    email: str = Depends(current_user),
-    db: Session = Depends(get_db),
-) -> models.User:
-    """A linha de `users` do e-mail autenticado. Cria na primeira vez.
+def resolve_user(db: Session, email: str, provision: bool = True) -> models.User:
+    """A linha de `users` de `email`, criada — e provisionada — na primeira vez.
 
-    Vem **depois** de `current_user`, então a allowlist já foi conferida: e-mail
-    revogado leva 401 lá e nunca chega a criar linha aqui.
+    O gatilho do provisionamento é **criar a linha**, não "não ter conta": o
+    dono migrado já tem linha e dados, e não pode ganhar uma segunda "Conta
+    Principal" (D-Tenant-5).
+
+    Criação e provisionamento vão no **mesmo commit**. Separados, um processo
+    que morresse no meio deixaria um usuário sem conta que nunca mais seria
+    provisionado.
 
     A corrida de duas primeiras requisições simultâneas cai no `UNIQUE(email)`:
-    quem perde relê a linha que a outra criou.
+    quem perde desfaz a própria tentativa inteira e relê o usuário que a outra
+    criou, já provisionado.
+
+    ⚠️ O `except` também pega `IntegrityError` vindo de `provision_user`. Aí a
+    releitura não acha ninguém — não houve corrida — e o erro **original** é
+    relançado. Reler com `.one()` trocaria a causa real por um `NoResultFound`
+    que aponta para o lugar errado.
+
+    `provision=False` existe só para a fixture `client` da suíte — com as 10
+    categorias padrão, cada `create_category(client, "Alimentação")` dos
+    testes antigos colidiria (D-Tenant-8).
     """
     user = db.query(models.User).filter(models.User.email == email).one_or_none()
     if user is not None:
@@ -99,13 +112,34 @@ def current_owner(
     user = models.User(email=email)
     db.add(user)
     try:
+        db.flush()
+        if provision:
+            provision_user(db, user)
         db.commit()
     except IntegrityError:
         db.rollback()
-        return db.query(models.User).filter(models.User.email == email).one()
+        winner = db.query(models.User).filter(models.User.email == email).one_or_none()
+        if winner is None:
+            raise
+        return winner
 
     db.refresh(user)
     return user
+
+
+def current_owner(
+    email: str = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """O usuário autenticado, provisionado na primeira requisição.
+
+    Vem **depois** de `current_user`, então a allowlist já foi conferida: e-mail
+    revogado leva 401 lá e nunca chega a criar linha nem dado aqui.
+
+    Na resolução da sessão, e não só no login, porque as sessões de 30 dias
+    emitidas antes da migration nunca passam pelo login de novo.
+    """
+    return resolve_user(db, email)
 
 
 def owned_db(

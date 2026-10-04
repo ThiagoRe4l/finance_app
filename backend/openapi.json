@@ -54,7 +54,7 @@
           "Auth"
         ],
         "summary": "Read Current User",
-        "description": "Quem está logado. 401 sem sessão — é o sinal que o gate do front lê.",
+        "description": "Quem está logado. 401 sem sessão — é o sinal que o gate do front lê.\n\nPassa por `current_owner`, e não só por `current_user`, porque é a\n**primeira chamada que o front faz**: é aqui que um usuário novo ganha conta\ne categorias, antes de qualquer tela pedir dado (D-Tenant-5).",
         "operationId": "read_current_user_api_auth_me_get",
         "responses": {
           "200": {

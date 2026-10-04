@@ -980,8 +980,8 @@ funcional exigiria um domínio estável apontado para ele. Registrado antes de s
 ## 👥 Multiusuário — dados por dono e despesa compartilhada
 
 **Decidido em 03/10/2026, antes da implementação.** Testes vermelhos aprovados em 03/10/2026.
-**Fatias 1 e 2 implementadas** (ver "o que foi entregue" no fim da seção); fatias 3–4
-pendentes.
+**Fatias 1, 2 e 3 implementadas** (ver "o que foi entregue" no fim da seção); fatia 4
+pendente.
 
 Até aqui a autenticação era só um portão: todo e-mail da allowlist via **os mesmos** dados
 (uma `Account`, um conjunto de categorias). Esta fatia introduz, pela primeira vez, o conceito
@@ -1360,6 +1360,50 @@ script" dentro de `get_db` — que a suíte sobrescreve.
 ⚠️ **Lembrete do gate:** com 1 e 2 juntas o isolamento existe, mas um usuário novo ainda entra
 **sem conta nem categorias** até a fatia 3. Não é vazamento; é tela vazia e formulário sem conta
 para lançar.
+
+### Fatia 3 — o que foi entregue (04/10/2026)
+
+* **`app/provisioning.py`** — `provision_user`: "Conta Principal" com R$ 0,00 e as 10 categorias
+  do seed antigo (mesmos nomes, ícones, orçamentos e cores), donas do usuário.
+* **`tenancy.resolve_user`** — cria a linha de `users` **e** provisiona no mesmo commit. Separados,
+  um processo que morresse no meio deixaria um usuário com linha e sem conta, que nunca mais seria
+  provisionado. Na corrida pelo `UNIQUE(email)`, quem perde desfaz a tentativa inteira e relê.
+* **`GET /api/auth/me` passa por `current_owner`** — é a primeira chamada do front, e é ali que o
+  usuário novo ganha conta antes de qualquer tela pedir dado.
+* **`client`/`fk_client` sobrescrevem `current_owner`** com `provision=False` (D-Tenant-8). A linha
+  de `users` e o filtro continuam reais; só as 10 categorias saem, para não colidir com os
+  `create_category(client, "Alimentação")` dos testes antigos.
+
+Suíte: **437 passed** (425 + os 12 de `test_provisioning.py`). `openapi.json`: só a descrição de
+`/auth/me` mudou (docstring), o contrato não.
+
+**Defeito achado na revisão, antes do commit.** O `except IntegrityError` de `resolve_user` existe
+para a corrida do `UNIQUE(email)`, mas pega também `IntegrityError` vindo de `provision_user`.
+Aí a releitura não acha ninguém, e o `.one()` levantava `NoResultFound` — trocando a causa real
+por "usuário não encontrado". Agora relê com `.one_or_none()` e, sem vencedor, **relança o erro
+original**. Teste escrito antes, vermelho pelo motivo certo (`NoResultFound` no lugar do
+original). O par dele — nenhum usuário pela metade sobra — já passava: o rollback desfazia tudo.
+
+A corrida em si (duas requisições, dois processos) continua **sem teste**: o SQLite em memória
+da suíte é uma conexão só, e não há como ter dois escritores concorrentes nele.
+
+**O caminho de produção provisiona — travado, e provado por mutação.** `provision=False` só
+existe no override de `client`/`fk_client`. Os testes de provisionamento usam `client_as`, que
+passa pelo `current_owner` real; uma guarda nova assere que `client_as` não carrega o override.
+Mutação `current_owner → provision=False`: **5 testes vermelhos** (conta, categorias,
+idempotência, dois usuários, fluxo de login).
+
+**O falso verde da fatia 1 agora prova algo.** `test_preexisting_user_is_never_provisioned`
+passava porque ninguém era provisionado. Mutação: provisionar também usuário existente sem
+categoria (o gatilho "errado" que a D-Tenant-5 descarta) — o teste ficou vermelho, com o dono
+migrado ganhando uma segunda "Conta Principal" ao lado da real.
+
+**A pendência da fatia 4 foi cumprida.** Com 1–3 verdes, os 56 testes de
+`test_shared_expenses.py` foram rodados de novo: **todos falham pelo motivo certo** — 44 rota
+ausente (`"Not Found"`), 8 de validação recebendo 404 da rota ausente, 2 tabela
+`shared_expenses` ausente, 1 `shared_expense_id` ausente de `TransactionResponse`, 1 listagem de
+participantes sem rota. Nenhum passa. Um deles falhava com `TypeError` (iterava o corpo do 404
+como lista); ganhou a checagem de status antes, para a mensagem dizer o que falta.
 
 ---
 

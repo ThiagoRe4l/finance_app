@@ -11,7 +11,8 @@ front descobre que não há login. A lista de rotas públicas é travada por tes
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from app import auth, settings
+from app import auth, models, settings
+from app.tenancy import current_owner
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -90,9 +91,14 @@ def login_with_google(payload: GoogleCredential, response: Response):
 
 
 @router.get("/me", response_model=SessionUser)
-def read_current_user(email: str = Depends(auth.current_user)):
-    """Quem está logado. 401 sem sessão — é o sinal que o gate do front lê."""
-    return SessionUser(email=email)
+def read_current_user(owner: models.User = Depends(current_owner)):
+    """Quem está logado. 401 sem sessão — é o sinal que o gate do front lê.
+
+    Passa por `current_owner`, e não só por `current_user`, porque é a
+    **primeira chamada que o front faz**: é aqui que um usuário novo ganha conta
+    e categorias, antes de qualquer tela pedir dado (D-Tenant-5).
+    """
+    return SessionUser(email=owner.email)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

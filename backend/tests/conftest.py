@@ -16,12 +16,14 @@ import pathlib
 from decimal import Decimal
 
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.auth import current_user
+from app.tenancy import current_owner, resolve_user
 from app.database import Base, get_db
 from app.main import app
 
@@ -157,6 +159,24 @@ def _auth_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
 
 
+def _unprovisioned_owner(
+    email: str = Depends(current_user),
+    db=Depends(get_db),
+):
+    """`current_owner` **sem** provisionamento, para `client` e `fk_client`.
+
+    Com as 10 categorias padrão e a "Conta Principal", cada
+    `create_category(client, "Alimentação")` e `create_account(client)` dos
+    testes antigos colidiria com o que o provisionamento já criou, e as
+    contagens deixariam de bater (D-Tenant-8).
+
+    Só o provisionamento sai: a linha de `users` continua sendo criada, e o
+    filtro por dono continua valendo. O provisionamento de verdade é exercitado
+    por `client_as` e `anon_client`, em `test_provisioning.py`.
+    """
+    return resolve_user(db, email, provision=False)
+
+
 @pytest.fixture(name="client")
 def client_fixture(session):
     """Cliente **autenticado**. É o default porque 251 das 300+ chamadas da
@@ -176,9 +196,11 @@ def client_fixture(session):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[current_user] = lambda: TEST_USER_EMAIL
+    app.dependency_overrides[current_owner] = _unprovisioned_owner
     yield TestClient(app)
     del app.dependency_overrides[get_db]
     del app.dependency_overrides[current_user]
+    del app.dependency_overrides[current_owner]
 
 
 @pytest.fixture(name="anon_client")
@@ -331,9 +353,11 @@ def fk_client_fixture(fk_session):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[current_user] = lambda: TEST_USER_EMAIL
+    app.dependency_overrides[current_owner] = _unprovisioned_owner
     yield TestClient(app)
     del app.dependency_overrides[get_db]
     del app.dependency_overrides[current_user]
+    del app.dependency_overrides[current_owner]
 
 
 # ---------------------------------------------------------------------------
