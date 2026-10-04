@@ -980,8 +980,8 @@ funcional exigiria um domínio estável apontado para ele. Registrado antes de s
 ## 👥 Multiusuário — dados por dono e despesa compartilhada
 
 **Decidido em 03/10/2026, antes da implementação.** Testes vermelhos aprovados em 03/10/2026.
-**Fatias 1, 2 e 3 implementadas** (ver "o que foi entregue" no fim da seção); fatia 4
-pendente.
+**As quatro fatias implementadas** (ver "o que foi entregue" no fim da seção). Deploy segue o
+gate registrado na fatia 1.
 
 Até aqui a autenticação era só um portão: todo e-mail da allowlist via **os mesmos** dados
 (uma `Account`, um conjunto de categorias). Esta fatia introduz, pela primeira vez, o conceito
@@ -1399,11 +1399,89 @@ categoria (o gatilho "errado" que a D-Tenant-5 descarta) — o teste ficou verme
 migrado ganhando uma segunda "Conta Principal" ao lado da real.
 
 **A pendência da fatia 4 foi cumprida.** Com 1–3 verdes, os 56 testes de
-`test_shared_expenses.py` foram rodados de novo: **todos falham pelo motivo certo** — 44 rota
-ausente (`"Not Found"`), 8 de validação recebendo 404 da rota ausente, 2 tabela
-`shared_expenses` ausente, 1 `shared_expense_id` ausente de `TransactionResponse`, 1 listagem de
-participantes sem rota. Nenhum passa. Um deles falhava com `TypeError` (iterava o corpo do 404
-como lista); ganhou a checagem de status antes, para a mensagem dizer o que falta.
+`test_shared_expenses.py` foram rodados de novo: **todos falham pelo motivo certo** — 54 por rota
+ausente (8 deles de validação, recebendo o 404 da rota no lugar da regra), 1 por
+`shared_expense_id` ausente de `TransactionResponse`, 1 pela tabela `shared_expenses` ausente.
+Nenhum passa. (Uma primeira contagem, por mensagem de erro, saiu 44/8/2/1/1 — agrupava linhas
+de traceback, não testes; a contagem por teste é a do JUnit.) Um deles falhava com `TypeError`
+(iterava o corpo do 404 como lista); ganhou a checagem de status antes, para a mensagem dizer o
+que falta.
+
+### Fatia 4 — o que foi entregue (04/10/2026)
+
+Migration `d3a8f1e6c720_shared_expenses.py` (só schema, sem `-x`), `app/shared_split.py`,
+`app/routers/shared_expenses.py`, as travas em `routers/transactions.py` e `shared_expense_id`
+em `TransactionResponse`. Suíte: **496 passed** (437 + 58 de `test_shared_expenses.py` + 1 guarda
+de `acting_as`). `openapi.json`: +3 paths e o campo novo — **contrato com o front muda**.
+
+**Dois desvios do desenho, ambos para não abrir brecha no filtro da D-Tenant-3:**
+
+* **`acting_as(db, user_id)`** em `tenancy.py`. A parte de cada participante (conta, categoria,
+  transação) é de **outro** dono, invisível pelo filtro. Em vez de uma opção que pulasse o
+  filtro numa consulta — uma brecha de "ver tudo" —, o escopo da sessão troca **para** o
+  participante durante o bloco. O filtro nunca desliga, e errar o id alcança só aquele usuário.
+  `test_switching_the_owner_scope_is_confined_to_the_shared_expense_router` (escrito antes,
+  vermelho por `ImportError`) limita o uso ao router da despesa.
+* **Tabela `shared_expense_participants(shared_expense_id, user_id)`.** É a fonte de verdade de
+  "sou participante" e da lista de partes. Sem ela, as duas exigiriam ler o ledger de outros
+  donos. As partes da resposta são **recalculadas** pela divisão (determinística), não lidas.
+  Entrou na lista de exceções do teste estrutural de dono, com o motivo.
+
+**Os 8 testes de validação falham pela regra, não por 404.** Cada regra removida isoladamente,
+com a rota existindo:
+
+| Regra removida | Testes | Resultado sem a regra |
+|---|---|---|
+| `extra="forbid"` no POST | `out_of_scope_fields` ×3 | 201 |
+| lista vazia / repetida | `non_empty_list_without_repeats` ×2 | 201 / `IntegrityError` na PK de participantes |
+| parte mínima no schema | `part_below_one_cent` | 400 (a guarda do router pega, mas o contrato é 422) |
+| criador na própria lista | `creator_cannot_list_themselves` | `IntegrityError` na PK de participantes |
+| `extra="forbid"` no PATCH | `unknown_fields_in_the_group_patch` | 200 |
+
+A PK de `shared_expense_participants` segura repetição e autoinclusão como último recurso — mas
+como 500. Os validadores existem para que isso chegue como 422/400.
+
+**Mutações nos pontos críticos** — todas pegas:
+
+| Mutação | Vermelhos |
+|---|---|
+| sobra de centavo descartada | 6 |
+| divisão em `Decimal` arredondando cada parte | 6 |
+| sobra para o último participante, não o criador | 2 |
+| `_load_visible` sem checar participação | 3 — inclusive a varredura |
+| lista de grupos sem filtrar por participante | 3 — inclusive o diferencial |
+| não participante recebe 403 em vez de 404 | 4 — inclusive a varredura |
+
+(Nas duas primeiras, os 2 que seguem verdes são `0.03` e `99.99` — divisões sem sobra.)
+
+⚠️ **Uma mutação passou, e virou teste.** "Ledger do criador gravado sem a sobra, resposta
+intacta" deixou os 56 verdes: todo teste olhava a resposta (calculada) ou dividia sem sobra. Como
+a resposta **recalcula** em vez de ler, resposta e ledger podiam divergir em silêncio.
+`test_every_ledger_holds_exactly_the_part_the_response_shows` — **escrito depois da
+implementação, rotulado como tal** — compara o ledger de cada participante com a resposta em
+R$ 100 ÷ 3, na criação e após editar o valor. Pega a mutação na criação e a equivalente na
+edição.
+
+**Revisão antes do commit (04/10/2026)** — três testes novos, escritos depois da implementação
+e rotulados assim, cada um confirmado por mutação:
+
+| Teste | Mutação que o deixa vermelho |
+|---|---|
+| `test_acting_as_restores_the_original_owner_when_the_block_fails` | `acting_as` sem o `finally` |
+| `test_only_tenancy_touches_the_session_owner` — nenhum arquivo de `app/` fora de `tenancy.py` menciona `OWNER_KEY` nem `.info` de sessão | router escrevendo `db.info["owner_id"]` direto |
+| `test_a_failure_midway_through_the_fan_out_leaves_nothing_behind` — participante sem conta derruba a criação inteira, sem grupo nem parte em ledger nenhum | `commit` antes de terminar o fan-out |
+
+O teste estrutural endurecido existe porque `acting_as` não é a única forma de trocar o dono:
+escrever em `session.info` também troca, e a guarda anterior só olhava chamadas de `acting_as`.
+
+**A D13 de quem saiu da allowlist, pelas duas metades:**
+
+| Mutação | Vermelhos |
+|---|---|
+| sem o 409 ao editar valor/participantes | 3 — os três `changes_that_would_touch_a_revoked_participant` |
+| exclusão bloqueada quando há participante revogado | 1 — `deleting_still_works_and_reaches_the_revoked_ledger` |
+
+Suíte final da fatia: **499 passed**.
 
 ---
 

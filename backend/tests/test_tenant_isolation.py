@@ -33,6 +33,8 @@ import datetime
 import json
 import re
 
+import pytest
+
 from tests.conftest import money
 from tests.test_auth_routes import PUBLIC_PATHS, _effective_routes
 
@@ -486,7 +488,81 @@ _TABLES_WITHOUT_OWNER = {
     "users": "é o próprio dono",
     "investment_history": "herda pelo investimento (CASCADE) — D-Tenant-2",
     "shared_expenses": "visível por participação, não por dono — D-Shared-9",
+    "shared_expense_participants": "é o próprio registro de participação — D-Shared-9",
 }
+
+
+def test_acting_as_restores_the_original_owner_when_the_block_fails(session):
+    """🔴 Falha no meio do fan-out não pode deixar a sessão no escopo do
+    participante.
+
+    Se o escopo ficasse trocado, o resto da requisição — inclusive o tratamento
+    do erro — leria e escreveria como **outra pessoa**. É o `finally` de
+    `acting_as` que impede isso; este teste é o que impede o `finally` de sair.
+    """
+    from app.tenancy import OWNER_KEY, acting_as
+
+    session.info[OWNER_KEY] = 1
+
+    with pytest.raises(RuntimeError, match="falha no meio"):
+        with acting_as(session, 2):
+            assert session.info[OWNER_KEY] == 2
+            raise RuntimeError("falha no meio do fan-out")
+
+    assert session.info[OWNER_KEY] == 1
+
+
+def test_only_tenancy_touches_the_session_owner():
+    """🔴 Endurecimento do teste abaixo: `acting_as` não é a única forma de
+    trocar o dono — escrever direto em `session.info` também troca.
+
+    Nenhum arquivo de `app/` fora de `tenancy.py` pode mencionar `OWNER_KEY` nem
+    mexer em `.info` de sessão. Hoje é verdade (verificado por busca antes de
+    escrever); o teste é o que mantém.
+    """
+    import pathlib
+    import re
+
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+    # `.info[` já cobre `session.info["owner_id"]`. Procurar a string
+    # "owner_id" solta pegaria as listas de colunas das FKs compostas.
+    pattern = re.compile(r"OWNER_KEY|\.info\s*(\[|\.)")
+
+    offenders = [
+        f"{path.relative_to(app_dir)}:{n}"
+        for path in app_dir.rglob("*.py")
+        if path != app_dir / "tenancy.py"
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if pattern.search(line)
+    ]
+
+    assert not offenders, f"dono da sessão manipulado fora de tenancy.py: {offenders}"
+
+
+def test_switching_the_owner_scope_is_confined_to_the_shared_expense_router():
+    """🔴 `acting_as` troca o dono da sessão — é a única porta para escrever no
+    ledger de outra pessoa, e precisa continuar sendo a única **usada**.
+
+    Escrita junto da fatia 4 (não estava nos vermelhos aprovados): `acting_as`
+    nasceu na implementação, como alternativa a abrir uma brecha no filtro.
+    Contrato sobre arquivo, no espírito de
+    `test_no_module_hardcodes_a_machine_specific_path`: um router novo que
+    passe a chamá-lo para "resolver" um 404 inconveniente reprova aqui.
+    """
+    import pathlib
+
+    from app.tenancy import acting_as  # noqa: F401 — o mecanismo existe
+
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+    allowed = {app_dir / "tenancy.py", app_dir / "routers" / "shared_expenses.py"}
+
+    users = [
+        str(path.relative_to(app_dir))
+        for path in app_dir.rglob("*.py")
+        if path not in allowed and "acting_as(" in path.read_text(encoding="utf-8")
+    ]
+
+    assert not users, f"acting_as usado fora do router da despesa compartilhada: {users}"
 
 
 def test_every_table_has_an_owner_or_is_a_declared_exception():
