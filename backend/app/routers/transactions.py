@@ -106,6 +106,20 @@ def update_transaction(
     # torna `installment_id: null` um desvínculo explícito em vez de ruído.
     data = payload.model_dump(exclude_unset=True)
 
+    # Parte de despesa compartilhada: só a categoria é do dono da parte
+    # (D-Shared-6). Valor, data e título são do grupo — mexer neles por aqui
+    # quebraria a soma das partes. Vem **antes** das outras validações: um
+    # `type` ou `installment_id` numa parte é 409 pela trava, não 400 por
+    # outra regra que o acaso pegasse primeiro.
+    if transaction.shared_expense_id is not None and set(data) - {"category_id"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Esta transação é parte de uma despesa compartilhada: só a "
+                "categoria pode ser alterada por aqui. O resto muda pela despesa."
+            ),
+        )
+
     # --- 1. Validações. Nada de saldo antes daqui. ---
     if "category_id" in data:
         category = db.query(models.Category).filter(
@@ -171,6 +185,17 @@ def delete_transaction(transaction_id: int, db: Session = Depends(owned_db)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transação não encontrada."
+        )
+
+    # Vale para todos, inclusive quem criou: a exclusão é do grupo, e apagar
+    # uma parte sozinha deixaria as outras somando menos que o total.
+    if transaction.shared_expense_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Esta transação é parte de uma despesa compartilhada: "
+                "exclua pela despesa."
+            ),
         )
 
     db.delete(transaction)

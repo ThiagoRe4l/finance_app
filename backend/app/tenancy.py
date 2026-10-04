@@ -17,6 +17,9 @@ e, pelo evento `_scope_to_owner`, filtra **todo** `SELECT` da sessão pelo dono.
 dono morasse lá, o override o removeria junto.
 """
 
+from contextlib import contextmanager
+from typing import Iterator
+
 from fastapi import Depends
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
@@ -153,6 +156,30 @@ def owned_db(
     """
     db.info[OWNER_KEY] = owner.id
     return db
+
+
+@contextmanager
+def acting_as(db: Session, user_id: int) -> Iterator[None]:
+    """Troca o dono da sessão **para** `user_id` durante o bloco.
+
+    É a única porta para escrever no ledger de outra pessoa — a parte dela numa
+    despesa compartilhada (D-Shared-2). O filtro **não é desligado**: dentro do
+    bloco, toda consulta enxerga só o dado de `user_id`. Errar o id aqui não
+    alcança um terceiro qualquer, só aquele usuário.
+
+    Alternativa descartada: uma opção de execução que pulasse o filtro numa
+    consulta. Seria uma brecha de "ver tudo", e o risco desta série inteira é
+    justamente uma consulta que esqueceu de filtrar.
+
+    🔴 Só o router da despesa compartilhada usa — travado por
+    `test_switching_the_owner_scope_is_confined_to_the_shared_expense_router`.
+    """
+    previous = db.info.get(OWNER_KEY)
+    db.info[OWNER_KEY] = user_id
+    try:
+        yield
+    finally:
+        db.info[OWNER_KEY] = previous
 
 
 def owner_id(db: Session) -> int:

@@ -793,6 +793,224 @@
         }
       }
     },
+    "/api/participants": {
+      "get": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "List Participants",
+        "description": "Com quem dá para dividir: allowlist ∩ quem já logou, menos eu.\n\n⚠️ Expõe os e-mails da allowlist aos outros usuários — aceito na D-Shared-4,\né o mecanismo de seleção.",
+        "operationId": "list_participants_api_participants_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Participant"
+                  },
+                  "type": "array",
+                  "title": "Response List Participants Api Participants Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shared-expenses": {
+      "get": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "List Shared Expenses",
+        "description": "Os grupos de que participo — inclusive os que criei.",
+        "operationId": "list_shared_expenses_api_shared_expenses_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SharedExpenseResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Shared Expenses Api Shared Expenses Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "Create Shared Expense",
+        "operationId": "create_shared_expense_api_shared_expenses_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedExpenseCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpenseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shared-expenses/{shared_expense_id}": {
+      "get": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "Get Shared Expense",
+        "operationId": "get_shared_expense_api_shared_expenses__shared_expense_id__get",
+        "parameters": [
+          {
+            "name": "shared_expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shared Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpenseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "Update Shared Expense",
+        "description": "Só o criador. Valor e participantes recalculam a parte de todos.\n\n🔴 Se a mudança de valor ou de participantes alcançar alguém que saiu da\nallowlist, 409 (decidido em 03/10/2026): mudar o ledger de quem já saiu,\nsem ela poder ver, é o caso bloqueado. `title`/`date` não estão no bloqueio.",
+        "operationId": "update_shared_expense_api_shared_expenses__shared_expense_id__patch",
+        "parameters": [
+          {
+            "name": "shared_expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shared Expense Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedExpenseUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedExpenseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Shared expenses"
+        ],
+        "summary": "Delete Shared Expense",
+        "description": "Só o criador. Sempre permitido — inclusive quando remove a parte de\nquem saiu da allowlist (decidido em 03/10/2026).\n\nAs partes são apagadas explicitamente, uma por participante, além do\n`ON DELETE CASCADE` do banco. Mesmo princípio dos 404 do projeto: o router\nnão depende do banco para segurar a barra — e o SQLite sem o PRAGMA não\naplicaria o CASCADE.",
+        "operationId": "delete_shared_expense_api_shared_expenses__shared_expense_id__delete",
+        "parameters": [
+          {
+            "name": "shared_expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shared Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Read Root",
@@ -1632,6 +1850,19 @@
         ],
         "title": "MonthlyFlow"
       },
+      "Participant": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "Participant"
+      },
       "ReportSummary": {
         "properties": {
           "total_revenues": {
@@ -1685,6 +1916,188 @@
           "email"
         ],
         "title": "SessionUser"
+      },
+      "SharedExpenseCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Amount",
+            "description": "Total, antes da divisão"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id",
+            "description": "Conta de quem cria — a das outras partes é a primeira de cada um"
+          },
+          "category_id": {
+            "type": "integer",
+            "title": "Category Id",
+            "description": "Categoria de quem cria — os outros recebem a de mesmo nome"
+          },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Participants",
+            "description": "E-mails dos **outros** participantes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "amount",
+          "date",
+          "account_id",
+          "category_id",
+          "participants"
+        ],
+        "title": "SharedExpenseCreate",
+        "description": "Só SAÍDA, sem parcelamento e sem `is_fixed` (D-Shared-7).\n\n`extra=\"forbid\"`: esses campos não existem aqui, e mandá-los tem que ser\n422 barulhento — ignorar em silêncio faria o cliente achar que criou uma\ndespesa fixa."
+      },
+      "SharedExpensePart": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "amount"
+        ],
+        "title": "SharedExpensePart"
+      },
+      "SharedExpenseResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "total_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Amount"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "creator": {
+            "type": "string",
+            "title": "Creator"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/SharedExpensePart"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "total_amount",
+          "date",
+          "creator",
+          "parts"
+        ],
+        "title": "SharedExpenseResponse"
+      },
+      "SharedExpenseUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participants"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SharedExpenseUpdate",
+        "description": "Edição do grupo — só por quem criou (D-Shared-8).\n\n`account_id`/`category_id` ficam de fora: IDs de relacionamento central são\nimutáveis via PATCH em toda a API (regra geral do dia 4)."
       },
       "TransactionCreate": {
         "properties": {
@@ -1814,6 +2227,17 @@
                 "type": "null"
               }
             ]
+          },
+          "shared_expense_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Expense Id"
           }
         },
         "type": "object",

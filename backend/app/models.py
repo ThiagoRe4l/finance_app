@@ -135,6 +135,13 @@ class Transaction(Base):
     installment_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("installments.id", ondelete="SET NULL"), nullable=True
     )
+    # Parte de uma despesa compartilhada (D-Shared-2). CASCADE: excluir o grupo
+    # é excluir as partes — no ledger de cada participante.
+    shared_expense_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("shared_expenses.id", ondelete="CASCADE", name="fk_transactions_shared_expense"),
+        nullable=True,
+        index=True,
+    )
     owner_id: Mapped[int] = _owner_column("transactions")
 
     # As relações juntam só pelo id: a igualdade de dono é garantida pela FK
@@ -248,6 +255,64 @@ class Investment(Base):
 
     def __repr__(self) -> str:
         return f"<Investment {self.name} (Current: {self.current_balance})>"
+
+
+class SharedExpense(Base):
+    """Despesa dividida entre usuários (D-Shared-2).
+
+    O grupo **não move dinheiro**: o efeito no saldo são as partes, uma SAÍDA
+    comum por participante, em `transactions` com `shared_expense_id`. Por isso
+    saldo, `spent`, dashboard e relatório funcionam sem saber que o grupo
+    existe.
+
+    Sem `owner_id`: a visibilidade é "sou participante", não "sou dono"
+    (D-Shared-9). Fica fora do filtro automático, com regra explícita no
+    router.
+    """
+
+    __tablename__ = "shared_expenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    creator_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", name="fk_shared_expenses_creator"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    creator: Mapped["User"] = relationship("User")
+    participants: Mapped[List["SharedExpenseParticipant"]] = relationship(
+        "SharedExpenseParticipant", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<SharedExpense {self.title} ({self.total_amount})>"
+
+
+class SharedExpenseParticipant(Base):
+    """Quem participa de cada grupo — o criador inclusive.
+
+    É a fonte de verdade de "sou participante" e da lista de partes. Sem esta
+    tabela, as duas coisas exigiriam ler as transações de **outros** donos, ou
+    seja, furar o filtro da D-Tenant-3. Com ela, ninguém lê o ledger alheio: as
+    partes da resposta são recalculadas pela divisão igualitária, que é
+    determinística.
+    """
+
+    __tablename__ = "shared_expense_participants"
+
+    shared_expense_id: Mapped[int] = mapped_column(
+        ForeignKey("shared_expenses.id", ondelete="CASCADE", name="fk_participants_shared_expense"),
+        primary_key=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", name="fk_participants_user"),
+        primary_key=True,
+        index=True,
+    )
+
+    user: Mapped["User"] = relationship("User")
 
 
 class InvestmentHistory(Base):
