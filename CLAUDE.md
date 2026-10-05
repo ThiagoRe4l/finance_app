@@ -1340,8 +1340,8 @@ mutação sem o PRAGMA → teste vermelho), sem credencial na saída (alvo como 
 | Lacuna | Consequência | Quem cobre hoje |
 |---|---|---|
 | A branch **nunca foi publicada** — o workflow dispara em `pull_request` e em push para `main`, não em push de outra branch | os 4 commits nunca rodaram no CI | abrir o PR (passo 0.1 do runbook) |
-| O job de Postgres roda as migrations só em banco **vazio** (`conftest._create_schema`) | o preenchimento com `-x owner_email` e o fail-closed nunca rodaram em Postgres; os testes de migration de `test_tenant_schema.py` usam SQLite sempre | o ensaio no branch do Neon |
-| `downgrade` nunca roda em Postgres | o rollback não está provado no motor de produção | passo 3.7 do runbook |
+| ~~O job de Postgres roda as migrations só em banco **vazio**~~ | **Fechada em 05/10/2026** (pendente da primeira execução): no job de Postgres, a fixture `migration_engine` cria um banco Postgres próprio por teste, e todo `test_tenant_schema.py` de migration — preenchimento, recusa sem `-x`, recusa fora da allowlist — roda no motor de produção, num passo nomeado do workflow | CI + o ensaio no branch do Neon |
+| ~~`downgrade` nunca roda em Postgres~~ | **Fechada junto**: os dois testes de `downgrade` usam a mesma fixture | CI + passo 3.7 do runbook |
 | O CI usa `postgres:16`; o Neon pode ser outra versão | divergência de motor | passo 0.2 do runbook |
 
 O que o job de Postgres **cobre**: `96fdc → b7d4 → d3a8` em sequência, inclusive o
@@ -1358,6 +1358,22 @@ cenário. ⚠️ A primeira versão do `--expect-owner` dava **OK** nesse caso, 
 só que no usuário novo. Agora o e-mail esperado tem que ser o do **dono migrado**, que é o usuário
 de menor id; e a linha dele é marcada na saída, porque a máscara iguala `dono@` e `dono.real@`.
 Os dois testes foram escritos antes da correção.
+
+**Reforço na migration (05/10/2026): `-x owner_email` tem que estar em `AUTH_ALLOWED_EMAILS`.**
+Variável definida, mesmo que vazia: e-mail fora dela faz a migration **recusar antes de qualquer
+DDL**. Vazia é a allowlist que não deixa ninguém entrar (D-Auth-2), então também recusa. Variável
+ausente: a migration **não bloqueia** e emite `UserWarning` dizendo que o e-mail não foi
+conferido. Para o runbook, esse aviso é PARE. A comparação está inline na migration, sem importar
+`app.settings`, porque migration que depende do código da aplicação quebra quando esse código
+muda. Tem 5 testes escritos antes: 3 vermelhos e 2 de regressão rotulados. A mutação "sem a
+checagem" deixa os 3 vermelhos.
+
+⚠️ **O que o Alembic enxerga.** O `env.py` importa `app.settings`, que carrega o
+`backend/.env.local` (`override=False`). O `.env.local` do checkout principal tem
+`DATABASE_URL` (produção) e `AUTH_ALLOWED_EMAILS`; verifiquei só os nomes das chaves, sem ler os
+valores. Sem export no shell, a migration compara o dono com a lista do arquivo, que pode estar
+desatualizada em relação à Vercel. Por isso o runbook exporta a allowlist da Vercel e põe
+`DATABASE_URL` explícita em todo comando.
 
 Os testes das fatias seguintes que ficaram verdes com esta entrega:
 

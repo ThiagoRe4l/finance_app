@@ -23,6 +23,8 @@ tocar em qualquer coisa. Em banco vazio (a suíte, um dev novo), dispensável.
 Antes de aplicar em produção: o roteiro de backup da D-Tenant-6 (branch do Neon
 + `pg_dump`, restore exercitado, ensaio num branch, contagem antes/depois).
 """
+import os
+import warnings
 from typing import Optional, Sequence, Union
 
 from alembic import context, op
@@ -55,6 +57,47 @@ def _owner_email() -> Optional[str]:
     return raw.strip().lower()
 
 
+def _check_owner_in_allowlist(owner_email: str) -> None:
+    """O dono informado tem que estar em `AUTH_ALLOWED_EMAILS` (05/10/2026).
+
+    Pega o erro mais caro desta migration: um `-x owner_email` que não é o
+    e-mail que o dono usa no Google. O dado ficaria preso a um usuário que
+    ninguém loga, e o dono entraria num app vazio.
+
+    * **Variável definida** (mesmo vazia) → o e-mail tem que constar, ou a
+      migration levanta antes de qualquer DDL. Vazia é a allowlist que não deixa
+      ninguém entrar (D-Auth-2), e o dono também não está nela.
+    * **Variável ausente** → não há com o que comparar. Não bloqueia, mas avisa.
+
+    ⚠️ A variável vem do shell **ou do `backend/.env.local`**, que o `env.py`
+    carrega ao importar `app.settings` (`override=False`: o shell vence). Para
+    conferir contra a allowlist de produção, exporte a da Vercel no shell —
+    senão vale a do arquivo local, que pode estar desatualizada.
+
+    A comparação é feita aqui, e não por `app.settings.resolve_allowed_emails`:
+    migration que importa código da aplicação quebra quando esse código muda
+    depois. Mesma regra, em uma linha: minúsculo, `strip`, itens vazios fora.
+    """
+    raw = os.environ.get("AUTH_ALLOWED_EMAILS")
+    if raw is None:
+        warnings.warn(
+            "AUTH_ALLOWED_EMAILS não está definida neste ambiente: o "
+            "-x owner_email NÃO foi conferido contra a allowlist. Confira à mão "
+            "que ele é o e-mail que o dono usa no Google.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return
+
+    allowed = {item.strip().lower() for item in raw.split(",") if item.strip()}
+    if owner_email not in allowed:
+        raise RuntimeError(
+            f"-x owner_email não está em AUTH_ALLOWED_EMAILS ({len(allowed)} e-mail(s) "
+            "na lista lida do shell ou do backend/.env.local). Com um dono fora da "
+            "allowlist, ninguém conseguiria entrar para ver os dados migrados."
+        )
+
+
 def _has_data(bind) -> bool:
     for table in OWNED + ("investment_history",):
         if bind.execute(sa.text(f"SELECT 1 FROM {table} LIMIT 1")).first():
@@ -81,6 +124,8 @@ def upgrade() -> None:
             "Há dados financeiros sem dono. Informe a quem eles pertencem: "
             "alembic upgrade head -x owner_email=<e-mail>"
         )
+    if owner_email is not None:
+        _check_owner_in_allowlist(owner_email)
 
     op.create_table(
         "users",

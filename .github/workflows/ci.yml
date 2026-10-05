@@ -103,6 +103,14 @@ jobs:
       - name: FK cascade contra Postgres real (ondelete da migration)
         run: pytest tests/test_fk_cascade.py tests/test_category_fk.py -v
 
+      # Mesmo motivo do passo acima: legível no log. Aqui a fixture
+      # `migration_engine` cria um banco Postgres próprio por teste, e a
+      # migration multiusuário roda **com dado** — preenchimento por
+      # `-x owner_email`, recusa sem ele, recusa fora da allowlist e o
+      # `downgrade`. Antes, o CI só migrava banco vazio.
+      - name: Migration com dado contra Postgres real (dono, allowlist, downgrade)
+        run: pytest tests/test_tenant_schema.py -v
+
       - name: Suíte completa contra Postgres
         run: pytest
 
