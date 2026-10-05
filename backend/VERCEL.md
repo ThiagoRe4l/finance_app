@@ -65,7 +65,7 @@ Nesta ordem:
 | `GET /health` | `200 {"status":"healthy"}` |
 | `GET /api/accounts/` | **`401`** `{"detail":"Não autenticado."}` |
 | login pelo frontend | cookie de sessão gravado |
-| `GET /api/accounts/` autenticado | `200`, saldo `"10000.00"` |
+| `GET /api/accounts/` autenticado | `200`, saldo igual ao `conta N: ... saldo=` do `verify_db` (o `"10000.00"` era do seed, que não existe mais) |
 
 🔴 **O 401 em português é o sinal que importa no segundo passo.** Ele prova que
 o caminho chegou íntegro ao app: um `404 {"detail":"Not Found"}` ali significa
@@ -74,3 +74,240 @@ que o roteamento voltou a reescrever o caminho, e não que falta autenticação.
 Depois do login, vale fechar com `/api/dashboard/summary` (o `total_balance`
 tem que ser idêntico ao saldo de `/api/accounts/`) e as cinco telas do
 frontend.
+
+## Runbook — migration multiusuário (fatias 1–4)
+
+Aplica `b7d41c2e9a05` (dono por registro) e `d3a8f1e6c720` (despesa
+compartilhada) num banco **com dado real**. Decisões em "👥 Multiusuário" no
+CLAUDE.md, em especial a D-Tenant-6 e o gate de deploy.
+
+**Escrito em 04/10/2026 e ainda não executado em banco nenhum.** Cada passo diz
+o que esperar; resultado diferente do esperado é **PARE**, não improviso.
+
+### 0. Pré-requisitos
+
+| # | Conferência | Esperado |
+|---|---|---|
+| 0.1 | PR aberto com as 4 fatias | jobs `backend`, `backend-postgres` e `frontend` **verdes** |
+| 0.2 | Versão do Postgres do projeto Neon (painel → Settings) | anotar; o CI usa `postgres:16` |
+| 0.3 | `pg_dump --version` na máquina que vai rodar | major **≥** a do servidor (0.2) |
+| 0.4 | E-mail do dono: entrar no Google com a conta que ele usa no app e copiar o e-mail **dali** | é este o `OWNER_EMAIL` — não um e-mail "de cabeça" |
+| 0.5 | `AUTH_ALLOWED_EMAILS` do projeto backend na Vercel | contém `OWNER_EMAIL`, mesma grafia |
+
+🔴 **Use sempre a connection string DIRETA (host sem `-pooler`)** para
+`pg_dump`, `pg_restore`, `psql`, `alembic` e `verify_db`. O pooler em transaction
+mode não serve para dump/restore, e o `alembic/env.py` não desliga os prepared
+statements do psycopg (o `prepare_threshold=None` só está no engine da app).
+
+As URLs ficam em variáveis do shell, lidas **sem eco e sem histórico**:
+
+```bash
+cd backend
+read -rs PROD_DIRECT_URL   # cola a string direta do branch main do Neon, Enter
+read -rs ENSAIO_DIRECT_URL # (preenchida no passo 2)
+read -r  OWNER_EMAIL       # o e-mail copiado no passo 0.4
+```
+
+Nenhum passo abaixo imprime essas variáveis. `verify_db` mostra só host/banco,
+no stderr, e e-mails mascarados.
+
+### 1. Backup — snapshot e dump
+
+1. **Snapshot:** no painel do Neon, *Branches → Create branch*, pai `main`,
+   nome `pre-tenant-AAAAMMDD`. É cópia instantânea; **não apagar** até a
+   produção estar estável por alguns dias.
+   (CLI equivalente — conferir a sintaxe com `neonctl branches create --help`
+   antes: `neonctl branches create --name pre-tenant-AAAAMMDD --parent main`.)
+2. **Dump** do `main`:
+   ```bash
+   pg_dump --format=custom --no-owner --no-privileges \
+     --file "pre-tenant-$(date +%Y%m%d-%H%M).dump" "$PROD_DIRECT_URL"
+   ```
+3. **Retrato de produção, antes** (somente leitura):
+   ```bash
+   DATABASE_URL="$PROD_DIRECT_URL" python -m scripts.verify_db > prod-antes.txt
+   ```
+   Esperado: `revisao: 96fdc067f386`, sem seção `[donos]`.
+
+### 2. Restaurar o dump — backup nunca restaurado não é backup
+
+1. Criar o branch de ensaio: *Create branch*, pai `main`, nome
+   `ensaio-tenant`. Copiar a string **direta** dele para `ENSAIO_DIRECT_URL`.
+2. Dentro dele, um banco **vazio** para o restore:
+   ```bash
+   psql "$ENSAIO_DIRECT_URL" -c 'CREATE DATABASE restore_check'
+   ```
+   `RESTORE_URL` = a mesma string do ensaio com `/restore_check` no lugar do
+   nome do banco (`read -rs RESTORE_URL`).
+3. Restaurar e comparar:
+   ```bash
+   pg_restore --no-owner --no-privileges --dbname "$RESTORE_URL" pre-tenant-*.dump
+   DATABASE_URL="$RESTORE_URL" python -m scripts.verify_db > restore.txt
+   diff prod-antes.txt restore.txt
+   ```
+   Esperado: **`diff` vazio.** Qualquer diferença é **PARE**: o backup não
+   reproduz produção. (Aviso do `pg_restore` como `schema "public" already
+   exists` é ruído do banco novo, não falha — o que decide é o `diff`.)
+
+   Todos os comandos `python -m scripts.verify_db` rodam de `backend/`, com o
+   venv do backend (`requirements-dev.txt`) ativo.
+
+### 3. Ensaio no branch — com cópia do dado real
+
+1. **Retrato antes:**
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db > ensaio-antes.txt
+   diff prod-antes.txt ensaio-antes.txt   # esperado: vazio
+   ```
+2. **Ver os nomes das FKs antigas** — o que a migration vai derrubar:
+   ```bash
+   psql "$ENSAIO_DIRECT_URL" -c '\d transactions' -c '\d installments'
+   psql "$ENSAIO_DIRECT_URL" -At -c "SELECT conrelid::regclass, conname FROM pg_constraint
+     WHERE contype = 'f' AND conrelid::regclass::text IN ('transactions', 'installments')
+     ORDER BY 1, 2"
+   ```
+   Esperado, **exatamente**:
+   ```
+   installments|installments_account_id_fkey
+   installments|installments_category_id_fkey
+   transactions|transactions_account_id_fkey
+   transactions|transactions_category_id_fkey
+   transactions|transactions_installment_id_fkey
+   ```
+   🔴 **Nome diferente é PARE.** A migration derruba as quatro primeiras por esse
+   nome, que é o default documentado do Postgres — confirmado no CI (`postgres:16`,
+   schema criado pela migration inicial), **não** no Neon. Não editar a migration
+   na hora: voltar, ajustar com teste, rodar o CI de novo.
+3. **Migrar** — as duas revisões em sequência, numa transação só (no Postgres,
+   se a segunda falhar, a primeira é desfeita junto):
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" alembic upgrade head -x owner_email="$OWNER_EMAIL"
+   ```
+   Esperado no log: `96fdc067f386 -> b7d41c2e9a05` e `b7d41c2e9a05 -> d3a8f1e6c720`.
+4. **Retrato depois** e comparação:
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db \
+     --expect-owner "$OWNER_EMAIL" > ensaio-depois.txt; echo "exit=$?"
+   diff ensaio-antes.txt ensaio-depois.txt
+   ```
+   Esperado:
+   * `exit=0` e `dono_esperado: OK`;
+   * **nenhuma linha de `[dinheiro]` no `diff`** — soma dos saldos iniciais e
+     saldo de cada conta idênticos;
+   * contagens das 6 tabelas antigas idênticas; `users: 1`; `linhas_sem_dono: 0`;
+   * em `[fks]`, as compostas `fk_*_account_owner`/`fk_*_category_owner`.
+5. **Login simulado como o dono.** Não é o Google — é o mesmo caminho de código
+   depois dele (`current_user` → `current_owner` → filtro), com um cookie
+   assinado por um segredo descartável, válido só neste processo. O login real
+   não dá para ensaiar: um backend local apontando para Postgres se considera
+   produção e emite cookie `Secure`, que o browser descarta em `http://localhost`.
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" OWNER_EMAIL="$OWNER_EMAIL" \
+   AUTH_ALLOWED_EMAILS="$OWNER_EMAIL" GOOGLE_CLIENT_ID=ensaio \
+   SESSION_SECRET="ensaio-$(openssl rand -hex 24)" python - <<'PY'
+   import os
+   from fastapi.testclient import TestClient
+   from app.auth import issue_session
+   from app.main import app
+   cookie = issue_session(os.environ["OWNER_EMAIL"], os.environ["SESSION_SECRET"])
+   client = TestClient(app, cookies={"session": cookie})
+   for path in ("/api/auth/me", "/api/accounts", "/api/categories",
+                "/api/transactions", "/api/installments", "/api/investments"):
+       r = client.get(path)
+       body = r.json()
+       print(path, r.status_code, f"{len(body)} itens" if isinstance(body, list) else "")
+   print("total_balance", client.get("/api/dashboard/summary").json()["total_balance"])
+   PY
+   ```
+   Esperado: tudo `200`; as quantidades batem com `ensaio-depois.txt`;
+   `total_balance` = soma dos `saldo=` do retrato.
+   ⚠️ Este passo **pode escrever**: se o e-mail não for o da migration, o
+   `current_owner` cria um usuário novo e provisiona conta e categorias vazias.
+   É o sintoma que o próximo passo procura — e no branch de ensaio não custa
+   nada.
+6. **Conferência do e-mail do dono, depois do login:**
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db \
+     --expect-owner "$OWNER_EMAIL" \
+     | grep -E '^users:|^usuario |^linhas_sem_dono|^dono_esperado|mais de um'
+   ```
+   Esperado: **ainda `users: 1`**, uma linha só em `[donos]`, `dono_esperado: OK`.
+   Um segundo usuário com `transactions=0` aqui é o e-mail errado — ver
+   "E-mail do dono errado" abaixo.
+7. **Ensaio do rollback:**
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" alembic downgrade 96fdc067f386
+   DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db > ensaio-rollback.txt
+   diff ensaio-antes.txt ensaio-rollback.txt   # esperado: vazio
+   ```
+   O downgrade recria as FKs simples com os nomes `<tabela>_<coluna>_fkey`, então
+   até `[fks]` volta idêntico. **É a única vez que o downgrade roda em Postgres
+   antes de produção** — o CI não o exercita.
+8. Apagar `ensaio-tenant` (o `restore_check` vai junto). Manter `pre-tenant-*`.
+
+### 4. Produção
+
+Na ordem — a janela de 500 da D-Tenant-6 começa no passo 4 e termina no 6.
+
+1. Gate conferido: 0.1–0.5 e o ensaio inteiro sem PARE.
+2. **Snapshot novo** imediatamente antes (`pre-tenant-AAAAMMDD-HHMM`) — o do
+   passo 1 pode estar horas atrás.
+3. `DATABASE_URL="$PROD_DIRECT_URL" python -m scripts.verify_db > prod-antes.txt`
+   e a consulta de FKs do passo 3.2 contra `$PROD_DIRECT_URL`. Mesmo esperado.
+4. **Migrar:**
+   `DATABASE_URL="$PROD_DIRECT_URL" alembic upgrade head -x owner_email="$OWNER_EMAIL"`
+5. `verify_db --expect-owner` contra produção e `diff` com `prod-antes.txt`:
+   mesmo esperado do passo 3.4. Divergência é **rollback** (seção 5), não ajuste.
+6. **Merge do PR.** A Vercel deploya o backend; esperar o deploy ficar *Ready*.
+   (Migration antes do deploy, e não depois: com o código antigo sobre o schema
+   novo, só **escrita** falha; com o código novo sobre o schema antigo, **toda**
+   requisição falha.)
+7. **Login real** pelo frontend, com a conta Google do dono. Conferir que as
+   contas, transações e o saldo aparecem como no retrato.
+8. `verify_db --expect-owner` de novo. Esperado: `users: 1` e `OK`. Os outros
+   usuários da allowlist ganham linha e dados próprios **quando** entrarem — a
+   partir daí `users` cresce, e isso é o esperado.
+
+### 5. Rollback em produção
+
+| Situação | O que fazer |
+|---|---|
+| A migration falhou no passo 4 | Nada a desfazer: foi uma transação só. Confirmar com `verify_db` (`revisao: 96fdc067f386`, retrato igual a `prod-antes.txt`). |
+| Migrou, e **só o dono** usou (`users: 1`, `shared_expenses: 0`) | 1) Vercel: *Instant Rollback* do backend para o deploy anterior. 2) `DATABASE_URL="$PROD_DIRECT_URL" alembic downgrade 96fdc067f386`. 3) `verify_db` e `diff` com `prod-antes.txt` — vazio. Ordem inversa da subida, pelo mesmo motivo. |
+| Já há **mais de um usuário** ou despesa compartilhada | O `downgrade` **recusa** (D-Tenant-6) — os nomes colidiriam. Opções, a decidir na hora: restaurar o `main` a partir do `pre-tenant-*` (perde o que foi escrito depois do snapshot) ou corrigir para frente. Não forçar o downgrade. |
+
+(Restore de branch no Neon: painel → *Branches → main → Restore*, escolhendo o
+`pre-tenant-*` — conferir o fluxo no painel no dia; não foi exercitado.)
+
+### E-mail do dono errado
+
+**O que acontece.** A migration grava `users(email = <o -x informado>)` e dá a
+esse usuário todo o dado existente. Ela **não** confere se o e-mail está na
+allowlist nem se é o que o dono usa no Google. Se for diferente:
+
+1. O dono loga com o e-mail real. `current_owner` não acha esse e-mail em
+   `users`, **cria um usuário novo e o provisiona**: "Conta Principal" com
+   R$ 0,00 e as 10 categorias.
+2. O dono vê o app **vazio**. O dado real continua no banco, preso ao e-mail da
+   migration — que ninguém usa para logar.
+
+Nada se perde, mas a tela vazia parece perda. Os passos 0.4, 3.6 e 4.8 existem
+para pegar isso antes de alguém entrar em pânico.
+
+**Correção, se acontecer** — só depois de o `verify_db` mostrar que o usuário
+novo tem **apenas** o provisionamento (`accounts=1 categories=10 installments=0
+transactions=0 investments=0`). `N` = id do usuário novo, `M` = id do dono
+migrado, ambos da seção `[donos]`:
+
+```sql
+BEGIN;
+DELETE FROM categories WHERE owner_id = N;
+DELETE FROM accounts   WHERE owner_id = N;
+DELETE FROM users      WHERE id = N;
+UPDATE users SET email = '<e-mail real, minúsculo>' WHERE id = M;
+COMMIT;
+```
+
+A sessão do dono volta a resolver para `M` na próxima requisição: a busca é por
+e-mail. **Se o usuário `N` já tiver qualquer transação**, não rodar — é dado
+real dele, e a decisão é outra.

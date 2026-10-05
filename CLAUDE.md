@@ -1323,6 +1323,42 @@ em produção**.
    `<tabela>_<coluna>_fkey` é o default documentado do Postgres — **não** se assume sem ver no
    banco de verdade.
 
+**Runbook e verificação (04/10/2026, aguardando aprovação — nada executado).** O passo a passo
+está em `backend/VERCEL.md` → "Runbook — migration multiusuário": backup (snapshot + `pg_dump`),
+restore exercitado num banco vazio com `diff` contra produção, ensaio num branch com os nomes das
+FKs conferidos, migration, login simulado como o dono, ensaio do rollback, produção e rollback de
+produção.
+
+`backend/scripts/verify_db.py` é o retrato **somente leitura** de antes e depois: revisão,
+contagens, soma dos saldos iniciais, saldo derivado por conta, FKs com nome e `ondelete`, linhas
+por dono. Somente leitura por construção (`PRAGMA query_only` / `SET TRANSACTION READ ONLY`;
+mutação sem o PRAGMA → teste vermelho), sem credencial na saída (alvo como host/banco, erros por
+`scrub`), e-mails mascarados. 13 testes em `tests/test_verify_db.py`, escritos antes.
+
+**Lacunas do CI, apontadas e não fechadas:**
+
+| Lacuna | Consequência | Quem cobre hoje |
+|---|---|---|
+| A branch **nunca foi publicada** — o workflow dispara em `pull_request` e em push para `main`, não em push de outra branch | os 4 commits nunca rodaram no CI | abrir o PR (passo 0.1 do runbook) |
+| O job de Postgres roda as migrations só em banco **vazio** (`conftest._create_schema`) | o preenchimento com `-x owner_email` e o fail-closed nunca rodaram em Postgres; os testes de migration de `test_tenant_schema.py` usam SQLite sempre | o ensaio no branch do Neon |
+| `downgrade` nunca roda em Postgres | o rollback não está provado no motor de produção | passo 3.7 do runbook |
+| O CI usa `postgres:16`; o Neon pode ser outra versão | divergência de motor | passo 0.2 do runbook |
+
+O que o job de Postgres **cobre**: `96fdc → b7d4 → d3a8` em sequência, inclusive o
+`drop_constraint` das FKs antigas pelos nomes `<tabela>_<coluna>_fkey`, num schema criado pela
+migration inicial em Postgres 16; e a suíte inteira sobre esse schema. Se os nomes estivessem
+errados, o job quebraria. O que ele não prova é que o banco do Neon foi criado do mesmo jeito,
+e por isso o `\d` do ensaio continua obrigatório.
+
+**E-mail do dono errado no `-x owner_email`**, verificado num SQLite descartável: o dono loga com
+o e-mail real, o `current_owner` cria um usuário novo e o provisiona, e ele vê o app **vazio**
+(conta R$ 0,00, 10 categorias), com o dado real preso ao usuário 1. Nada se perde. O runbook
+confere isso em três pontos (0.4, 3.6 e 4.8) e traz o SQL de correção, que foi testado no mesmo
+cenário. ⚠️ A primeira versão do `--expect-owner` dava **OK** nesse caso, porque o e-mail existia,
+só que no usuário novo. Agora o e-mail esperado tem que ser o do **dono migrado**, que é o usuário
+de menor id; e a linha dele é marcada na saída, porque a máscara iguala `dono@` e `dono.real@`.
+Os dois testes foram escritos antes da correção.
+
 Os testes das fatias seguintes que ficaram verdes com esta entrega:
 
 | Teste | Por quê |
