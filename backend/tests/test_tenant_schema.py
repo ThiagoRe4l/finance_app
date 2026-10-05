@@ -19,6 +19,7 @@ inspeção falham por coluna/tabela ausente; os de migration falham porque
 
 import argparse
 import datetime
+import uuid
 
 import pytest
 from alembic import command
@@ -27,7 +28,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
-from tests.conftest import BACKEND_DIR
+from tests.conftest import BACKEND_DIR, IS_SQLITE, TEST_DATABASE_URL
 
 INITIAL_REVISION = "96fdc067f386"
 
@@ -259,13 +260,60 @@ def test_same_owner_references_are_still_accepted(fk_session):
 # é verificada pelo ensaio num branch do Neon (D-Tenant-6, passo 3).
 # ---------------------------------------------------------------------------
 
+# Os donos usados nestes testes estão na allowlist: o reforço da migration
+# recusa `-x owner_email` fora de `AUTH_ALLOWED_EMAILS` quando ela existe.
+MIGRATION_ALLOWLIST = "dono@example.com,pessoa@example.com"
+
+
 @pytest.fixture(name="migration_engine")
-def migration_engine_fixture():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    yield engine
-    engine.dispose()
+def migration_engine_fixture(monkeypatch):
+    """Banco **próprio** para subir e descer revisões, com dado.
+
+    * **SQLite** (local e job `backend`): em memória.
+    * 🔴 **Postgres** (job `backend-postgres`): um banco criado só para o teste
+      e apagado no fim. É o que leva a migration **com dado** — o
+      preenchimento por `-x owner_email`, a recusa sem ele, o `downgrade` — ao
+      motor de produção. Até aqui o CI só rodava as migrations em banco vazio
+      (`conftest._create_schema`), e esse caminho nunca tinha tocado Postgres.
+
+    Banco próprio, e não o da suíte: descer e subir revisões no banco
+    compartilhado o deixaria num schema diferente para os testes seguintes.
+    """
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", MIGRATION_ALLOWLIST)
+
+    if IS_SQLITE:
+        engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        yield engine
+        engine.dispose()
+        return
+
+    from sqlalchemy.engine import make_url
+
+    from app.settings import engine_options_for
+
+    options = engine_options_for(TEST_DATABASE_URL)
+    name = f"migration_{uuid.uuid4().hex[:12]}"
+    admin = create_engine(TEST_DATABASE_URL, isolation_level="AUTOCOMMIT", **options)
+    with admin.connect() as connection:
+        connection.execute(text(f'CREATE DATABASE "{name}"'))
+
+    engine = create_engine(make_url(TEST_DATABASE_URL).set(database=name), **options)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+        with admin.connect() as connection:
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
+
+
+def test_the_migration_engine_matches_the_suite_dialect(migration_engine):
+    """Guarda da fixture acima: no job de Postgres, a migration com dado tem
+    que rodar em Postgres. Se a fixture voltasse a ser SQLite fixo, a lacuna
+    reabriria com o job verde."""
+    assert migration_engine.dialect.name == ("sqlite" if IS_SQLITE else "postgresql")
 
 
 def _alembic(engine, action, revision, owner_email=None):
@@ -424,3 +472,80 @@ def test_downgrade_with_two_owners_refuses(migration_engine):
 
     with pytest.raises(Exception, match="dono"):
         _alembic(migration_engine, "downgrade", INITIAL_REVISION)
+
+
+# ---------------------------------------------------------------------------
+# Reforço: o `-x owner_email` tem que estar na allowlist (05/10/2026)
+#
+# Escrito antes da implementação. O caso que motivou: `-x` com um e-mail que
+# não é o que o dono usa no Google — o dado fica preso a um usuário que ninguém
+# loga, e o dono entra num app vazio. Recusar e-mail fora da allowlist pega o
+# erro de digitação mais comum antes de qualquer DDL.
+# ---------------------------------------------------------------------------
+
+def _revision(engine):
+    with engine.connect() as db:
+        return db.execute(text("SELECT version_num FROM alembic_version")).scalar()
+
+
+def test_migration_refuses_an_owner_outside_the_allowlist(migration_engine, monkeypatch):
+    """🔴 Recusa **antes** de qualquer mudança: revisão e dado intactos."""
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "outra@example.com,mais@example.com")
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+    before = _counts(migration_engine)
+
+    with pytest.raises(Exception, match="AUTH_ALLOWED_EMAILS"):
+        _alembic(migration_engine, "upgrade", "head", owner_email="dono@example.com")
+
+    assert _counts(migration_engine) == before
+    assert _revision(migration_engine) == INITIAL_REVISION
+
+
+def test_an_empty_allowlist_refuses_too(migration_engine, monkeypatch):
+    """Variável **definida e vazia** é allowlist que não deixa ninguém entrar
+    (D-Auth-2, fail closed) — o dono não está nela, então a migration recusa.
+    Só a variável **ausente** degrada para aviso."""
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "")
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+
+    with pytest.raises(Exception, match="AUTH_ALLOWED_EMAILS"):
+        _alembic(migration_engine, "upgrade", "head", owner_email="dono@example.com")
+
+
+def test_the_allowlist_check_ignores_case_and_spaces(migration_engine, monkeypatch):
+    """✅ **Já passa** — regressão: hoje não há checagem nenhuma. Trava que o
+    reforço compare como a allowlist compara (D-Auth-2), e não recuse o dono
+    por uma maiúscula."""
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", " Dono@Example.com , outra@example.com")
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+
+    _alembic(migration_engine, "upgrade", "head", owner_email="dono@EXAMPLE.com")
+
+    _assert_migrated(migration_engine)
+
+
+def test_without_the_allowlist_variable_it_warns_and_proceeds(migration_engine, monkeypatch):
+    """Ausente, a migration não tem com o que comparar. Não bloqueia — o
+    ambiente de quem roda pode simplesmente não ter a variável —, mas avisa
+    alto, dizendo o que não foi conferido."""
+    monkeypatch.delenv("AUTH_ALLOWED_EMAILS", raising=False)
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+
+    with pytest.warns(UserWarning, match="AUTH_ALLOWED_EMAILS"):
+        _alembic(migration_engine, "upgrade", "head", owner_email="dono@example.com")
+
+    _assert_migrated(migration_engine)
+
+
+def test_the_allowlist_is_not_consulted_without_an_owner(migration_engine, monkeypatch):
+    """✅ **Já passa** — regressão. Banco vazio sobe sem `-x` (a suíte, um dev
+    novo): não há dono a conferir, e a allowlist não pode virar requisito."""
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", "outra@example.com")
+
+    _alembic(migration_engine, "upgrade", "head")
+
+    _assert_migrated(migration_engine)

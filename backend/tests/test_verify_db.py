@@ -31,8 +31,12 @@ def _verify():
 
 
 @pytest.fixture(name="initial_engine")
-def initial_engine_fixture():
-    """Banco na revisão inicial, com o dado de exemplo — o estado de hoje."""
+def initial_engine_fixture(monkeypatch):
+    """Banco na revisão inicial, com o dado de exemplo — o estado de hoje.
+
+    O dono está na allowlist: a migration recusa `-x owner_email` fora dela.
+    """
+    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", OWNER)
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )

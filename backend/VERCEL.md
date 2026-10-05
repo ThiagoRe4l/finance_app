@@ -106,7 +106,23 @@ cd backend
 read -rs PROD_DIRECT_URL   # cola a string direta do branch main do Neon, Enter
 read -rs ENSAIO_DIRECT_URL # (preenchida no passo 2)
 read -r  OWNER_EMAIL       # o e-mail copiado no passo 0.4
+read -rs AUTH_ALLOWED_EMAILS && export AUTH_ALLOWED_EMAILS  # o valor da Vercel (passo 0.5)
 ```
+
+🔴 **O que o Alembic enxerga no ambiente.** O `alembic/env.py` importa
+`app.settings`, e esse import carrega o `backend/.env.local` com
+`override=False`: o que está no shell vence, e o que **não** está vem do
+arquivo. O `.env.local` deste projeto tem `DATABASE_URL` (a de **produção**) e
+`AUTH_ALLOWED_EMAILS`. Por isso:
+
+* **`DATABASE_URL` vai explícita em todo comando** — sem ela, o comando roda
+  contra produção.
+* **`AUTH_ALLOWED_EMAILS` vai exportada com o valor da Vercel.** A migration
+  recusa `-x owner_email` fora dela; sem o export, a comparação é contra a
+  lista do arquivo local, que pode estar desatualizada. Se a variável não
+  existir em lugar nenhum, a migration **não** bloqueia — emite um
+  `UserWarning` dizendo que o e-mail não foi conferido. Esse aviso no log é
+  **PARE**: exporte a variável e rode de novo.
 
 Nenhum passo abaixo imprime essas variáveis. `verify_db` mostra só host/banco,
 no stderr, e e-mails mascarados.
@@ -183,7 +199,10 @@ no stderr, e e-mails mascarados.
    ```bash
    DATABASE_URL="$ENSAIO_DIRECT_URL" alembic upgrade head -x owner_email="$OWNER_EMAIL"
    ```
-   Esperado no log: `96fdc067f386 -> b7d41c2e9a05` e `b7d41c2e9a05 -> d3a8f1e6c720`.
+   Esperado no log: `96fdc067f386 -> b7d41c2e9a05` e `b7d41c2e9a05 -> d3a8f1e6c720`,
+   e **nenhum** `UserWarning` sobre `AUTH_ALLOWED_EMAILS`. Um `RuntimeError`
+   dizendo que o `owner_email` não está na allowlist é a recusa funcionando:
+   nada foi alterado — confira o e-mail (passo 0.4) e a variável (0.5).
 4. **Retrato depois** e comparação:
    ```bash
    DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db \
