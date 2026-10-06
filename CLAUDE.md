@@ -1313,6 +1313,11 @@ A primeira verificação real é o job `backend-postgres` do CI (que constrói o
 migration), e a segunda é o ensaio num branch do Neon com dado real — **os dois antes de aplicar
 em produção**.
 
+✅ **Nomes observados no Neon real em 06/10/2026.** No ensaio, as 5 FKs antigas seguem
+`<tabela>_<coluna>_fkey`, vistas na seção `[fks]` do `verify_db`. O default documentado se
+confirmou no banco de verdade; a conferência continua obrigatória a cada execução, inclusive
+em produção.
+
 🔴 **Gate de deploy (decidido em 03/10/2026):**
 
 1. **Nada das fatias 1 e 2 vai para produção separado.** "Dono existe mas filtro não" é um
@@ -1321,13 +1326,35 @@ em produção**.
 3. **Ensaio no branch do Neon com dado real**, e nele **ver** os nomes das FKs antigas
    (`\d transactions`, `\d installments`) antes de rodar a migration. O padrão
    `<tabela>_<coluna>_fkey` é o default documentado do Postgres — **não** se assume sem ver no
-   banco de verdade.
+   banco de verdade. *(Visto no Neon no ensaio de 06/10/2026; em produção, conferir de novo.)*
 
-**Runbook e verificação (04/10/2026, aguardando aprovação — nada executado).** O passo a passo
+**Runbook e verificação (escritos em 04/10/2026, aprovados em 05/10).** O passo a passo
 está em `backend/VERCEL.md` → "Runbook — migration multiusuário": backup (snapshot + `pg_dump`),
 restore exercitado num banco vazio com `diff` contra produção, ensaio num branch com os nomes das
 FKs conferidos, migration, login simulado como o dono, ensaio do rollback, produção e rollback de
 produção.
+
+**Ensaio de 06/10/2026**, no Windows, num checkout limpo feito pelo Git do Windows em `8209c9f`,
+com Python 3.12, contra um branch do Neon com cópia de produção: `upgrade`, `downgrade` e novo
+`upgrade` deram `diff` vazio contra os retratos do `verify_db`, e o login simulado deu `200` em
+tudo, com `total_balance` igual à soma dos saldos. Três ressalvas, registradas como estão:
+
+* **A cópia de produção estava sem movimento** (1 conta, 10 categorias, nenhuma transação nem
+  parcelamento), e **a semente foi manual**, pelo SQL Editor do Neon: 1 parcelamento e 4
+  transações (ENTRADA, SAÍDA fixa, SAÍDA de 33,33 e SAÍDA vinculada ao parcelamento). O retrato
+  "antes" teve `installments: 1`, `transactions: 4` e saldo `3166.67`, então o preenchimento de
+  `owner_id` e as FKs compostas **foram** exercitados. O runbook agora automatiza a semente no
+  passo 3.1. O SQL dele (com `U&'SA\00CDDA'`) só foi rodado aqui num SQLite na revisão inicial,
+  com o escape trocado pelo literal: ledger +859,87 conferido à mão, `linhas_sem_dono: 0` e FKs
+  compostas depois do upgrade, dinheiro igual no ciclo. Em Postgres, **a validar**.
+* **A restauração do dump foi pulada**, por não haver dado real: o dump foi gerado e a listagem
+  conferida, mas não restaurado. Com dado real, a restauração volta a valer.
+* **O `alembic upgrade` só rodou do Windows depois do `alembic.ini` em ASCII** (seção própria,
+  abaixo), editado à mão na checkout do ensaio; a correção no repositório é o commit `d055b9a`.
+  O runbook ganhou os pré-requisitos do Windows que o ensaio mostrou: Git Bash, Python
+  3.12 explícito (o padrão da máquina era 3.14), `pg_dump`/`pg_restore`/`psql` instalados à parte
+  e postos no PATH, checkout pelo Git do Windows (a worktree do container aponta para
+  `/workspace/...`) e a proibição de `git worktree prune` nos dois lados.
 
 `backend/scripts/verify_db.py` é o retrato **somente leitura** de antes e depois: revisão,
 contagens, soma dos saldos iniciais, saldo derivado por conta, FKs com nome e `ondelete`, linhas
@@ -1348,7 +1375,8 @@ O que o job de Postgres **cobre**: `96fdc → b7d4 → d3a8` em sequência, incl
 `drop_constraint` das FKs antigas pelos nomes `<tabela>_<coluna>_fkey`, num schema criado pela
 migration inicial em Postgres 16; e a suíte inteira sobre esse schema. Se os nomes estivessem
 errados, o job quebraria. O que ele não prova é que o banco do Neon foi criado do mesmo jeito,
-e por isso o `\d` do ensaio continua obrigatório.
+e por isso o `\d` do ensaio continua obrigatório. *(No Neon, os nomes foram observados no ensaio
+de 06/10/2026 e batem.)*
 
 **E-mail do dono errado no `-x owner_email`**, verificado num SQLite descartável: o dono loga com
 o e-mail real, o `current_owner` cria um usuário novo e o provisiona, e ele vê o app **vazio**
