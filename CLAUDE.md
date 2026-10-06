@@ -1535,6 +1535,37 @@ escrever em `session.info` também troca, e a guarda anterior só olhava chamada
 
 Suíte final da fatia: **499 passed**.
 
+### `alembic.ini` só em ASCII (decidido em 06/10/2026)
+
+**Achado no ensaio, rodando do Windows:** `alembic upgrade` morria com
+`UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f`. O comentário sobre
+`sqlalchemy.url` (linhas 89–92) tinha o emoji ⚠️ e acentos em UTF-8, e o `0x8f` é o último
+byte do emoji. No Linux (CI, container) nunca apareceu, porque lá a codificação do sistema é
+UTF-8.
+
+**Dois leitores do arquivo usam a codificação do sistema** (cp1252 no Windows), ambos fora do
+nosso código:
+
+* o `configparser` do próprio Alembic: `alembic/util/compat.py` faz
+  `file_config.read(..., encoding="locale")` (verificado no Alembic 1.19.1 instalado);
+* o `fileConfig(config.config_file_name)` do `alembic/env.py`, de `logging.config`, que relê o
+  mesmo `.ini` sem `encoding`.
+
+**Decisão: o `alembic.ini` é só ASCII**, e **o contrato é o teste**
+(`tests/test_alembic_config.py`), que lê o arquivo em **bytes** e reprova qualquer byte acima
+de `0x7F`, com o número da linha. É em bytes de propósito: um teste que abrisse o arquivo com
+`open()` dependeria da codificação de quem o roda e ficaria verde no Linux, pelo mesmo motivo
+que o defeito nunca apareceu no CI. A correção reescreveu só os quatro comentários, sem emoji e
+sem acentos. Nenhuma configuração mudou.
+
+**Alternativa descartada:** passar `encoding="utf-8"` no `fileConfig` do `env.py`. Isso
+blindaria só o segundo leitor; o do Alembic continuaria usando `locale`, e não é código nosso.
+
+**Não afetados**, verificados: `env.py` e `alembic/versions/*.py` têm acentos, mas o Alembic os
+carrega por `importlib` (`spec_from_file_location` + `exec_module`), e o Python decodifica
+código-fonte como UTF-8 por padrão, qualquer que seja o locale. `script.py.mako` e `README`
+são ASCII.
+
 ---
 
 ## 🗃️ Deploy — Railway (**SUPERADO em 28/08/2026**, mantido como histórico)

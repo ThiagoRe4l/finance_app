@@ -127,6 +127,13 @@ arquivo. O `.env.local` deste projeto tem `DATABASE_URL` (a de **produção**) e
 Nenhum passo abaixo imprime essas variáveis. `verify_db` mostra só host/banco,
 no stderr, e e-mails mascarados.
 
+⚠️ **Alembic no Windows exige `alembic.ini` só em ASCII** — descoberto no ensaio.
+O Alembic lê o `.ini` com a codificação do sistema (cp1252 no Windows), e o
+comentário com emoji e acentos derrubava o `alembic upgrade` com
+`UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f`. No Linux (CI)
+nunca apareceu. Corrigido, e `tests/test_alembic_config.py` reprova qualquer
+byte fora do ASCII no arquivo.
+
 ### 1. Backup — snapshot e dump
 
 1. **Snapshot:** no painel do Neon, *Branches → Create branch*, pai `main`,
