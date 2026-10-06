@@ -81,8 +81,28 @@ Aplica `b7d41c2e9a05` (dono por registro) e `d3a8f1e6c720` (despesa
 compartilhada) num banco **com dado real**. Decisões em "👥 Multiusuário" no
 CLAUDE.md, em especial a D-Tenant-6 e o gate de deploy.
 
-**Escrito em 04/10/2026 e ainda não executado em banco nenhum.** Cada passo diz
-o que esperar; resultado diferente do esperado é **PARE**, não improviso.
+**Escrito em 04/10/2026.** Cada passo diz o que esperar; resultado diferente do
+esperado é **PARE**, não improviso.
+
+**Ensaio de 06/10/2026**, no Windows, num checkout limpo feito pelo Git do
+Windows em `8209c9f`, com Python 3.12, contra um branch do Neon com cópia de
+produção: `upgrade`, `downgrade` e novo `upgrade` deram `diff` vazio contra os
+retratos do `verify_db`, e o login simulado do passo 3.5 deu `200` em tudo, com
+`total_balance` igual à soma dos saldos. Ressalvas do mesmo ensaio:
+
+* a cópia de produção estava **sem movimento** (1 conta, 10 categorias, nenhuma
+  transação nem parcelamento). A semente foi **manual**, pelo SQL Editor do Neon:
+  1 parcelamento e 4 transações (ENTRADA, SAÍDA fixa, SAÍDA de 33,33 e SAÍDA
+  vinculada ao parcelamento). O retrato "antes" teve `installments: 1`,
+  `transactions: 4` e saldo `3166.67`, então o preenchimento de `owner_id` e as
+  FKs compostas **foram** exercitados. O passo 3.1 agora automatiza a semente;
+  o SQL dele (com `U&'SA\00CDDA'`) só foi rodado em SQLite — **a validar** em
+  Postgres;
+* a **restauração do dump foi pulada** (passo 2), por não haver dado real — o
+  dump foi gerado e a listagem conferida, mas não restaurado;
+* o `alembic upgrade` só rodou depois do `alembic.ini` em ASCII (nota abaixo),
+  editado à mão na checkout do ensaio; a correção no repositório é o commit
+  `d055b9a`.
 
 ### 0. Pré-requisitos
 
@@ -94,6 +114,39 @@ o que esperar; resultado diferente do esperado é **PARE**, não improviso.
 | 0.4 | E-mail do dono: entrar no Google com a conta que ele usa no app e copiar o e-mail **dali** | é este o `OWNER_EMAIL` — não um e-mail "de cabeça" |
 | 0.5 | `AUTH_ALLOWED_EMAILS` do projeto backend na Vercel | contém `OWNER_EMAIL`, mesma grafia |
 
+**Rodando do Windows** (como no ensaio de 06/10/2026). Todos os comandos deste
+runbook são **bash**: use o **Git Bash**, não PowerShell nem `cmd`.
+
+* **Checkout pelo Git do Windows, nunca a worktree do container.** O `.git` de
+  uma worktree criada no container aponta para `/workspace/...`, caminho que o
+  Git do Windows não resolve. Na pasta principal do repositório:
+  ```bash
+  git fetch origin
+  git worktree add --detach <pasta> origin/feat/multi-tenant-shared-expenses
+  ```
+  e rode tudo a partir de `<pasta>/backend`.
+* 🔴 **Nunca rode `git worktree prune`, em nenhum dos lados.** Cada lado enxerga
+  a worktree do outro como `prunable` (o caminho dela não existe ali), e o
+  `prune` apagaria os metadados dela.
+* **Python 3.12, explicitamente.** O Python padrão da máquina do ensaio era o
+  3.14; o projeto é 3.12 em dev, CI e produção:
+  ```bash
+  py -3.12 -m venv .venv
+  source .venv/Scripts/activate      # no Windows é Scripts/, não bin/
+  pip install -r requirements.txt
+  ```
+  Para `verify_db` e `alembic` basta o `requirements.txt`. O login simulado do
+  passo 3.5 usa `fastapi.testclient`, que precisa do `httpx` — está só no
+  `requirements-dev.txt`. Sem o `requirements-dev.txt` também não há
+  `python-dotenv`, e então o `backend/.env.local` **não** é carregado (ver "O que
+  o Alembic enxerga", abaixo).
+* **`pg_dump`, `pg_restore` e `psql`** não vinham instalados. No instalador do
+  PostgreSQL, marque só **"Command Line Tools"**, com major **≥** a do servidor
+  (0.2), e ponha no PATH do Git Bash:
+  ```bash
+  export PATH="$PATH:/c/Program Files/PostgreSQL/<major>/bin"
+  ```
+
 🔴 **Use sempre a connection string DIRETA (host sem `-pooler`)** para
 `pg_dump`, `pg_restore`, `psql`, `alembic` e `verify_db`. O pooler em transaction
 mode não serve para dump/restore, e o `alembic/env.py` não desliga os prepared
@@ -104,7 +157,6 @@ As URLs ficam em variáveis do shell, lidas **sem eco e sem histórico**:
 ```bash
 cd backend
 read -rs PROD_DIRECT_URL   # cola a string direta do branch main do Neon, Enter
-read -rs ENSAIO_DIRECT_URL # (preenchida no passo 2)
 read -r  OWNER_EMAIL       # o e-mail copiado no passo 0.4
 read -rs AUTH_ALLOWED_EMAILS && export AUTH_ALLOWED_EMAILS  # o valor da Vercel (passo 0.5)
 ```
@@ -154,8 +206,16 @@ byte fora do ASCII no arquivo.
 
 ### 2. Restaurar o dump — backup nunca restaurado não é backup
 
+⚠️ **No ensaio de 06/10/2026 esta restauração foi pulada**, porque a cópia não
+tinha dado real (1 conta, 10 categorias, nenhuma transação): o dump foi gerado e
+a listagem conferida, mas não restaurado. Com dado real, a restauração volta a
+valer e é obrigatória.
+
 1. Criar o branch de ensaio: *Create branch*, pai `main`, nome
-   `ensaio-tenant`. Copiar a string **direta** dele para `ENSAIO_DIRECT_URL`.
+   `ensaio-tenant`. Copiar a string **direta** dele — só agora ela existe:
+   ```bash
+   read -rs ENSAIO_DIRECT_URL
+   ```
 2. Dentro dele, um banco **vazio** para o restore:
    ```bash
    psql "$ENSAIO_DIRECT_URL" -c 'CREATE DATABASE restore_check'
@@ -173,15 +233,79 @@ byte fora do ASCII no arquivo.
    exists` é ruído do banco novo, não falha — o que decide é o `diff`.)
 
    Todos os comandos `python -m scripts.verify_db` rodam de `backend/`, com o
-   venv do backend (`requirements-dev.txt`) ativo.
+   venv do backend ativo (`requirements.txt`; o passo 3.5 precisa do
+   `requirements-dev.txt`).
 
 ### 3. Ensaio no branch — com cópia do dado real
 
-1. **Retrato antes:**
+1. **Retrato da cópia, antes de qualquer mudança:**
+   ```bash
+   DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db > ensaio-copia.txt
+   diff prod-antes.txt ensaio-copia.txt   # esperado: vazio
+   ```
+   **Semear dado sintético — só no branch descartável, nunca em produção.** Uma
+   cópia de produção sem movimento não exercita o preenchimento de `owner_id` nem
+   as FKs compostas. No ensaio de 06/10/2026 a semente foi feita à mão, pelo SQL
+   Editor do Neon; este passo a automatiza. A semente põe 1 parcelamento e 4
+   transações: uma ENTRADA, uma SAÍDA comum, uma SAÍDA fixa e uma SAÍDA vinculada
+   ao parcelamento, todas com centavos. As colunas são as da migration inicial
+   (`96fdc067f386`), que é o schema da cópia neste ponto. ⚠️ Este SQL só foi
+   rodado em SQLite, com o escape trocado pelo literal — **a validar** em
+   Postgres na próxima execução; o `ENTRADA|7|1` / `SAÍDA|5|3` abaixo é a
+   conferência.
+
+   Salve como `ensaio-seed.sql`. O arquivo é **todo ASCII** de propósito: o tipo
+   `SAÍDA` vai como escape Unicode `U&'SA\00CDDA'`, porque um `Í` digitado num
+   console cp1252 pode chegar corrompido ao banco, e a transação deixaria de
+   contar no saldo sem erro nenhum.
+   ```sql
+   -- ENSAIO: so no branch descartavel do Neon. NUNCA em producao.
+   BEGIN;
+
+   INSERT INTO installments
+     (title, category_id, total_amount, installment_amount,
+      current_installment, total_installments, end_date, account_id)
+   VALUES
+     ('ENSAIO parcelamento',
+      (SELECT id FROM categories ORDER BY id LIMIT 1),
+      1234.56, 102.88, 2, 12, 'Set/2027',
+      (SELECT id FROM accounts ORDER BY id LIMIT 1));
+
+   INSERT INTO transactions
+     (title, type, amount, date, category_id, is_fixed, account_id, installment_id)
+   VALUES
+     ('ENSAIO entrada', 'ENTRADA', 2500.10, CURRENT_DATE,
+      (SELECT id FROM categories ORDER BY id LIMIT 1), false,
+      (SELECT id FROM accounts ORDER BY id LIMIT 1), NULL),
+     ('ENSAIO saida', U&'SA\00CDDA', 87.35, CURRENT_DATE,
+      (SELECT id FROM categories ORDER BY id LIMIT 1), false,
+      (SELECT id FROM accounts ORDER BY id LIMIT 1), NULL),
+     ('ENSAIO fixa', U&'SA\00CDDA', 1450.00, CURRENT_DATE,
+      (SELECT id FROM categories ORDER BY id LIMIT 1), true,
+      (SELECT id FROM accounts ORDER BY id LIMIT 1), NULL),
+     ('ENSAIO parcela', U&'SA\00CDDA', 102.88, CURRENT_DATE,
+      (SELECT id FROM categories ORDER BY id LIMIT 1), false,
+      (SELECT id FROM accounts ORDER BY id LIMIT 1),
+      (SELECT id FROM installments WHERE title = 'ENSAIO parcelamento'));
+
+   COMMIT;
+   ```
+   ```bash
+   psql "$ENSAIO_DIRECT_URL" -v ON_ERROR_STOP=1 -f ensaio-seed.sql
+   psql "$ENSAIO_DIRECT_URL" -At -c "SELECT type, length(type), count(*) FROM transactions
+     WHERE title LIKE 'ENSAIO%' GROUP BY type ORDER BY type"
+   ```
+   Esperado na conferência: `ENTRADA|7|1` e `SAÍDA|5|3`. O `5` é o que importa:
+   prova que o `Í` chegou como um caractere só, mesmo que o console o exiba
+   errado. A semente soma **+859,87** ao ledger da primeira conta
+   (2500,10 − 87,35 − 1450,00 − 102,88).
+
+   **Retrato antes** — a base de todas as comparações seguintes:
    ```bash
    DATABASE_URL="$ENSAIO_DIRECT_URL" python -m scripts.verify_db > ensaio-antes.txt
-   diff prod-antes.txt ensaio-antes.txt   # esperado: vazio
    ```
+   Esperado: contra `ensaio-copia.txt`, `installments` +1, `transactions` +4, e o
+   `ledger=` da primeira conta 859,87 maior.
 2. **Ver os nomes das FKs antigas** — o que a migration vai derrubar:
    ```bash
    psql "$ENSAIO_DIRECT_URL" -c '\d transactions' -c '\d installments'
@@ -199,8 +323,11 @@ byte fora do ASCII no arquivo.
    ```
    🔴 **Nome diferente é PARE.** A migration derruba as quatro primeiras por esse
    nome, que é o default documentado do Postgres — confirmado no CI (`postgres:16`,
-   schema criado pela migration inicial), **não** no Neon. Não editar a migration
-   na hora: voltar, ajustar com teste, rodar o CI de novo.
+   schema criado pela migration inicial) e **observado no Neon real em
+   06/10/2026**: as 5 FKs antigas seguem `<tabela>_<coluna>_fkey`, vistas na seção
+   `[fks]` do `verify_db`. A conferência continua obrigatória a cada execução —
+   em produção também (passo 4.3). Não editar a migration na hora: voltar,
+   ajustar com teste, rodar o CI de novo.
 3. **Migrar** — as duas revisões em sequência, numa transação só (no Postgres,
    se a segunda falhar, a primeira é desfeita junto):
    ```bash
@@ -227,24 +354,33 @@ byte fora do ASCII no arquivo.
    assinado por um segredo descartável, válido só neste processo. O login real
    não dá para ensaiar: um backend local apontando para Postgres se considera
    produção e emite cookie `Secure`, que o browser descarta em `http://localhost`.
-   ```bash
-   DATABASE_URL="$ENSAIO_DIRECT_URL" OWNER_EMAIL="$OWNER_EMAIL" \
-   AUTH_ALLOWED_EMAILS="$OWNER_EMAIL" GOOGLE_CLIENT_ID=ensaio \
-   SESSION_SECRET="ensaio-$(openssl rand -hex 24)" python - <<'PY'
-   import os
-   from fastapi.testclient import TestClient
-   from app.auth import issue_session
-   from app.main import app
-   cookie = issue_session(os.environ["OWNER_EMAIL"], os.environ["SESSION_SECRET"])
-   client = TestClient(app, cookies={"session": cookie})
-   for path in ("/api/auth/me", "/api/accounts", "/api/categories",
-                "/api/transactions", "/api/installments", "/api/investments"):
-       r = client.get(path)
-       body = r.json()
-       print(path, r.status_code, f"{len(body)} itens" if isinstance(body, list) else "")
-   print("total_balance", client.get("/api/dashboard/summary").json()["total_balance"])
-   PY
-   ```
+   Precisa do `requirements-dev.txt` (o `TestClient` usa `httpx`).
+
+   ⚠️ O bloco abaixo fica **fora do recuo da lista, na coluna 0, de
+   propósito**: dentro de um heredoc o recuo é parte do código. Com espaços na
+   frente, o Python recusa `   import os` (`IndentationError`) e o `   PY` não
+   fecha o `<<'PY'` — só `<<-` remove recuo, e só de tabs.
+
+```bash
+DATABASE_URL="$ENSAIO_DIRECT_URL" OWNER_EMAIL="$OWNER_EMAIL" \
+AUTH_ALLOWED_EMAILS="$OWNER_EMAIL" GOOGLE_CLIENT_ID=ensaio \
+SESSION_SECRET="ensaio-$(python -c 'import secrets; print(secrets.token_hex(24))')" \
+python - <<'PY'
+import os
+from fastapi.testclient import TestClient
+from app.auth import issue_session
+from app.main import app
+cookie = issue_session(os.environ["OWNER_EMAIL"], os.environ["SESSION_SECRET"])
+client = TestClient(app, cookies={"session": cookie})
+for path in ("/api/auth/me", "/api/accounts", "/api/categories",
+             "/api/transactions", "/api/installments", "/api/investments"):
+    r = client.get(path)
+    body = r.json()
+    print(path, r.status_code, f"{len(body)} itens" if isinstance(body, list) else "")
+print("total_balance", client.get("/api/dashboard/summary").json()["total_balance"])
+PY
+```
+
    Esperado: tudo `200`; as quantidades batem com `ensaio-depois.txt`;
    `total_balance` = soma dos `saldo=` do retrato.
    ⚠️ Este passo **pode escrever**: se o e-mail não for o da migration, o
@@ -308,8 +444,10 @@ Na ordem — a janela de 500 da D-Tenant-6 começa no passo 4 e termina no 6.
 ### E-mail do dono errado
 
 **O que acontece.** A migration grava `users(email = <o -x informado>)` e dá a
-esse usuário todo o dado existente. Ela **não** confere se o e-mail está na
-allowlist nem se é o que o dono usa no Google. Se for diferente:
+esse usuário todo o dado existente. Ela confere o e-mail contra
+`AUTH_ALLOWED_EMAILS` quando a variável existe, mas **não** tem como saber se é
+o e-mail que o dono usa no Google: o e-mail de **outra** pessoa da allowlist
+passa. Se for diferente:
 
 1. O dono loga com o e-mail real. `current_owner` não acha esse e-mail em
    `users`, **cria um usuário novo e o provisiona**: "Conta Principal" com
