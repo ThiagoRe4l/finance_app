@@ -14,7 +14,7 @@ preenche `owner_id` e recebe 500 nesse intervalo.
 
 Como rodar contra um banco com dado
 -----------------------------------
-    alembic upgrade head -x owner_email=<e-mail do dono dos dados>
+    alembic -x owner_email=<e-mail do dono dos dados> upgrade head
 
 O e-mail **não** fica no repositório — mesmo motivo de a allowlist não ser
 hardcoded (D-Auth-2). Com dado e sem o argumento, a migration levanta antes de
@@ -122,7 +122,7 @@ def upgrade() -> None:
     if _has_data(bind) and owner_email is None:
         raise RuntimeError(
             "Há dados financeiros sem dono. Informe a quem eles pertencem: "
-            "alembic upgrade head -x owner_email=<e-mail>"
+            "alembic -x owner_email=<e-mail> upgrade head"
         )
     if owner_email is not None:
         _check_owner_in_allowlist(owner_email)
