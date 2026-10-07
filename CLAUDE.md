@@ -980,8 +980,9 @@ funcional exigiria um domínio estável apontado para ele. Registrado antes de s
 ## 👥 Multiusuário — dados por dono e despesa compartilhada
 
 **Decidido em 03/10/2026, antes da implementação.** Testes vermelhos aprovados em 03/10/2026.
-**As quatro fatias implementadas** (ver "o que foi entregue" no fim da seção). Deploy segue o
-gate registrado na fatia 1.
+**As quatro fatias implementadas** (ver "o que foi entregue" no fim da seção). ✅ **Em produção
+desde 06/10/2026**, com o gate de deploy da fatia 1 cumprido. O app deixou de ser de usuário
+único: cada e-mail da allowlist tem os próprios dados. Ver "Produção (06/10/2026)" abaixo.
 
 Até aqui a autenticação era só um portão: todo e-mail da allowlist via **os mesmos** dados
 (uma `Account`, um conjunto de categorias). Esta fatia introduz, pela primeira vez, o conceito
@@ -1117,7 +1118,7 @@ Uma revisão do Alembic, **sem expand/contract** (decidido em 03/10/2026): cria 
 `owner_id` nulo, preenche, torna `NOT NULL`, troca os índices únicos e cria as FKs compostas.
 
 * **Os dados atuais são de uma pessoa só** (confirmado) e vão todos para um dono.
-* **O e-mail não fica no repositório:** `alembic upgrade head -x owner_email=...`, normalizado
+* **O e-mail não fica no repositório:** `alembic -x owner_email=... upgrade head`, normalizado
   em minúsculo. Mesmo motivo de a allowlist não ser hardcoded (D-Auth-2).
 * **Fail closed:** tabelas com dado e sem `owner_email` → a migration **levanta**. Em banco vazio
   (a suíte, o dev novo) o argumento é dispensável.
@@ -1307,7 +1308,9 @@ Também antecipado: a remoção de `init_db.py` e `test_seed.py` (o seed não so
 SQLite as reconstrói com a convenção `<tabela>_<coluna>_fkey` — o nome que o Postgres dá por
 default — e assim um único `drop_constraint` serve aos dois bancos.
 
-🔴 **Nada desta fatia rodou contra Postgres.** Não há Postgres neste container. O nome
+🔴 **Nada desta fatia rodou contra Postgres** quando ela foi entregue (03/10/2026). *(Superado: o
+CI do PR rodou as migrations em Postgres 16 e a produção foi migrada em 06/10/2026 — ver
+"Produção (06/10/2026)" abaixo.)* Não há Postgres neste container. O nome
 `transactions_account_id_fkey` é o default documentado do Postgres, não um nome observado no Neon.
 A primeira verificação real é o job `backend-postgres` do CI (que constrói o schema pela
 migration), e a segunda é o ensaio num branch do Neon com dado real — **os dois antes de aplicar
@@ -1318,7 +1321,7 @@ em produção**.
 confirmou no banco de verdade; a conferência continua obrigatória a cada execução, inclusive
 em produção.
 
-🔴 **Gate de deploy (decidido em 03/10/2026):**
+✅ **Gate de deploy (decidido em 03/10/2026) — cumprido em 06/10/2026:**
 
 1. **Nada das fatias 1 e 2 vai para produção separado.** "Dono existe mas filtro não" é um
    estado em que cada usuário ainda vê o dado dos outros; só se resolve com as duas juntas.
@@ -1344,9 +1347,10 @@ tudo, com `total_balance` igual à soma dos saldos. Três ressalvas, registradas
   transações (ENTRADA, SAÍDA fixa, SAÍDA de 33,33 e SAÍDA vinculada ao parcelamento). O retrato
   "antes" teve `installments: 1`, `transactions: 4` e saldo `3166.67`, então o preenchimento de
   `owner_id` e as FKs compostas **foram** exercitados. O runbook agora automatiza a semente no
-  passo 3.1. O SQL dele (com `U&'SA\00CDDA'`) só foi rodado aqui num SQLite na revisão inicial,
+  passo 3.1. O escape `U&'SA\00CDDA'` foi validado no Postgres do Neon em 06/10/2026
+  (`length = 5`). O `INSERT` completo continua rodado só aqui num SQLite na revisão inicial,
   com o escape trocado pelo literal: ledger +859,87 conferido à mão, `linhas_sem_dono: 0` e FKs
-  compostas depois do upgrade, dinheiro igual no ciclo. Em Postgres, **a validar**.
+  compostas depois do upgrade, dinheiro igual no ciclo.
 * **A restauração do dump foi pulada**, por não haver dado real: o dump foi gerado e a listagem
   conferida, mas não restaurado. Com dado real, a restauração volta a valer.
 * **O `alembic upgrade` só rodou do Windows depois do `alembic.ini` em ASCII** (seção própria,
@@ -1355,6 +1359,34 @@ tudo, com `total_balance` igual à soma dos saldos. Três ressalvas, registradas
   3.12 explícito (o padrão da máquina era 3.14), `pg_dump`/`pg_restore`/`psql` instalados à parte
   e postos no PATH, checkout pelo Git do Windows (a worktree do container aponta para
   `/workspace/...`) e a proibição de `git worktree prune` nos dois lados.
+
+**Produção (06/10/2026).** Migrada do Windows, numa checkout limpa feita pelo Git do Windows em
+`4624502`, com Python 3.12, no endpoint direto do Neon. O `alembic -x owner_email=<email> upgrade head`
+passou nas duas revisões (`96fdc067f386 -> b7d41c2e9a05 -> d3a8f1e6c720`), e o
+`verify_db --expect-owner` deu `exit=0`, `dono_esperado: OK` e `linhas_sem_dono: 0`. Produção
+tinha 1 conta, 10 categorias e 1 transação de teste (4500,00): contagens e saldo (`4500.00`)
+idênticos no `diff`, mudando só a revisão, as tabelas novas (`users: 1`, `shared_expenses: 0`,
+`shared_expense_participants: 0`) e as FKs.
+
+* **Backup:** branch `pre-multitenant` no Neon e `pg_dump` local (20,9 KB, listagem conferida).
+  ⚠️ **A restauração não foi exercitada**, nem no ensaio nem em produção.
+* **Validação:** login do dono, uma escrita, e login com a conta da esposa, que abriu **vazia** —
+  isolamento confirmado com dois usuários reais. A janela entre a migration e o deploy
+  (D-Tenant-6) não teve incidente.
+* **Lições da execução** foram para o runbook, cada uma com o sintoma: colar a URL duas vezes
+  (`invalid channel_binding value`), `read -p` imprimindo a URL, `PROD_DIRECT_URL` só no
+  comando e nunca exportada, rodar da checkout limpa e não da pasta principal (que tem
+  `.env.local` de produção e não tem `scripts/`), e conferir o `OWNER_EMAIL` contra a allowlist
+  com uma saída só `NA`/`FORA`.
+
+⬜ **Continua pendente, fora deste gate:**
+
+* **O frontend ainda não consome o contrato novo** (despesa compartilhada, participantes, o 409
+  das partes) — ver "Contrato novo com o frontend".
+* O layout mobile.
+* O pin de `ubuntu-24.04` no CI.
+* `DELETE /api/installments/{id}` (ver "Fatia futura" em "Escrita pela UI").
+* O restante do backlog ("Itens futuros", débitos registrados nas seções próprias).
 
 `backend/scripts/verify_db.py` é o retrato **somente leitura** de antes e depois: revisão,
 contagens, soma dos saldos iniciais, saldo derivado por conta, FKs com nome e `ondelete`, linhas
@@ -1366,9 +1398,9 @@ mutação sem o PRAGMA → teste vermelho), sem credencial na saída (alvo como 
 
 | Lacuna | Consequência | Quem cobre hoje |
 |---|---|---|
-| A branch **nunca foi publicada** — o workflow dispara em `pull_request` e em push para `main`, não em push de outra branch | os 4 commits nunca rodaram no CI | abrir o PR (passo 0.1 do runbook) |
-| ~~O job de Postgres roda as migrations só em banco **vazio**~~ | **Fechada em 05/10/2026** (pendente da primeira execução): no job de Postgres, a fixture `migration_engine` cria um banco Postgres próprio por teste, e todo `test_tenant_schema.py` de migration — preenchimento, recusa sem `-x`, recusa fora da allowlist — roda no motor de produção, num passo nomeado do workflow | CI + o ensaio no branch do Neon |
-| ~~`downgrade` nunca roda em Postgres~~ | **Fechada junto**: os dois testes de `downgrade` usam a mesma fixture | CI + passo 3.7 do runbook |
+| ~~A branch **nunca foi publicada**~~ — o workflow dispara em `pull_request` e em push para `main`, não em push de outra branch | **Fechada:** o PR foi aberto e o CI rodou nele, por último em `4624502` | abrir o PR (passo 0.1 do runbook) |
+| ~~O job de Postgres roda as migrations só em banco **vazio**~~ | **Fechada em 05/10/2026**, confirmada no CI do PR em `4624502` (Postgres 16.15, nenhum `skipped` no passo, 519 passed): no job de Postgres, a fixture `migration_engine` cria um banco Postgres próprio por teste, e todo `test_tenant_schema.py` de migration — preenchimento, recusa sem `-x`, recusa fora da allowlist — roda no motor de produção, num passo nomeado do workflow | CI + o ensaio no branch do Neon |
+| ~~`downgrade` nunca roda em Postgres~~ | **Fechada junto**: os dois testes de `downgrade` usam a mesma fixture, e ambos deram `PASSED` no log do passo "Migration com dado contra Postgres real" (`4624502`). O CI exercita o downgrade com dado de teste; o ensaio é a única vez com cópia do dado real | CI + passo 3.7 do runbook |
 | O CI usa `postgres:16`; o Neon pode ser outra versão | divergência de motor | passo 0.2 do runbook |
 
 O que o job de Postgres **cobre**: `96fdc → b7d4 → d3a8` em sequência, inclusive o
@@ -2483,7 +2515,7 @@ Rodar após **qualquer** mudança em `models.py` ou `schemas.py`:
    vermelho. Para atualizar o `database.db` local:
    ```bash
    cd /workspace/backend
-   .venv/bin/alembic upgrade head -x owner_email=<seu e-mail>   # o -x só é exigido com dado
+   .venv/bin/alembic -x owner_email=<seu e-mail> upgrade head   # o -x só é exigido com dado
    ```
 
    > ⚠️ **Atualizado em 03/10/2026.** Este passo mandava apagar o `database.db` e rodar
