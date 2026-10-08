@@ -360,8 +360,22 @@ Documentação escrita depois do código não conta como decisão registrada —
 2. Qual alternativa foi descartada e por quê.
 3. O impacto no contrato com o frontend (se houver).
 
-**Onde escrever:** decisão de padrão vai em "🧩 Design Patterns do Projeto"; mudança de
-contrato de API vai em "🔌 Status da Integração Frontend ↔ Backend".
+**Onde escrever:** cada tipo de decisão vai no arquivo de tópico em `docs/`:
+
+* padrão de código ou de backend (model, schema, endpoint, agregação) →
+  `docs/design-patterns.md` ("🧩 Design Patterns do Projeto");
+* mudança de contrato de API ou integração de tela → `docs/integracao-frontend.md`
+  ("🔌 Status da Integração Frontend ↔ Backend");
+* dono por registro, isolamento ou despesa compartilhada → `docs/multiusuario.md`;
+* autenticação, sessão ou allowlist → `docs/autenticacao.md`;
+* deploy, banco, pool ou migration → `docs/deploy-vercel-neon.md`;
+* variável de ambiente → `docs/variaveis-de-ambiente.md`;
+* layout e reforma mobile → `docs/mobile-first.md`;
+* item em aberto, sem decisão → `docs/backlog.md`;
+* correção de segurança em dependência → `docs/seguranca-dependencias.md`;
+* problema recorrente já resolvido → `docs/common-hurdles.md`.
+
+Assunto que não cabe em nenhum: arquivo novo em `docs/` e uma linha no índice deste arquivo.
 
 ### Por que a regra existe
 
