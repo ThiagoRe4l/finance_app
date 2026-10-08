@@ -180,13 +180,15 @@ testado num celular):
   pode ser cadastrado: o celular pela rede local **abre o app, mas não loga**.
 * A porta cadastrada tem que ser a que o `npm run dev` imprimir: o preset da Lovable sobe em
   `8080`, o `docker compose` em `5173` (pendência antiga, passo 6 do Google Cloud Console).
-  ⚠️ **Porta não verificada (08/10/2026).** `npm run dev` não roda no container do agente
-  (`vite: exec: node.exe: not found` — o `node_modules` é do Windows). A origem a cadastrar é
-  `http://localhost:<porta impressa>`; a porta sai do primeiro `npm run dev` no Windows, não
-  daqui.
+  ✅ **Porta verificada em 08/10/2026 no Windows: `8080`.** (No container do agente o
+  `npm run dev` não roda — `vite: exec: node.exe: not found`, o `node_modules` é do Windows.)
+  A origem `http://localhost:8080` **precisa estar cadastrada** em "Origens JavaScript
+  autorizadas"; hoje lá só estão `5173` e o domínio de produção. O cadastro fica com o
+  usuário. ⚠️ **O login local ainda não foi testado.**
 * Caminhos que sobram: (1) o modo dispositivo do DevTools no PC, em `localhost` — é o caminho
   dos prints da reforma mobile; (2) no Android, `chrome://inspect` com *port forwarding* faz o
-  `localhost:<porta>` do celular chegar ao PC, com origem `localhost` — **não testado**;
+  `localhost:8080` do celular (a porta do `npm run dev`) chegar ao PC, com origem `localhost`
+  — **não testado**;
   (3) produção no celular, que é real: qualquer escrita lá é dado real. Preview da Vercel não
   autentica (ver "Preview deployments").
 * Em SQLite o cookie de sessão sai **sem** `Secure` (`routers/auth.py`, `secure=not local`),
