@@ -24,6 +24,11 @@ dist/
 .env
 .env.local
 
+# Worktrees do Claude Code. O trabalho é na main; uma worktree aqui é local e
+# não pode entrar em commit.
+.claude/worktrees/
+.claude/prints/
+
 # IDEs and OS
 .DS_Store
 .idea/

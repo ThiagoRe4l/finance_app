@@ -58,8 +58,10 @@ Monorepo de controle financeiro pessoal composto por um backend em FastAPI e um 
 ### 🎨 Frontend (`/frontend`)
 * **Framework:** React + Vite + TypeScript — **TanStack Start com SSR**, não SPA estático
 * **Roteamento:** TanStack Router (`src/routes/`)
-* **Estilização e Componentes:** Tailwind CSS + Shadcn/UI (`src/components/ui/`) + Recharts
-* **Comunicação com API:** Axios/Fetch centralizado em `src/lib/api.ts`
+* **Estilização e Componentes:** Tailwind CSS + Shadcn/UI (`src/components/ui/`). Os dois
+  gráficos (`CashFlow`, `MonthlyComparison`) são barras em `div`: o Recharts está instalado,
+  mas só `components/ui/chart.tsx` o importa — nenhuma tela o usa (verificado em 07/10/2026).
+* **Comunicação com API:** `fetch` centralizado em `src/lib/api.ts`
 * **Build:** `@lovable.dev/vite-tanstack-config` (v1.8.0) embute `tanstackStart` + **Nitro**.
   ⚠️ O preset default do Nitro é `cloudflare-module` — sem fixar `node-server`, `npm run
   build` produz um Cloudflare Worker, não uma pasta servível. Ver "🚢 Deploy → D-Deploy-1".
@@ -141,6 +143,54 @@ npm run test     # testes unitários (runner nativo do Node)
 npm run lint     # ESLint
 npm run format   # Prettier
 ```
+
+### Ver as telas localmente, sem tocar produção
+
+🔴 **O `backend/.env.local` da pasta principal aponta para produção** (`DATABASE_URL`) e é
+carregado sozinho, com `override=False`. Variável no comando vence o arquivo — por isso
+`DATABASE_URL` vai explícita nos dois comandos do backend.
+
+```bash
+cd backend            # Git Bash no Windows: source .venv/Scripts/activate
+DATABASE_URL=sqlite:///./dev.db alembic upgrade head
+DATABASE_URL=sqlite:///./dev.db SESSION_SECRET=dev-local-only \
+  uvicorn app.main:app --reload --port 8000
+
+# outro terminal
+cd frontend && npm run dev   # o proxy /api do Vite encaminha para localhost:8000 (D-Auth-7)
+```
+
+* `sqlite:///./dev.db` (três barras) é **relativo ao diretório atual**: os dois comandos rodam
+  de dentro de `backend/`. `*.db` está no `.gitignore`.
+* Banco novo é vazio, então a migration não pede `-x owner_email`. O primeiro login cria o
+  usuário e o provisiona (D-Tenant-5).
+* **`SESSION_SECRET` explícito de propósito.** Sem ele, vem o de produção do `.env.local`, e
+  uma sessão emitida localmente sairia assinada com o segredo de produção.
+* O login usa `GOOGLE_CLIENT_ID` e `AUTH_ALLOWED_EMAILS` do `.env.local`, o que exige
+  `python-dotenv` (`requirements-dev.txt`).
+* **Verificado em 07/10/2026**, numa cópia do backend sem `.env.local`: a migration criou o
+  `dev.db` nas três revisões, `/health` deu 200 e `/api/accounts` deu 401. **O login não foi
+  verificado.**
+
+**Login de teste no celular — limitações** (regras do Google e do código; nada disto foi
+testado num celular):
+
+* O botão do Google só funciona numa origem cadastrada em "Origens JavaScript autorizadas", e o
+  Google só aceita `http` para `localhost`. `http://<IP-do-PC>:<porta>` na rede local não
+  pode ser cadastrado: o celular pela rede local **abre o app, mas não loga**.
+* A porta cadastrada tem que ser a que o `npm run dev` imprimir: o preset da Lovable sobe em
+  `8080`, o `docker compose` em `5173` (pendência antiga, passo 6 do Google Cloud Console).
+  ⚠️ **Porta não verificada (08/10/2026).** `npm run dev` não roda no container do agente
+  (`vite: exec: node.exe: not found` — o `node_modules` é do Windows). A origem a cadastrar é
+  `http://localhost:<porta impressa>`; a porta sai do primeiro `npm run dev` no Windows, não
+  daqui.
+* Caminhos que sobram: (1) o modo dispositivo do DevTools no PC, em `localhost` — é o caminho
+  dos prints da reforma mobile; (2) no Android, `chrome://inspect` com *port forwarding* faz o
+  `localhost:<porta>` do celular chegar ao PC, com origem `localhost` — **não testado**;
+  (3) produção no celular, que é real: qualquer escrita lá é dado real. Preview da Vercel não
+  autentica (ver "Preview deployments").
+* Em SQLite o cookie de sessão sai **sem** `Secure` (`routers/auth.py`, `secure=not local`),
+  então `http://localhost` funciona.
 
 ### ⚠️ Testes do frontend: runner nativo do Node, **não** Vitest
 
@@ -225,25 +275,26 @@ consciente da limitação — não trate o container como sandbox para operaçõ
 
 ## 📁 Estrutura de Diretórios (Frontend)
 
+Atualizada em 07/10/2026 (a anterior era da geração no Lovable).
+
 ```
 frontend/src/
-├── routes/              # Rotas TanStack Router (file-based) — 6 arquivos
-│   ├── __root.tsx       # Layout raiz
+├── routes/              # Rotas TanStack Router (file-based)
+│   ├── __root.tsx       # Shell HTML, QueryClient, Toaster, AuthGate
 │   ├── index.tsx        # Dashboard / Visão Geral
 │   ├── transacoes.tsx
 │   ├── categorias.tsx
 │   ├── parcelamentos.tsx
 │   └── relatorios.tsx
 ├── components/
-│   ├── dashboard/       # Componentes de domínio — 6 arquivos
-│   │   ├── CashFlow.tsx       # Fluxo mensal (contém mock)
-│   │   ├── CategoryBars.tsx   # Distribuição de gastos (contém mock)
-│   │   ├── Transactions.tsx   # Transações recentes (contém mock)
-│   │   ├── MetricCard.tsx     # Apresentacional (recebe props)
-│   │   ├── PageHeader.tsx     # Apresentacional (recebe props)
-│   │   └── Sidebar.tsx        # Navegação (array = config de rotas, não mock)
+│   ├── auth/            # AuthGate, GoogleSignIn, UserMenu (logout)
+│   ├── dashboard/       # CashFlow, CategoryBars, MetricCard, PageHeader, Sidebar, Transactions
+│   ├── categories/      # formulário e exclusão de categoria
+│   ├── installments/    # formulário de parcelamento
+│   ├── transactions/    # formulário e exclusão de transação
+│   ├── shared/          # CategorySelect
 │   └── ui/              # Shadcn/UI — 46 arquivos, não editar à mão
-├── lib/
+├── lib/                 # funções puras, cada uma com *.test.ts ao lado
 │   ├── api.ts           # Cliente HTTP centralizado
 │   └── utils.ts         # Helper `cn` (clsx + tailwind-merge)
 ├── hooks/
@@ -253,14 +304,8 @@ frontend/src/
 └── styles.css
 ```
 
-**Onde ficam os mocks:** não existe pasta `mocks/` nem fixtures centralizadas. Os dados
-mockados estão **inline**, como arrays `const` no topo de cada arquivo — nas rotas
-(`transacoes.tsx`, `categorias.tsx`, `parcelamentos.tsx`, `relatorios.tsx`), nos componentes
-de dashboard (`CashFlow`, `CategoryBars`, `Transactions`) e como valores literais no JSX de
-`index.tsx`. Ao integrar uma tela, o mock a ser removido está no próprio arquivo.
-
-> ⚠️ `src/components/ui/sidebar (1).tsx` tem nome com espaço e sufixo de duplicata — é um
-> artefato da geração inicial. Confira se algo importa esse arquivo antes de mexer nele.
+Não há mais mocks: as 5 telas consomem a API (ver "Status da Integração"). O
+`ui/sidebar (1).tsx`, artefato com nome duplicado, não existe mais.
 
 ---
 
@@ -504,6 +549,155 @@ um `onClick` sequer em `routes/` ou `components/dashboard/`, e os botões existe
 "Filtrar", "Exportar") são inertes. Estes endpoints são backend pronto **antes** da UI, não
 resposta a uma tela que já pede. Não existe tela de contas nem de investimentos — a
 `Sidebar` tem 5 itens e nenhum aponta para elas.
+
+## 📱 Mobile-first — reforma do frontend (decidido em 07/10/2026)
+
+**Decidido em 07/10/2026, antes da implementação.** Nada implementado ainda; a ordem está em
+"Fatias", no fim desta seção.
+
+**Por quê.** O layout foi pensado para desktop. A `Sidebar` é `hidden md:flex`: abaixo de 768 px
+não há navegação nem logout. A auditoria por leitura de código (07/10/2026), confirmada por
+prints (Chrome Android real e DevTools), achou:
+
+* valores vazando dos cartões do Dashboard em 360–390 px;
+* a tabela de Transações (`grid-cols-12`) ilegível em **toda** largura até 768 px — ~4 px por
+  coluna em 320, ~16 px em 768 com a Sidebar;
+* o card de parcelamento e o Comparativo dos Relatórios estourando a largura;
+* editar/excluir só no hover, invisíveis no toque, com alvos de 28 px;
+* a busca de Transações com 14 px, o que dá zoom no iOS.
+
+Já estava certo: `inputMode="decimal"` nos campos de dinheiro, e as grades começam em 1 coluna.
+
+🔴 **Restrição: o frontend da despesa compartilhada nasce mobile-first.** O contrato está em
+"👥 Multiusuário → Contrato novo com o frontend". Base desenhada para 360 px, `md:`/`lg:`
+ampliando. Entregá-lo desktop e adaptar depois não é aceitável.
+
+### M-1: barra inferior, conta na barra superior
+
+Abaixo de `lg`: barra inferior com as 5 telas (Início, Transações, Categorias, Parcelas,
+Relatórios — "Parcelamentos" não cabe em ~64 px) e uma barra superior fina com o menu da conta
+(e-mail e Sair).
+
+**Descartado: menu hambúrguer.** Esconde navegação de uso frequente atrás de dois toques.
+Custo aceito: ~56 px de altura mais `safe-area-inset-bottom`.
+
+### M-2: "Nova transação" vira botão flutuante, só onde é a ação principal
+
+No celular, botão flutuante no Dashboard e em Transações; no desktop continua no cabeçalho.
+Categorias e Parcelamentos mantêm a ação própria no cabeçalho — um flutuante de "nova
+transação" ali competiria com ela. Custo: a lista precisa de folga inferior para o botão não
+cobrir o último item.
+
+### M-3: formulários — o Dialog atual, responsivo só com CSS
+
+Sem Drawer, sem hook de largura e sem troca de componente na hidratação. No celular: ancorado
+embaixo (ou altura total), `max-h` em `dvh`, rolagem interna, rodapé fixo, margem lateral e
+cantos. A partir de `sm`, centrado como hoje.
+
+As classes entram **no ponto de uso** (ou num invólucro em `components/shared/`), não em
+`components/ui/`, que não se edita à mão. O `cn` usa `tailwind-merge`, então a classe do ponto
+de uso vence a do shadcn.
+
+**Descartado por ora: Drawer** (`vaul`, já instalado). O gesto de arrastar disputa com a
+rolagem de formulário longo, `Select`/`Popover` do Radix dentro dele são atrito conhecido, e
+escolher Drawer ou Dialog pela largura no SSR faz a página nascer desktop e trocar na
+hidratação. **Volta só se o print com o teclado aberto mostrar problema.** A confirmação de
+exclusão (`AlertDialog`) continua centrada, com margem lateral.
+
+**`dvh` e teclado — o que é certo e o que depende do aparelho:**
+
+* **Certo:** `dvh` acompanha a barra do browser que aparece e some com a rolagem (`svh`/`lvh` são
+  os extremos). Suporte a partir do Chrome 108 e do Safari 15.4.
+* **Depende do browser, não verificado aqui:** se o teclado virtual encolhe `dvh`. Pelo
+  comportamento documentado, o Chrome Android (108+) por padrão redimensiona só o *visual
+  viewport* (`interactive-widget=resizes-visual`), então `dvh` **não** encolhe com o teclado; a
+  meta `interactive-widget=resizes-content` muda isso no Chrome/Firefox Android, e o Safari do
+  iOS a ignora.
+* **Visto no print do Android (07/10/2026):** o Dialog fixo com o teclado cobrindo a metade de
+  baixo. O campo focado, no topo, ficou visível. **Campo mais baixo e rodapé não foram
+  testados.**
+* **Consequência:** `max-h` em `dvh` resolve a barra do browser, não garante o teclado. A prova é
+  o print com um campo baixo focado e o rodapé à vista.
+
+### M-4: listas viram cartões
+
+Cartões empilhados no celular. Na prática só Transações muda: as outras telas já são cards.
+**Descartado: rolagem horizontal**, que esconde justamente o valor e as ações.
+
+### M-5: gráficos
+
+* **Fluxo Mensal (Dashboard):** ficam as 6 colunas, compactadas no celular (gap e largura de
+  barra menores).
+* **Comparativo (Relatórios):** no celular vira lista mês a mês com entrada e saída. ⚠️ **Sem
+  coluna de saldo**: entrada − saída seria aritmética monetária no cliente, o que o front não faz
+  (ver "Nenhuma soma monetária sobrou no front").
+* Distribuição de gastos, Maiores categorias e Insights ficam como estão — já são listas.
+
+### M-6: mobile-first, e a Sidebar passa de `md` para `lg`
+
+Classes base = celular; `md:`/`lg:` ampliam. As grades já seguem isso; mudam as exceções: o
+`grid-cols-12` de Transações, o `gap-8` do card de parcelamento, o `gap-6` dos gráficos, o `p-8`
+dos cards e a Sidebar.
+
+**A Sidebar aparece só a partir de `lg` (1024 px)**; abaixo, barra inferior. Em 768 com a
+Sidebar sobram 416 px de conteúdo, e é ali que quase tudo quebrava. Custo aceito: tablet em pé
+usa a navegação de celular.
+
+### M-7: regressão sem teste de componente — três camadas
+
+1. **Funções puras com teste vermelho** (por exemplo, a configuração da navegação).
+2. **Teste de contrato sobre os arquivos** (abaixo).
+3. **Checklist visual por tela**, em 320, 360, 390, 768 e desktop, feita pelo usuário.
+
+**O teste de contrato.** Escopo: `src/routes/**/*.tsx` e `src/components/**/*.tsx`, **exceto**
+`src/components/ui/` (shadcn gerado). Padrões proibidos:
+
+| # | Proibido | Por quê | Exceção justificada |
+|---|---|---|---|
+| P1 | `grid-cols-N` com N ≥ 5 sem prefixo de breakpoint | colunas fixas em largura de celular | nenhuma |
+| P2 | `opacity-0` sem prefixo junto de `group-hover:opacity-100` | ação invisível no toque | nenhuma: esconder no hover só a partir de breakpoint (`md:opacity-0 md:group-hover:opacity-100`) |
+| P3 | `<input>` cru com `text-xs`/`text-sm` sem prefixo | o iOS dá zoom em fonte < 16 px | nenhuma: `text-base md:text-sm`, como o `ui/input` |
+| P4 | `<button>`, `<Button>`, `<a>` ou `<Link>` com altura base explícita abaixo de `h-11` (44 px) | alvo de toque | `Sidebar.tsx`: só renderiza a partir de `lg`, com mouse |
+| P5 | `100vh`, `h-screen`, `min-h-screen`, `vh` em valor arbitrário | a barra do browser no celular | nenhuma |
+| P6 | largura fixa de 320 px ou mais sem prefixo (`w-[Npx]`/`min-w-[Npx]` com N ≥ 320, `w-80` = 320 px, `w-96`) | overflow horizontal | nenhuma |
+
+* **Migração:** o teste entra na fatia 1a com uma lista de pendências (arquivo × padrão) que
+  **só diminui** — cada fatia remove as suas. Acrescentar uma entrada é mudança no próprio teste,
+  visível no diff.
+* **Guarda contra varredura vazia:** o teste assere quantos arquivos leu, no espírito de
+  `test_the_behavioural_sweep_actually_covered_something`.
+* **Limite:** é heurística sobre strings de classe. Pega a volta dos padrões conhecidos, não
+  problema novo de layout. P4 só vê altura **explícita**: alvo dimensionado por padding passa, e
+  fica com a checklist.
+
+**Item futuro: Playwright.** Viewport de 360 por rota, conferindo `scrollWidth <= innerWidth`. É
+a única opção que **mede** overflow. Custo estimado, não orçado: `@playwright/test` como
+dependência de dev; Chromium no CI (~150 MB, cacheável); um job novo de alguns minutos; backend
+real em SQLite no job, com sessão emitida pelo segredo de desenvolvimento (o `AuthGate` exige
+`/auth/me`) e dados semeados. Uma fatia própria. Não roda no container do agente.
+
+### M-8: PWA fora de escopo
+
+Manifest e ícones são baratos; o risco é o *service worker*: cache de dado financeiro com
+cookie de sessão e SSR é a mesma classe de problema do `queryClient.clear()` no logout.
+`viewport-fit=cover` e `lang="pt-BR"` entram na fatia 1a como pré-requisitos da barra inferior,
+não como PWA.
+
+### Fatias
+
+Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
+eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modules` é win32).
+
+| # | Conteúdo |
+|---|---|
+| 0 | Esta seção, a doc desatualizada (stack, árvore de diretórios), "Ver as telas localmente" e `.claude/worktrees/` no `.gitignore` |
+| 1a | `viewport-fit=cover`, `lang="pt-BR"`, `dvh` no lugar de `100vh`, posição do toast escolhida para não colidir com as barras e o botão flutuante; o teste de contrato entra aqui |
+| 1b | Componente de layout único no lugar das 5 cópias de `<div flex min-h-screen><Sidebar/><main …>`, **sem mudança visual** |
+| 1c | Barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
+| 2 | Transações: cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante, formulário de transação responsivo (M-3), que o Dashboard também usa |
+| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), Fluxo Mensal compacto, recentes com truncamento |
+| 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
+| 5 | Relatórios: Comparativo em lista no celular, totais |
 
 ---
 
@@ -1265,6 +1459,9 @@ Resposta do grupo: `{id, title, total_amount, date, creator, parts: [{email, amo
 
 Convenção de status estendida: **403** — o recurso é visível para você, mas a ação é só do criador.
 
+🔴 **O frontend deste contrato nasce mobile-first** — restrição registrada em 07/10/2026, ver
+"📱 Mobile-first".
+
 ### Testes desta fatia
 
 Estado na entrega dos vermelhos (03/10/2026), sobre uma suíte de base com 387 verdes:
@@ -1383,7 +1580,7 @@ idênticos no `diff`, mudando só a revisão, as tabelas novas (`users: 1`, `sha
 
 * **O frontend ainda não consome o contrato novo** (despesa compartilhada, participantes, o 409
   das partes) — ver "Contrato novo com o frontend".
-* O layout mobile.
+* O layout mobile — decidido em 07/10/2026, em implementação por fatias (ver "📱 Mobile-first").
 * O pin de `ubuntu-24.04` no CI.
 * `DELETE /api/installments/{id}` (ver "Fatia futura" em "Escrita pela UI").
 * O restante do backlog ("Itens futuros", débitos registrados nas seções próprias).
@@ -2284,6 +2481,8 @@ decisão registrada, teste vermelho, implementação.
 | Mecanismo contra teste dependente de data | aqui, item 0.1 |
 | Vitest para teste de componente | "Testes do frontend: runner nativo do Node" |
 | SSR sem benefício → virar SPA estático | "🚢 Deploy → D-Deploy-1", e item 0.2 abaixo |
+| Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7" |
+| PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
