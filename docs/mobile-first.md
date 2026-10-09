@@ -67,6 +67,21 @@ exclusão (`AlertDialog`) continua centrada, com margem lateral.
 * **Consequência:** `max-h` em `dvh` resolve a barra do browser, não garante o teclado. A prova é
   o print com um campo baixo focado e o rodapé à vista.
 
+**`interactive-widget=resizes-content` (decidido em 08/10/2026, fatia 1a).** Verificado na
+documentação: o MDN define que `resizes-content` redimensiona o próprio viewport (e com ele o
+bloco que contém e as unidades de viewport), e `resizes-visual` é o default; o blog do Chrome
+(developer.chrome.com/blog/viewport-resize-behavior) diz que o Chrome Android passou a
+`resizes-visual` por padrão **no 108** e que a chave `interactive-widget` chegou na **mesma
+versão**. Com `resizes-content`, o teclado encolhe o layout viewport: `dvh` encolhe junto, e o
+`max-h-[90dvh]` do Dialog passa a caber acima do teclado. O Safari do iOS ignora a chave.
+**Não verificado num aparelho** — a prova continua sendo o print com campo baixo focado.
+
+⚠️ **Impacto previsto na fatia 1c.** O mesmo encolhimento move o que é `position: fixed`
+ancorado embaixo: a **barra inferior** e o **botão flutuante** sobem junto com o teclado e
+ficam colados nele, ocupando ~56 px acima do teclado enquanto se digita (o blog do Chrome:
+elementos `position: fixed` "can end up elsewhere in the layout"). A 1c decide o que fazer —
+aceitar, ou esconder os dois com o teclado aberto — e confere no aparelho.
+
 ### M-4: listas viram cartões
 
 Cartões empilhados no celular. Na prática só Transações muda: as outras telas já são cards.
@@ -139,7 +154,7 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | # | Conteúdo |
 |---|---|
 | 0 | Esta seção, a doc desatualizada (stack, árvore de diretórios), "Ver as telas localmente" e `.claude/worktrees/` no `.gitignore` |
-| 1a | `viewport-fit=cover`, `lang="pt-BR"`, `dvh` no lugar de `100vh`, posição do toast escolhida para não colidir com as barras e o botão flutuante; o teste de contrato entra aqui |
+| 1a | `viewport-fit=cover`, `interactive-widget=resizes-content`, `lang="pt-BR"`, `dvh` no lugar de `100vh`, posição do toast escolhida para não colidir com as barras e o botão flutuante; o teste de contrato entra aqui |
 | 1b | Componente de layout único no lugar das 5 cópias de `<div flex min-h-screen><Sidebar/><main …>`, **sem mudança visual** |
 | 1c | Barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
 | 2 | Transações: cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante, formulário de transação responsivo (M-3), que o Dashboard também usa |

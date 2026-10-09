@@ -15,7 +15,7 @@ import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">
@@ -41,7 +41,16 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // `viewport-fit=cover`: pré-requisito da barra inferior (M-1), para
+      // `env(safe-area-inset-*)` valer algo. `interactive-widget`: o teclado
+      // do Android encolhe o layout viewport, e não só o visual — sem isso o
+      // `dvh` não enxerga o teclado e o rodapé do formulário fica embaixo
+      // dele (Chrome 108+; o Safari do iOS ignora). Ver docs/mobile-first.md.
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+      },
       { title: "Fisco — Organizador Financeiro Pessoal" },
       {
         name: "description",
@@ -81,7 +90,7 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>
@@ -120,8 +129,20 @@ function RootComponent() {
         Feedback de sucesso das ações de escrita. Fica no root porque toda tela
         vai precisar — sem ele, um POST bem-sucedido não dá sinal nenhum ao
         usuário além da lista mudando.
+
+        No topo, nunca embaixo: abaixo de 600 px o sonner estica o toast na
+        largura toda, e embaixo ele cobriria a barra inferior e o botão
+        flutuante (M-1, M-2). No celular desce a área segura e a barra
+        superior, cuja altura a fatia 1c define em `--app-topbar-height`.
+        Os 16px são o deslocamento padrão do sonner no celular.
       */}
-      <Toaster position="top-right" richColors />
+      <Toaster
+        position="top-right"
+        richColors
+        mobileOffset={{
+          top: "calc(env(safe-area-inset-top) + var(--app-topbar-height, 0px) + 16px)",
+        }}
+      />
       {/*
         Gate de autenticação (D-Auth-6). Envolve o `Outlet`, então as 5 telas
         herdam a proteção sem cada rota precisar lembrar — adicionar uma rota

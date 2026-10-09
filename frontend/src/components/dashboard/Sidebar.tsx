@@ -19,7 +19,7 @@ const items = [
 
 export function Sidebar() {
   return (
-    <aside className="hidden md:flex w-64 shrink-0 border-r border-border bg-background flex-col gap-12 p-8 sticky top-0 h-screen">
+    <aside className="hidden md:flex w-64 shrink-0 border-r border-border bg-background flex-col gap-12 p-8 sticky top-0 h-dvh">
       <Link to="/" className="flex items-center gap-2">
         <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
           <span className="text-primary-foreground font-semibold text-sm">

@@ -122,7 +122,7 @@ export function GoogleSignIn({ onSignedIn }: { onSignedIn: () => void }) {
   }, [clientId, handleCredential]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm text-center">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Fisco
