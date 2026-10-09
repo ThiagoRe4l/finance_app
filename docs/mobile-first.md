@@ -133,6 +133,26 @@ usa a navegação de celular.
   problema novo de layout. P4 só vê altura **explícita**: alvo dimensionado por padding passa, e
   fica com a checklist.
 
+**Endurecimento do contrato (09/10/2026, depois da revisão da 1a).** O detector
+(`src/lib/mobile-contract.ts`) continua sendo **heurística sobre strings de classe**, agora com:
+
+* **P2 com breakpoint no hover:** `opacity-0 md:group-hover:opacity-100` também é pego — abaixo do
+  breakpoint a ação fica invisível do mesmo jeito.
+* **P1 arbitrário:** `grid-cols-[…]` conta as trilhas (`repeat(N,…)` = N; senão, os pedaços
+  separados por `_`) e pega a partir de 5. `repeat(auto-fill|auto-fit,…)` passa: se adapta.
+* **P4 e P6 em rem:** valor arbitrário em `px` ou `rem` (1 rem = 16 px): `h-[2rem]`, `w-[20rem]`.
+* **Pendências por contagem:** a lista passa a arquivo × padrão × **quantidade**. Uma ocorrência a
+  mais falha; uma a menos também, para a fatia que corrigiu baixar a contagem.
+* **Guarda por diretório**, no lugar do piso de arquivos: `routes/` e cada subpasta de
+  `components/` (menos `ui/`) têm que contribuir com pelo menos um arquivo. A lista de pastas vem
+  do disco, não da varredura.
+* **Uma definição só de "classe"** (`CLASS_TOKEN`), que respeita colchetes, usada por todas as
+  regras.
+
+⚠️ **Limitação: uma violação por padrão por linha.** Uma segunda violação do mesmo padrão na
+mesma linha não é detectada — nem contada na lista de pendências. A contagem é de linhas, não de
+classes.
+
 **Item futuro: Playwright.** Viewport de 360 por rota, conferindo `scrollWidth <= innerWidth`. É
 a única opção que **mede** overflow. Custo estimado, não orçado: `@playwright/test` como
 dependência de dev; Chromium no CI (~150 MB, cacheável); um job novo de alguns minutos; backend

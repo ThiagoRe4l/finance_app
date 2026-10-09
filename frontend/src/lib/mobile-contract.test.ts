@@ -22,7 +22,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { findViolations, type Rule } from "./mobile-contract.ts";
+import {
+  comparePending,
+  findViolations,
+  type FoundCounts,
+  type PendingEntry,
+  type Rule,
+} from "./mobile-contract.ts";
 
 const SRC = fileURLToPath(new URL("..", import.meta.url));
 
@@ -91,34 +97,156 @@ test("✅ guarda P6: largura fixa de 320 px ou mais sem prefixo é pega; md:w-96
   assert.deepEqual(rules(`<div className="w-[319px]" />`), []);
 });
 
+// ── 1b. Endurecimento (revisão da 1a) — escritos antes da implementação ──
+
+test("P2 com prefixo no hover: opacity-0 + md:group-hover:opacity-100 é pego", () => {
+  // Abaixo de `md` a ação fica invisível e não há hover: é o mesmo defeito.
+  assert.deepEqual(
+    rules(`<div className="opacity-0 md:group-hover:opacity-100" />`),
+    ["P2"],
+  );
+  assert.deepEqual(
+    rules(
+      `<div className="opacity-0 group-focus-within:opacity-100 lg:group-hover:opacity-100" />`,
+    ),
+    ["P2"],
+  );
+  // Escondido só a partir do breakpoint continua permitido.
+  assert.deepEqual(
+    rules(`<div className="md:opacity-0 md:group-hover:opacity-100" />`),
+    [],
+  );
+});
+
+test("P1 com grid-cols arbitrário: 5 trilhas ou mais é pego", () => {
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[repeat(6,minmax(0,1fr))]" />`),
+    ["P1"],
+  );
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[80px_1fr_1fr_1fr_80px]" />`),
+    ["P1"],
+  );
+  assert.deepEqual(rules(`<div className="grid grid-cols-[1fr_2fr]" />`), []);
+  assert.deepEqual(
+    rules(`<div className="grid md:grid-cols-[repeat(6,1fr)]" />`),
+    [],
+  );
+  // auto-fill/auto-fit se adapta à largura: não é coluna fixa.
+  assert.deepEqual(
+    rules(
+      `<div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))]" />`,
+    ),
+    [],
+  );
+});
+
+test("P4 em rem: h-[2rem] é pego; h-[2.75rem] (44 px) passa", () => {
+  assert.deepEqual(rules(`<button className="h-[2rem]">`), ["P4"]);
+  assert.deepEqual(rules(`<Button className="size-[2.5rem]">`), ["P4"]);
+  assert.deepEqual(rules(`<button className="h-[2.75rem]">`), []);
+});
+
+test("P6 em rem: w-[20rem] e min-w-[22rem] são pegos; w-[19.5rem] e md:w-[30rem] passam", () => {
+  assert.deepEqual(rules(`<div className="w-[20rem]" />`), ["P6"]);
+  assert.deepEqual(rules(`<div className="min-w-[22rem]" />`), ["P6"]);
+  assert.deepEqual(rules(`<div className="w-[19.5rem]" />`), []);
+  assert.deepEqual(rules(`<div className="md:w-[30rem]" />`), []);
+});
+
+test("✅ uma violação por padrão por linha: vh dentro de calc() conta uma vez", () => {
+  // Com o `CLASS_TOKEN` respeitando colchetes, a classe inteira e o `100vh`
+  // cru batem na mesma linha; sem a chave por linha, contariam dois.
+  // (Escrito quando passava por acaso: o tokenizador antigo quebrava no `(`.)
+  assert.deepEqual(rules(`<div className="h-[calc(100vh-4rem)]" />`), ["P5"]);
+});
+
+const counts = (entries: [string, Rule, number][]): FoundCounts => {
+  const m: FoundCounts = new Map();
+  for (const [file, rule, n] of entries) {
+    const byRule = m.get(file) ?? new Map<Rule, number>();
+    byRule.set(rule, n);
+    m.set(file, byRule);
+  }
+  return m;
+};
+
+test("comparePending: uma ocorrência a mais que a lista falha", () => {
+  const pending: Record<string, PendingEntry[]> = {
+    "routes/a.tsx": [{ rule: "P4", count: 2, slice: "2" }],
+  };
+  const r = comparePending(counts([["routes/a.tsx", "P4", 3]]), pending);
+  assert.equal(r.extra.length, 1, JSON.stringify(r));
+  assert.match(r.extra[0], /P4 routes\/a\.tsx: 3 \(lista permite 2\)/);
+  assert.deepEqual(r.stale, []);
+});
+
+test("comparePending: padrão ou arquivo fora da lista falha", () => {
+  const r = comparePending(
+    counts([
+      ["routes/a.tsx", "P1", 1],
+      ["routes/b.tsx", "P4", 1],
+    ]),
+    { "routes/a.tsx": [{ rule: "P4", count: 1, slice: "2" }] },
+  );
+  assert.deepEqual(r.extra.sort(), [
+    "P1 routes/a.tsx: 1 (lista permite 0)",
+    "P4 routes/b.tsx: 1 (lista permite 0)",
+  ]);
+  assert.deepEqual(r.stale, ["P4 routes/a.tsx: 0 (lista diz 1, fatia 2)"]);
+});
+
+test("comparePending: contagem menor que a lista também falha (a lista só diminui)", () => {
+  const r = comparePending(counts([["routes/a.tsx", "P4", 1]]), {
+    "routes/a.tsx": [{ rule: "P4", count: 2, slice: "4" }],
+  });
+  assert.deepEqual(r.extra, []);
+  assert.deepEqual(r.stale, ["P4 routes/a.tsx: 1 (lista diz 2, fatia 4)"]);
+});
+
+test("✅ comparePending: contagem igual à lista não acusa nada", () => {
+  const r = comparePending(counts([["routes/a.tsx", "P4", 2]]), {
+    "routes/a.tsx": [{ rule: "P4", count: 2, slice: "2" }],
+  });
+  assert.deepEqual(r, { extra: [], stale: [] });
+});
+
 // ── 2. A varredura ───────────────────────────────────────────────────────
 
 /**
- * Pendências: arquivo × padrão, cada uma com a fatia que a remove. **Só
- * diminui.** Acrescentar uma entrada é mudança visível neste diff.
+ * Pendências: arquivo × padrão × **quantidade**, cada uma com a fatia que a
+ * remove. **Só diminui.** Uma ocorrência a mais falha; uma a menos também, para
+ * a fatia que corrigiu baixar a contagem aqui. Mexer nesta lista é mudança
+ * visível no diff. A contagem é de linhas: uma violação por padrão por linha.
  *
- * P5 não aparece de propósito: a fatia 1a troca todo `vh` por `dvh`.
+ * P5 não aparece de propósito: a fatia 1a trocou todo `vh` por `dvh`.
  */
-const PENDING: Record<string, { rule: Rule; slice: string }[]> = {
+const PENDING: Record<string, PendingEntry[]> = {
   "routes/transacoes.tsx": [
-    { rule: "P1", slice: "2" },
-    { rule: "P2", slice: "2" },
-    { rule: "P3", slice: "2" },
-    { rule: "P4", slice: "2" },
+    { rule: "P1", count: 2, slice: "2" },
+    { rule: "P2", count: 1, slice: "2" },
+    { rule: "P3", count: 1, slice: "2" },
+    { rule: "P4", count: 2, slice: "2" },
   ],
   "routes/categorias.tsx": [
-    { rule: "P2", slice: "4" },
-    { rule: "P4", slice: "4" },
+    { rule: "P2", count: 1, slice: "4" },
+    { rule: "P4", count: 2, slice: "4" },
   ],
-  "routes/parcelamentos.tsx": [{ rule: "P4", slice: "4" }],
-  "components/categories/CategoryFormDialog.tsx": [{ rule: "P4", slice: "4" }],
+  "routes/parcelamentos.tsx": [{ rule: "P4", count: 2, slice: "4" }],
+  "components/categories/CategoryFormDialog.tsx": [
+    { rule: "P4", count: 2, slice: "4" },
+  ],
 };
 
 /** Exceções justificadas da tabela P1–P6. */
 const EXCEPTIONS: Record<string, Rule[]> = {
-  // Só renderiza a partir de `lg`, com mouse.
+  // A tabela M-7 a isenta porque ela só renderiza a partir de `lg`, com mouse.
+  // ⚠️ Hoje ainda é `hidden md:flex`: a troca para `lg` é da fatia 1c.
   "components/dashboard/Sidebar.tsx": ["P4"],
 };
+
+/** Diretórios varridos: `routes/` e cada subpasta de `components/` menos `ui/`. */
+const SCANNED_ROOTS = ["routes", "components"];
 
 function scannedFiles(): string[] {
   const out: string[] = [];
@@ -130,63 +258,70 @@ function scannedFiles(): string[] {
       } else if (entry.name.endsWith(".tsx")) out.push(full);
     }
   };
-  walk(join(SRC, "routes"));
-  walk(join(SRC, "components"));
+  for (const root of SCANNED_ROOTS) walk(join(SRC, root));
   return out.sort();
 }
 
 const files = scannedFiles();
-const found = new Map<string, Map<Rule, string[]>>();
+const relOf = (full: string) => relative(SRC, full).split("\\").join("/");
+const found: FoundCounts = new Map();
+const hitsOf = new Map<string, string[]>();
 for (const full of files) {
-  const rel = relative(SRC, full).split("\\").join("/");
+  const rel = relOf(full);
   for (const v of findViolations(readFileSync(full, "utf8"))) {
     if (EXCEPTIONS[rel]?.includes(v.rule)) continue;
-    const byRule = found.get(rel) ?? new Map<Rule, string[]>();
-    byRule.set(v.rule, [
-      ...(byRule.get(v.rule) ?? []),
-      `L${v.line} ${v.match}`,
-    ]);
+    const byRule = found.get(rel) ?? new Map<Rule, number>();
+    byRule.set(v.rule, (byRule.get(v.rule) ?? 0) + 1);
     found.set(rel, byRule);
+    const key = `${v.rule} ${rel}`;
+    hitsOf.set(key, [...(hitsOf.get(key) ?? []), `L${v.line} ${v.match}`]);
   }
 }
+const comparison = comparePending(found, PENDING);
+const withHits = (lines: string[]) =>
+  lines.map((l) => {
+    const key = l.split(":")[0];
+    return `${l} — ${(hitsOf.get(key) ?? []).join(", ")}`;
+  });
 
-test("a varredura leu os arquivos que devia (guarda contra varredura vazia)", () => {
-  // 21 em 08/10/2026. Crescer é normal; cair para perto de zero quer dizer
-  // que o caminho mudou e a varredura passou a não ver nada.
-  assert.ok(files.length >= 21, `só ${files.length} arquivos lidos`);
+test("✅ todo diretório varrido contribui com pelo menos um arquivo", () => {
+  // Substitui o piso de 21 arquivos: um piso não pega uma pasta inteira que
+  // deixe de ser lida. A lista de pastas vem do disco, não da varredura.
+  const dirs = ["routes"];
+  for (const entry of readdirSync(join(SRC, "components"), {
+    withFileTypes: true,
+  })) {
+    if (entry.isDirectory() && entry.name !== "ui") {
+      dirs.push(`components/${entry.name}`);
+    }
+  }
+  const empty = dirs.filter(
+    (d) => !files.some((f) => relOf(f).startsWith(`${d}/`)),
+  );
+  assert.ok(dirs.length >= 7, `só ${dirs.length} pastas: ${dirs.join(", ")}`);
+  assert.deepEqual(
+    empty,
+    [],
+    `pastas sem nenhum .tsx lido: ${empty.join(", ")}`,
+  );
   assert.ok(
-    !files.some((f) => f.includes(join("components", "ui"))),
+    !files.some((f) => relOf(f).startsWith("components/ui/")),
     "components/ui/ (shadcn gerado) não entra na varredura",
   );
 });
 
-test("nenhum padrão proibido fora da lista de pendências", () => {
-  const unexpected: string[] = [];
-  for (const [file, byRule] of found) {
-    for (const [rule, hits] of byRule) {
-      if (!PENDING[file]?.some((p) => p.rule === rule)) {
-        unexpected.push(`${rule} ${file}: ${hits.join(", ")}`);
-      }
-    }
-  }
+test("nenhuma violação além da lista de pendências (arquivo, padrão e quantidade)", () => {
   assert.deepEqual(
-    unexpected,
+    comparison.extra,
     [],
-    `violações novas:\n${unexpected.join("\n")}`,
+    `violações a mais:\n${withHits(comparison.extra).join("\n")}`,
   );
 });
 
-test("toda pendência ainda viola (a lista só diminui)", () => {
-  const stale: string[] = [];
-  for (const [file, entries] of Object.entries(PENDING)) {
-    for (const { rule, slice } of entries) {
-      if (!found.get(file)?.has(rule))
-        stale.push(`${rule} ${file} (fatia ${slice})`);
-    }
-  }
+test("toda pendência ainda tem a contagem da lista (a lista só diminui)", () => {
   assert.deepEqual(
-    stale,
+    comparison.stale,
     [],
-    `pendências já resolvidas — remova da lista:\n${stale.join("\n")}`,
+    `pendências que diminuíram — atualize a lista:\n${comparison.stale.join("\n")}`,
   );
 });

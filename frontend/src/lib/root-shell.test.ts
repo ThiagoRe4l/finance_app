@@ -22,15 +22,20 @@ const read = (path: string) =>
 const root = read("../routes/__root.tsx");
 const router = read("../router.tsx");
 
+/** A meta viewport do `__root.tsx`: o texto e as chaves separadas. */
+function viewport(): { content: string; parts: string[] } {
+  const meta = /name:\s*"viewport",\s*content:\s*"([^"]*)"/.exec(root);
+  assert.ok(meta, "meta viewport não encontrada no __root.tsx");
+  return { content: meta[1], parts: meta[1].split(",").map((p) => p.trim()) };
+}
+
 test("viewport-fit=cover na meta viewport, sem perder width e initial-scale", () => {
   // Pré-requisito da barra inferior (M-1): sem ele, `env(safe-area-inset-*)`
   // vale zero e a barra fica embaixo do recorte da tela.
-  const meta = /name:\s*"viewport",\s*content:\s*"([^"]*)"/.exec(root);
-  assert.ok(meta, "meta viewport não encontrada no __root.tsx");
-  const parts = meta[1].split(",").map((p) => p.trim());
-  assert.ok(parts.includes("viewport-fit=cover"), `content: "${meta[1]}"`);
-  assert.ok(parts.includes("width=device-width"), `content: "${meta[1]}"`);
-  assert.ok(parts.includes("initial-scale=1"), `content: "${meta[1]}"`);
+  const { content, parts } = viewport();
+  assert.ok(parts.includes("viewport-fit=cover"), `content: "${content}"`);
+  assert.ok(parts.includes("width=device-width"), `content: "${content}"`);
+  assert.ok(parts.includes("initial-scale=1"), `content: "${content}"`);
 });
 
 test("interactive-widget=resizes-content na meta viewport", () => {
@@ -40,18 +45,16 @@ test("interactive-widget=resizes-content na meta viewport", () => {
   // Dialog não enxerga o teclado. Com `resizes-content` o layout viewport
   // encolhe junto (MDN; developer.chrome.com/blog/viewport-resize-behavior).
   // O Safari do iOS ignora a chave.
-  const meta = /name:\s*"viewport",\s*content:\s*"([^"]*)"/.exec(root);
-  assert.ok(meta, "meta viewport não encontrada no __root.tsx");
-  const parts = meta[1].split(",").map((p) => p.trim());
+  const { content, parts } = viewport();
   assert.ok(
     parts.includes("interactive-widget=resizes-content"),
-    `content: "${meta[1]}"`,
+    `content: "${content}"`,
   );
 });
 
 test('o documento declara lang="pt-BR"', () => {
-  // Hoje é "en": o leitor de tela lê o app em inglês e o Chrome Android
-  // oferece tradução de uma página que já está em português.
+  // Era "en" até a 1a: o leitor de tela lia o app em inglês e o Chrome Android
+  // oferecia tradução de uma página que já está em português.
   assert.match(root, /<html\s+lang="pt-BR"/);
 });
 
