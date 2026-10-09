@@ -351,7 +351,8 @@ Não há mais mocks: as 5 telas consomem a API (ver "Status da Integração"). O
 **Compromisso assumido. Vale para todo trabalho daqui em diante.**
 
 Toda feature nova que introduza **modelo, endpoint, dependência ou padrão novo** tem sua
-decisão de arquitetura registrada **neste arquivo antes** de a implementação ser pedida.
+decisão de arquitetura registrada **antes** de a implementação ser pedida, no arquivo de
+tópico em `docs/` que "Onde escrever" (abaixo) indica.
 Documentação escrita depois do código não conta como decisão registrada — conta como relato.
 
 **Registro mínimo: 3 a 5 linhas, não um RFC.**

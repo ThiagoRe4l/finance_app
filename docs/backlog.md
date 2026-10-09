@@ -157,13 +157,14 @@ migrations. **Foi o que tornou este item sensível a prazo** e o motivo de ser f
 
 ---
 
-## 🧭 Possível overflow horizontal em 1280 px — **não verificado** (registrado em 08/10/2026)
+## 🧭 Overflow horizontal em 1280 px — **verificado em 08/10/2026: sem overflow; os prints só estavam cortados**
 
-Achado nos prints de DevTools em 1280×1024 (`.claude/prints/`, 08/10/2026), nas 5 telas: o
-conteúdo encosta ou passa da borda direita — o botão "Nova transação"/"Nova categoria"/"Novo
-parcelamento", a última coluna de cartões e a legenda "Saídas". Sugere overflow horizontal
-também no desktop, não só no celular. **Visto só no print; não conferido no navegador**
-(`scrollWidth` × `innerWidth`). Fica com o usuário verificar antes de virar trabalho.
+Levantado nos prints de DevTools em 1280×1024 (`.claude/prints/`, 08/10/2026): nas 5 telas o
+conteúdo parecia encostar ou passar da borda direita — o botão "Nova transação"/"Nova
+categoria"/"Novo parcelamento", a última coluna de cartões e a legenda "Saídas".
+
+**Conferido pelo usuário no navegador:** `scrollWidth - clientWidth` deu `0` no Dashboard e em
+Transações. Não há overflow; o corte era do print. Nada a fazer.
 
 ## 🧭 Pendência de documentação — referências ao CLAUDE.md (registrada em 08/10/2026)
 
