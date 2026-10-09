@@ -166,6 +166,24 @@ categoria"/"Novo parcelamento", a última coluna de cartões e a legenda "Saída
 **Conferido pelo usuário no navegador:** `scrollWidth - clientWidth` deu `0` no Dashboard e em
 Transações. Não há overflow; o corte era do print. Nada a fazer.
 
+## 🧭 Contrato mobile-first — pontos de revisão adiados (registrado em 09/10/2026)
+
+**Não decidido, sem prazo.** Sobras das revisões dos commits `dc35ba2` e `8e3adbd` em
+`frontend/src/lib/mobile-contract.ts` e `mobile-contract.test.ts`. Nenhum deixa violação
+passar; ficam registrados em vez de corrigidos.
+
+* **`withHits` depende do texto da mensagem.** Ele relê a frase de `comparePending`
+  (`l.split(":")[0]`) para achar a chave `"<regra> <arquivo>"`. Reformular a mensagem faz as
+  linhas das violações sumirem do erro em silêncio (a falha continua, só perde o detalhe).
+  Saída provável: `comparePending` devolver `{rule, file, n, limit}` e formatar só na asserção.
+* **P2 em `cn(...)` com quebra de linha conta 2.** A mesma violação é vista pela tag de
+  abertura e pela string, em linhas diferentes. Nada escapa, mas corrigir uma baixa a lista em
+  2. A violação real de hoje (`transacoes.tsx`) é de uma linha só e conta 1.
+* **Rótulo ✅ em `comparePending: contagem igual à lista não acusa nada`.** O ✅ marca teste que
+  já passava contra o código antigo; este testa uma função que nasceu no mesmo commit.
+* **Miudezas:** linha ` *` vazia no fim do JSDoc de `comparePending`; `m.index ?? 0` repetido em
+  `findViolations`.
+
 ## 🧭 Pendência de documentação — referências ao CLAUDE.md (registrada em 08/10/2026)
 
 **Não decidido, sem prazo.** Na reorganização de 08/10/2026 as seções foram movidas para

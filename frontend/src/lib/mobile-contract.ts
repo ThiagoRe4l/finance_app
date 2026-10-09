@@ -8,6 +8,9 @@
  * em toda largura, inclusive a de celular.
  */
 
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 export type Rule = "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
 
 export type Violation = { rule: Rule; line: number; match: string };
@@ -17,6 +20,12 @@ const bare = (cls: string) => !cls.includes(":");
 
 /** O utilitário sem as variantes: `md:group-hover:opacity-100` → `opacity-100`. */
 const utility = (cls: string) => cls.slice(cls.lastIndexOf(":") + 1);
+
+/** As variantes antes do utilitário: `md:group-hover/row:x` → `["md", "group-hover/row"]`. */
+const variants = (cls: string) => cls.split(":").slice(0, -1);
+
+/** `!opacity-100` (v3) e `opacity-100!` (v4) → `opacity-100`. */
+const withoutImportant = (util: string) => util.replace(/^!|!$/g, "");
 
 /**
  * Um candidato a classe. Respeita colchetes: dentro de `[...]` valem `(`, `,`
@@ -76,16 +85,38 @@ function classUnits(source: string): Unit[] {
 const toPx = (value: string, unit: string) =>
   unit === "rem" ? Number(value) * 16 : Number(value);
 
+/** Divide por `_` só no nível de cima: dentro de `(...)` o `_` é espaço do valor. */
+function topLevelPieces(value: string): string[] {
+  const pieces: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of value) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === "_" && depth === 0) {
+      pieces.push(current);
+      current = "";
+    } else current += ch;
+  }
+  pieces.push(current);
+  return pieces.filter(Boolean);
+}
+
 /** Quantas colunas um `grid-cols-*` fixa; 0 quando se adapta à largura. */
 function gridTracks(cls: string): number {
   const scale = /^grid-cols-(\d+)$/.exec(cls);
   if (scale) return Number(scale[1]);
   const arbitrary = /^grid-cols-\[(.+)\]$/.exec(cls);
   if (!arbitrary) return 0;
-  const repeat = /^repeat\((\d+),/.exec(arbitrary[1]);
-  if (repeat) return Number(repeat[1]);
-  if (arbitrary[1].startsWith("repeat(")) return 0; // auto-fill / auto-fit
-  return arbitrary[1].split("_").length;
+  let tracks = 0;
+  for (const piece of topLevelPieces(arbitrary[1])) {
+    const repeat = /^repeat\((\d+),/.exec(piece);
+    if (repeat) tracks += Number(repeat[1]);
+    else if (piece.startsWith("repeat("))
+      return 0; // auto-fill / auto-fit
+    else tracks += 1;
+  }
+  return tracks;
 }
 
 const P4_HEIGHT =
@@ -132,10 +163,14 @@ export function findViolations(source: string): Violation[] {
 
   // P2: `opacity-0` sem prefixo junto de um `group-hover:opacity-100`, com ou
   // sem breakpoint antes — abaixo dele a ação fica invisível do mesmo jeito.
+  // Vale também grupo nomeado (`group-hover/row:`) e `!` no começo ou no fim.
   for (const unit of classUnits(source)) {
     const t = tokens(unit.text);
     const revealsOnHover = t.some(
-      (cls) => cls.includes("group-hover:") && utility(cls) === "opacity-100",
+      (cls) =>
+        variants(cls).some(
+          (v) => v === "group-hover" || v.startsWith("group-hover/"),
+        ) && withoutImportant(utility(cls)) === "opacity-100",
     );
     if (t.includes("opacity-0") && revealsOnHover) {
       add("P2", unit.index, "opacity-0 + group-hover:opacity-100");
@@ -204,4 +239,48 @@ export function comparePending(
     }
   }
   return { extra, stale };
+}
+
+// ── Escopo da varredura ──────────────────────────────────────────────────
+
+/** Raízes varridas, relativas a `src/`. Fonte única: varredura e guarda usam esta lista. */
+export const SCANNED_ROOTS = ["routes", "components"] as const;
+
+/** Pastas fora da varredura (shadcn gerado, não se edita à mão). */
+export const EXCLUDED_DIRS = ["components/ui"] as const;
+
+const isExcluded = (rel: string) =>
+  EXCLUDED_DIRS.some((d) => rel === d || rel.startsWith(`${d}/`));
+
+/** Todo `.tsx` das raízes, menos as pastas excluídas, relativo a `src` e com `/`. */
+export function scanFiles(src: string): string[] {
+  const out: string[] = [];
+  const walk = (rel: string) => {
+    for (const entry of readdirSync(join(src, rel), { withFileTypes: true })) {
+      const child = `${rel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (!isExcluded(child)) walk(child);
+      } else if (entry.name.endsWith(".tsx")) out.push(child);
+    }
+  };
+  for (const root of SCANNED_ROOTS) walk(root);
+  return out.sort();
+}
+
+/**
+ * Toda pasta das raízes (as próprias raízes inclusive), menos as excluídas e o
+ * que está dentro delas, relativa a `src` e com `/`. Caminho de código separado
+ * de `scanFiles` de propósito: a guarda compara um com o outro.
+ */
+export function scanDirs(src: string): string[] {
+  const out: string[] = [];
+  const walk = (rel: string) => {
+    out.push(rel);
+    for (const entry of readdirSync(join(src, rel), { withFileTypes: true })) {
+      const child = `${rel}/${entry.name}`;
+      if (entry.isDirectory() && !isExcluded(child)) walk(child);
+    }
+  };
+  for (const root of SCANNED_ROOTS) walk(root);
+  return out.sort();
 }

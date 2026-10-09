@@ -18,13 +18,17 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   comparePending,
+  EXCLUDED_DIRS,
   findViolations,
+  scanDirs,
+  scanFiles,
   type FoundCounts,
   type PendingEntry,
   type Rule,
@@ -211,6 +215,90 @@ test("✅ comparePending: contagem igual à lista não acusa nada", () => {
   assert.deepEqual(r, { extra: [], stale: [] });
 });
 
+// ── 1c. Endurecimento final (commit 6) — escritos antes da implementação ──
+
+test("P1 com trilhas mistas: repeat(3,1fr)_1fr_1fr são 5 colunas", () => {
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[repeat(3,1fr)_1fr_1fr]" />`),
+    ["P1"],
+  );
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[repeat(2,1fr)_repeat(4,1fr)]" />`),
+    ["P1"],
+  );
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[repeat(2,1fr)_1fr]" />`),
+    [],
+  );
+  // `_` dentro de parênteses é espaço do valor, não separador de trilha.
+  assert.deepEqual(
+    rules(`<div className="grid grid-cols-[minmax(0,_1fr)_minmax(0,_2fr)]" />`),
+    [],
+  );
+});
+
+test("P2 com grupo nomeado e com !: group-hover/row: e !opacity-100 são pegos", () => {
+  assert.deepEqual(
+    rules(`<div className="opacity-0 group-hover/row:opacity-100" />`),
+    ["P2"],
+  );
+  assert.deepEqual(
+    rules(`<div className="opacity-0 group-hover:!opacity-100" />`),
+    ["P2"],
+  );
+  // Tailwind v4 escreve o `!` no fim; o do começo ainda é aceito.
+  assert.deepEqual(
+    rules(`<div className="opacity-0 md:group-hover/row:opacity-100!" />`),
+    ["P2"],
+  );
+  assert.deepEqual(
+    rules(`<div className="md:opacity-0 md:group-hover/row:!opacity-100" />`),
+    [],
+  );
+});
+
+/** Monta uma árvore `src/` descartável no diretório temporário do SO. */
+function fixture(paths: string[]): string {
+  const src = mkdtempSync(join(tmpdir(), "mobile-contract-"));
+  for (const p of paths) {
+    const full = join(src, p);
+    if (p.endsWith("/")) mkdirSync(full, { recursive: true });
+    else {
+      mkdirSync(dirname(full), { recursive: true });
+      writeFileSync(full, "");
+    }
+  }
+  return src;
+}
+
+const tree = fixture([
+  "routes/a.tsx",
+  "routes/nested/b.tsx",
+  "components/x/c.tsx",
+  "components/x/helper.ts",
+  "components/ui/d.tsx",
+  "components/ui/inner/e.tsx",
+  "components/empty/",
+]);
+
+test("scanFiles: os .tsx das raízes, sem components/ui/", () => {
+  assert.deepEqual(scanFiles(tree), [
+    "components/x/c.tsx",
+    "routes/a.tsx",
+    "routes/nested/b.tsx",
+  ]);
+});
+
+test("scanDirs: as raízes e suas pastas, sem components/ui/ nem o que está dentro", () => {
+  assert.deepEqual(scanDirs(tree), [
+    "components",
+    "components/empty",
+    "components/x",
+    "routes",
+    "routes/nested",
+  ]);
+});
+
 // ── 2. A varredura ───────────────────────────────────────────────────────
 
 /**
@@ -245,30 +333,11 @@ const EXCEPTIONS: Record<string, Rule[]> = {
   "components/dashboard/Sidebar.tsx": ["P4"],
 };
 
-/** Diretórios varridos: `routes/` e cada subpasta de `components/` menos `ui/`. */
-const SCANNED_ROOTS = ["routes", "components"];
-
-function scannedFiles(): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (relative(SRC, full) !== join("components", "ui")) walk(full);
-      } else if (entry.name.endsWith(".tsx")) out.push(full);
-    }
-  };
-  for (const root of SCANNED_ROOTS) walk(join(SRC, root));
-  return out.sort();
-}
-
-const files = scannedFiles();
-const relOf = (full: string) => relative(SRC, full).split("\\").join("/");
+const files = scanFiles(SRC);
 const found: FoundCounts = new Map();
 const hitsOf = new Map<string, string[]>();
-for (const full of files) {
-  const rel = relOf(full);
-  for (const v of findViolations(readFileSync(full, "utf8"))) {
+for (const rel of files) {
+  for (const v of findViolations(readFileSync(join(SRC, rel), "utf8"))) {
     if (EXCEPTIONS[rel]?.includes(v.rule)) continue;
     const byRule = found.get(rel) ?? new Map<Rule, number>();
     byRule.set(v.rule, (byRule.get(v.rule) ?? 0) + 1);
@@ -284,30 +353,24 @@ const withHits = (lines: string[]) =>
     return `${l} — ${(hitsOf.get(key) ?? []).join(", ")}`;
   });
 
-test("✅ todo diretório varrido contribui com pelo menos um arquivo", () => {
+test("todo diretório varrido contribui com pelo menos um arquivo", () => {
   // Substitui o piso de 21 arquivos: um piso não pega uma pasta inteira que
-  // deixe de ser lida. A lista de pastas vem do disco, não da varredura.
-  const dirs = ["routes"];
-  for (const entry of readdirSync(join(SRC, "components"), {
-    withFileTypes: true,
-  })) {
-    if (entry.isDirectory() && entry.name !== "ui") {
-      dirs.push(`components/${entry.name}`);
-    }
-  }
-  const empty = dirs.filter(
-    (d) => !files.some((f) => relOf(f).startsWith(`${d}/`)),
-  );
+  // deixe de ser lida. Pastas e arquivos vêm das mesmas raízes e exclusões
+  // (`SCANNED_ROOTS`, `EXCLUDED_DIRS`), mas por caminhos de código separados.
+  const dirs = scanDirs(SRC);
+  const empty = dirs.filter((d) => !files.some((f) => f.startsWith(`${d}/`)));
   assert.ok(dirs.length >= 7, `só ${dirs.length} pastas: ${dirs.join(", ")}`);
   assert.deepEqual(
     empty,
     [],
     `pastas sem nenhum .tsx lido: ${empty.join(", ")}`,
   );
-  assert.ok(
-    !files.some((f) => relOf(f).startsWith("components/ui/")),
-    "components/ui/ (shadcn gerado) não entra na varredura",
-  );
+  for (const excluded of EXCLUDED_DIRS) {
+    assert.ok(
+      !files.some((f) => f.startsWith(`${excluded}/`)),
+      `${excluded}/ não entra na varredura`,
+    );
+  }
 });
 
 test("nenhuma violação além da lista de pendências (arquivo, padrão e quantidade)", () => {
