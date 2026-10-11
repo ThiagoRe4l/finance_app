@@ -71,6 +71,20 @@ test("o toast fica no topo, abaixo da área segura e da barra superior", () => {
   assert.match(toaster[0], /var\(--app-topbar-height,\s*0px\)/);
 });
 
+test("1c: offset do toast acima de 600 px também desconta a barra superior", () => {
+  // O sonner só usa `mobileOffset` até 600 px; de 601 a 1023 usa `offset`
+  // (padrão 24px) e o toast cairia sobre a barra superior (M-10). A partir de
+  // `lg` a variável é 0 e sobram os mesmos 24 px de hoje.
+  const toaster = /<Toaster\b[^>]*\/>/s.exec(root);
+  assert.ok(toaster, "<Toaster /> não encontrado no __root.tsx");
+  const offset = /\soffset=\{\{([^}]*)\}\}/s.exec(toaster[0]);
+  assert.ok(offset, "<Toaster> sem offset");
+  assert.match(
+    offset[1],
+    /top:\s*"calc\(env\(safe-area-inset-top\) \+ var\(--app-topbar-height, 0px\) \+ 24px\)"/,
+  );
+});
+
 test("telas de erro do router e do root sem vh (fora do escopo do contrato de .tsx)", () => {
   // `src/router.tsx` não está em routes/ nem components/, então a varredura
   // de P1–P6 não o vê. A tela de erro também precisa de dvh.

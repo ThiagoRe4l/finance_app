@@ -135,10 +135,17 @@ function RootComponent() {
         flutuante (M-1, M-2). No celular desce a área segura e a barra
         superior, cuja altura a fatia 1c define em `--app-topbar-height`.
         Os 16px são o deslocamento padrão do sonner no celular.
+
+        `offset` vale acima de 600 px (`mobileOffset` só até lá): de 601 a
+        1023 px a barra superior ainda existe e precisa ser descontada. A
+        partir de `lg` a variável é 0 e sobram os 24px padrão (M-10).
       */}
       <Toaster
         position="top-right"
         richColors
+        offset={{
+          top: "calc(env(safe-area-inset-top) + var(--app-topbar-height, 0px) + 24px)",
+        }}
         mobileOffset={{
           top: "calc(env(safe-area-inset-top) + var(--app-topbar-height, 0px) + 16px)",
         }}

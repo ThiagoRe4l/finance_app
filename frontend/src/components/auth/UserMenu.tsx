@@ -1,9 +1,9 @@
 /**
  * Identidade da sessão e botão de sair.
  *
- * Fica no rodapé da `Sidebar` porque é onde a navegação vive. ⚠️ A `Sidebar` é
- * `hidden md:flex`, então **não há logout no mobile** — mas também não há
- * navegação nenhuma lá, limitação que é anterior a esta fatia.
+ * Fica no rodapé da `Sidebar` (a partir de `lg`) e, abaixo de `lg`, na barra
+ * superior com `variant="topbar"` (fatia 1c, `docs/mobile-first.md` → M-10).
+ * Sem a prop, o DOM é o de antes da 1c.
  *
  * O e-mail vem da query `["auth", "me"]` que o `AuthGate` já carregou: mesma
  * chave, cache compartilhado, nenhuma requisição a mais.
@@ -17,7 +17,11 @@ import { api } from "@/lib/api.ts";
 
 type SessionUser = { email: string };
 
-export function UserMenu() {
+export function UserMenu({
+  variant = "sidebar",
+}: {
+  variant?: "sidebar" | "topbar";
+}) {
   const queryClient = useQueryClient();
 
   const { data } = useQuery<SessionUser>({
@@ -46,6 +50,32 @@ export function UserMenu() {
     },
   });
 
+  const label = logout.isPending ? "Saindo…" : "Sair";
+
+  if (variant === "topbar") {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        {data?.email && (
+          <p
+            className="min-w-0 truncate text-xs text-muted-foreground"
+            title={data.email}
+          >
+            {data.email}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => logout.mutate()}
+          disabled={logout.isPending}
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground disabled:opacity-60"
+        >
+          <LogOut className="h-4 w-4" />
+          {label}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-auto flex flex-col gap-2">
       {data?.email && (
@@ -63,7 +93,7 @@ export function UserMenu() {
         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground disabled:opacity-60"
       >
         <LogOut className="h-4 w-4" />
-        {logout.isPending ? "Saindo…" : "Sair"}
+        {label}
       </button>
     </div>
   );

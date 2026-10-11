@@ -8,6 +8,9 @@
  * mesmas classes e a mesma estrutura que as 5 rotas repetiam, então o DOM
  * renderizado é o mesmo. Os tokens estão escritos por extenso aqui, copiados
  * do código de antes da extração — não importados do componente.
+ *
+ * Na 1c (M-10) o `<main>` ganha `min-w-0` e o espaço das barras; o (b) foi
+ * alterado para isso e (e)/(f) entraram, também antes da implementação.
  */
 
 import { test } from "node:test";
@@ -30,6 +33,21 @@ const ROUTES = [
 /** Os tokens de antes da extração, iguais nas 5 rotas (conferido em 11/10/2026). */
 const WRAPPER = "flex min-h-dvh bg-background text-foreground";
 const MAIN = "flex-1 p-6 md:p-12 max-w-[1400px] mx-auto";
+
+/**
+ * O que a 1c acrescenta ao `<main>` (M-9, M-10): `min-w-0` e o espaço das
+ * barras abaixo de `lg`. `lg:pt-12 lg:pb-12` devolvem o `md:p-12` de hoje,
+ * então a partir de 1024 px o padding é o mesmo.
+ */
+const MAIN_1C = [
+  "min-w-0",
+  "pt-[calc(var(--app-topbar-height)+env(safe-area-inset-top)+1.5rem)]",
+  "pb-[calc(var(--app-bottombar-height)+env(safe-area-inset-bottom)+1.5rem)]",
+  "md:pt-[calc(var(--app-topbar-height)+env(safe-area-inset-top)+3rem)]",
+  "md:pb-[calc(var(--app-bottombar-height)+env(safe-area-inset-bottom)+3rem)]",
+  "lg:pt-12",
+  "lg:pb-12",
+].join(" ");
 
 const sorted = (classes: string) => classes.split(/\s+/).filter(Boolean).sort();
 
@@ -62,10 +80,49 @@ for (const route of ROUTES) {
   });
 }
 
-test("(b) AppShell: wrapper e <main> com exatamente os tokens de antes", () => {
+test("(b) AppShell: wrapper de antes; <main> de antes + o que a 1c acrescenta", () => {
+  // Alterado na 1c: o <main> era exatamente MAIN. Nenhum token de antes saiu.
   const src = shell();
   assert.deepEqual(sorted(classOf(src, "div")), sorted(WRAPPER));
-  assert.deepEqual(sorted(classOf(src, "main")), sorted(MAIN));
+  assert.deepEqual(sorted(classOf(src, "main")), sorted(`${MAIN} ${MAIN_1C}`));
+});
+
+test("(e) 1c: o <main> tem min-w-0 (M-9: confina o overflow, não o elimina)", () => {
+  assert.ok(sorted(classOf(shell(), "main")).includes("min-w-0"));
+});
+
+test("(g) 1c: pt/pb com md: próprios, senão md:p-12 vence entre 768 e 1023", () => {
+  // `md:p-12` sai no CSS depois de qualquer `pt-[…]` sem variante: entre 768 e
+  // 1023 px o conteúdo ficaria sob a barra superior. O `<main>` precisa de
+  // `md:pt-[…]`/`md:pb-[…]` com a altura das barras; `lg:` devolve o `p-12`.
+  const cls = sorted(classOf(shell(), "main"));
+  const has = (re: RegExp) => cls.some((c) => re.test(c));
+  assert.ok(
+    has(/^md:pt-\[calc\(var\(--app-topbar-height\)/),
+    "sem md:pt-[calc(…)]",
+  );
+  assert.ok(
+    has(/^md:pb-\[calc\(var\(--app-bottombar-height\)/),
+    "sem md:pb-[calc(…)]",
+  );
+  assert.ok(
+    cls.includes("lg:pt-12") && cls.includes("lg:pb-12"),
+    "sem lg:pt-12 lg:pb-12",
+  );
+});
+
+test("(f) 1c: <TopBar /> e <BottomNav /> dentro do wrapper, antes da <Sidebar />", () => {
+  const src = shell();
+  const div = src.indexOf("<div");
+  const top = src.indexOf("<TopBar />");
+  const bottom = src.indexOf("<BottomNav />");
+  const sidebar = src.indexOf("<Sidebar />");
+  assert.ok(top > div, "<TopBar /> ausente ou fora do wrapper");
+  assert.ok(bottom > div, "<BottomNav /> ausente ou fora do wrapper");
+  assert.ok(
+    top < sidebar && bottom < sidebar,
+    "as barras vêm antes da <Sidebar />",
+  );
 });
 
 test("(c) AppShell: <Sidebar /> antes do <main>, children dentro do <main>", () => {

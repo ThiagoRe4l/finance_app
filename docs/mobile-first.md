@@ -197,6 +197,58 @@ transbordo visível ainda dá rolagem horizontal. As causas reais ficam nas fati
 `gap-6` ≈ 396 px mínimos). **Descartado: `overflow-x-hidden`**, que cortaria valores e ações em
 silêncio (M-4).
 
+### M-10: fatia 1c — barras, medidas e empilhamento (decidido em 11/10/2026)
+
+**Decidido antes da implementação.** Só CSS para mostrar e esconder (`lg:hidden` / `hidden lg:flex`):
+sem `useIsMobile`, sem troca de componente na hidratação (mesmo motivo do M-3).
+
+* **Ordem dos itens:** 1) `min-w-0` no `<main>` (M-9); 2) navegação em fonte única; 3) barra
+  inferior; 4) barra superior; 5) Sidebar de `md` para `lg`.
+* **Fonte única da navegação:** `lib/navigation.ts`, função pura e sem ícone (ícone é componente
+  React; o mapa chave → ícone fica em `components/layout/`). Cada item tem `key`, `to`, `label`
+  (Sidebar: "Dashboard", "Parcelamentos" — **≥ 1024 px fica idêntico a hoje**) e `shortLabel`
+  (barra inferior: "Início", "Parcelas"; até 10 caracteres, para caber em ~64 px).
+* **Item ativo:** `activeNavKey(pathname)`, função pura. `/` só casa com `/`; as outras casam com
+  o caminho exato ou com um subcaminho (`/transacoes/…`), barra final ignorada; `/transacoesx` e
+  rota desconhecida dão `null`. A barra inferior a usa e marca `aria-current="page"`. **A Sidebar
+  mantém o `activeOptions={{ exact: true }}` do `Link`** — trocar o mecanismo mudaria o DOM dela.
+  Para as 5 rotas de hoje, os dois dão o mesmo resultado (testado).
+* **Medidas em variável CSS** (`styles.css`, `:root`): `--app-topbar-height: 3rem` (48 px; cabe o
+  alvo de 44 px de "Sair") e `--app-bottombar-height: 3.5rem` (56 px, M-1). A partir de `lg`
+  (`64rem`) as duas valem `0px`. A área segura vai **por fora** da variável: a barra soma
+  `env(safe-area-inset-*)` no próprio padding, e quem compensa soma também.
+* **Espaço do `<main>`:** abaixo de `lg`, `pt`/`pb` = altura da barra + área segura + o padding de
+  hoje (`1.5rem`, `md:` `3rem`); `lg:pt-12 lg:pb-12` devolvem o `p-12` de hoje. Descartado: padding
+  no wrapper, porque o pedido é o `<main>` reservar o espaço e a Sidebar `sticky h-dvh` mora no
+  wrapper.
+* **Toast:** `mobileOffset.top` já soma `var(--app-topbar-height, 0px)` (1a). **Falta o `offset`:**
+  o sonner só usa `mobileOffset` até 600 px; de 601 a 1023 px ele usa `offset` (padrão `24px`) e o
+  toast cairia sobre a barra superior. Entra
+  `offset={{ top: "calc(env(safe-area-inset-top) + var(--app-topbar-height, 0px) + 24px)" }}`; a
+  partir de `lg` a variável é 0 e dá os mesmos 24 px de hoje.
+* **Barra superior:** `fixed top-0`, só abaixo de `lg`, com a marca à esquerda e o `UserMenu` à
+  direita, em linha. O `UserMenu` ganha uma prop de disposição (`variant="topbar"`); **sem a prop,
+  o DOM é o de hoje** (a Sidebar continua chamando `<UserMenu />`). Na barra, "Sair" tem `min-h-11`.
+* **Barra inferior:** `<nav aria-label="Navegação principal">` `fixed bottom-0`, só abaixo de
+  `lg`, 5 `Link` com `flex-1` e `min-h-11`, ícone + `shortLabel`, `pb` com
+  `env(safe-area-inset-bottom)`.
+* **(a) Teclado aberto:** com `interactive-widget=resizes-content` (1a), a barra inferior sobe e
+  fica colada no teclado. **Aceito na 1c, sem JS.** Os formulários abrem em `Dialog`, cujo overlay
+  (`z-50`) cobre as barras (`z-40`): com o teclado aberto num formulário a barra não aparece. O caso
+  que sobra é a busca de Transações, fora de diálogo — conferir no aparelho na **fatia 2**, junto do
+  botão flutuante, que tem o mesmo comportamento. **Descartado:** esconder com JS (`visualViewport`
+  ou `focusin`): estado novo e heurística de "teclado aberto" que não dá para verificar no
+  container; e voltar a `resizes-visual`, que desfaz o motivo da 1a.
+* **(b) Empilhamento (z-index):** conteúdo (`auto`) < **barras `z-40`** < `Dialog`, `AlertDialog`,
+  `Select` e `Popover` do shadcn (`z-50`, em portal) < toast do sonner (`z-index: 999999999`, do
+  próprio CSS dele). As barras abaixo de 50 é o que faz o overlay do diálogo cobri-las; o botão
+  flutuante da fatia 2 entra no mesmo nível das barras. A Sidebar não tem z-index (não é fixa).
+* **Prova de ≥ 1024 px idêntico:** a Sidebar muda só `md:flex` → `lg:flex`; os itens dela vêm da
+  fonte única com os mesmos rótulos, a mesma ordem e o mesmo `exact`; o `<main>` a partir de `lg`
+  tem o mesmo padding; as barras são `lg:hidden`; o toast dá os mesmos 24 px. A única mudança
+  computada é o `min-w-0`, neutro quando nada transborda. O usuário confere por olho a 1280.
+  **Abaixo de 1024 px a mudança é intencional** (768 passa a usar a navegação de celular, M-6).
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,

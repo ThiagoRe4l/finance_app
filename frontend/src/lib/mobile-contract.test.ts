@@ -328,8 +328,8 @@ const PENDING: Record<string, PendingEntry[]> = {
 
 /** Exceções justificadas da tabela P1–P6. */
 const EXCEPTIONS: Record<string, Rule[]> = {
-  // A tabela M-7 a isenta porque ela só renderiza a partir de `lg`, com mouse.
-  // ⚠️ Hoje ainda é `hidden md:flex`: a troca para `lg` é da fatia 1c.
+  // A tabela M-7 a isenta porque ela só renderiza a partir de `lg`, com mouse
+  // (`hidden lg:flex` desde a fatia 1c).
   "components/dashboard/Sidebar.tsx": ["P4"],
 };
 

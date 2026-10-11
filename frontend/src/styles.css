@@ -104,6 +104,23 @@
   --sidebar-ring: oklch(0.704 0.04 256.788);
 }
 
+/*
+ * Alturas das barras de celular (docs/mobile-first.md → M-10). A área segura
+ * fica de fora: a barra soma env(safe-area-inset-*) no próprio padding, e quem
+ * compensa (o <main>, o toast) soma também. A partir de lg não há barra.
+ */
+:root {
+  --app-topbar-height: 3rem;
+  --app-bottombar-height: 3.5rem;
+}
+
+@media (width >= 64rem) {
+  :root {
+    --app-topbar-height: 0px;
+    --app-bottombar-height: 0px;
+  }
+}
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
