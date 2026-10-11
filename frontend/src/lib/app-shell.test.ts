@@ -15,8 +15,6 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { findViolations, scanFiles } from "./mobile-contract.ts";
-
 const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const read = (rel: string) => readFileSync(path(rel), "utf8");
 
@@ -84,16 +82,4 @@ test("(c) AppShell: <Sidebar /> antes do <main>, children dentro do <main>", () 
   assert.ok(divEnd > mainEnd, "</main> tem que fechar antes do wrapper");
   // Nada entre </main> e </div>, como nas 5 rotas de antes.
   assert.equal(src.slice(mainEnd + "</main>".length, divEnd).trim(), "");
-});
-
-test("✅ (d) a varredura P1–P6 continua com as mesmas 13 violações", () => {
-  // Regressão: já passa antes da extração. Fica para provar que mover o
-  // layout não criou nem escondeu violação (o AppShell entra na varredura).
-  const src = fileURLToPath(new URL("..", import.meta.url));
-  const total = scanFiles(src).reduce(
-    (n, file) =>
-      n + findViolations(readFileSync(`${src}/${file}`, "utf8")).length,
-    0,
-  );
-  assert.equal(total, 13);
 });

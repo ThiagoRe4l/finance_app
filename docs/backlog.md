@@ -224,6 +224,21 @@ e do invólucro da ação são as mesmas. A diferença visual é uma: o parágra
 ficar mais larga. Fora disso, o `Header` local sempre renderiza o eyebrow e o invólucro da ação
 (o `PageHeader` só com a prop). Ficou fora da 1b porque unificar mudaria o desktop (M-9).
 
+## 🧭 Fatia 1b — pontos de revisão adiados (registrado em 11/10/2026)
+
+**Não decidido, sem prazo.** Sobras da revisão do commit `ba91e0a` (`AppShell`). Nenhum deixa
+mudança de layout passar hoje.
+
+* **`classOf` e o teste (c) de `app-shell.test.ts` são frágeis.** `classOf` pega a **primeira**
+  `<div` do arquivo e o (c) localiza as tags por `indexOf`/`lastIndexOf` no texto. Funciona com o
+  componente de 16 linhas; uma `<div>` nova antes do wrapper faz o teste quebrar ou comparar a tag
+  errada.
+* **O teste (b) compara as classes ordenadas.** Uma troca de ordem passaria — não muda a
+  renderização, mas o teste não prova "token por token na mesma ordem". Hoje a ordem bate com o
+  código de antes da extração.
+* **O parágrafo do `min-w-0` mora na M-9** (`docs/mobile-first.md`), mas é decisão da 1c e mapeia
+  causas das fatias 3–5. Numa seção própria seria mais fácil de achar.
+
 ## 🧭 Pendência de documentação — referências ao CLAUDE.md (registrada em 08/10/2026)
 
 **Não decidido, sem prazo.** Na reorganização de 08/10/2026 as seções foram movidas para

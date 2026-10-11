@@ -337,6 +337,7 @@ frontend/src/
 │   ├── dashboard/       # CashFlow, CategoryBars, MetricCard, PageHeader, Sidebar, Transactions
 │   ├── categories/      # formulário e exclusão de categoria
 │   ├── installments/    # formulário de parcelamento
+│   ├── layout/          # AppShell: Sidebar + <main> das 5 telas (M-9)
 │   ├── transactions/    # formulário e exclusão de transação
 │   ├── shared/          # CategorySelect
 │   └── ui/              # Shadcn/UI — 46 arquivos, não editar à mão
