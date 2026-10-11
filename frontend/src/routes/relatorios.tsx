@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, RotateCw } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
@@ -259,59 +259,56 @@ function RelatoriosPage() {
   };
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
-        <PageHeader
-          eyebrow="Últimos 6 meses"
-          title="Relatórios"
-          description="Tendências e comparativos para entender seu comportamento financeiro."
+    <AppShell>
+      <PageHeader
+        eyebrow="Últimos 6 meses"
+        title="Relatórios"
+        description="Tendências e comparativos para entender seu comportamento financeiro."
+      />
+
+      {isError ? (
+        <ErrorBanner
+          message={
+            error instanceof Error ? error.message : "Erro desconhecido."
+          }
+          onRetry={retry}
+          isRetrying={isFetching}
         />
+      ) : isPending ? (
+        <LoadingState />
+      ) : (
+        <>
+          {/* Os três totais vêm prontos — o mock somava os 6 meses no cliente. */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <TotalCard
+              label="Total de Receitas"
+              value={formatBRL(overview.data.total_revenues)}
+              className="text-[oklch(0.55_0.15_155)]"
+            />
+            <TotalCard
+              label="Total de Despesas"
+              value={formatBRL(overview.data.total_expenses)}
+              className="text-destructive"
+            />
+            <TotalCard
+              label="Economia média"
+              value={formatBRL(overview.data.average_savings)}
+            />
+          </section>
 
-        {isError ? (
-          <ErrorBanner
-            message={
-              error instanceof Error ? error.message : "Erro desconhecido."
-            }
-            onRetry={retry}
-            isRetrying={isFetching}
-          />
-        ) : isPending ? (
-          <LoadingState />
-        ) : (
-          <>
-            {/* Os três totais vêm prontos — o mock somava os 6 meses no cliente. */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <TotalCard
-                label="Total de Receitas"
-                value={formatBRL(overview.data.total_revenues)}
-                className="text-[oklch(0.55_0.15_155)]"
-              />
-              <TotalCard
-                label="Total de Despesas"
-                value={formatBRL(overview.data.total_expenses)}
-                className="text-destructive"
-              />
-              <TotalCard
-                label="Economia média"
-                value={formatBRL(overview.data.average_savings)}
-              />
-            </section>
+          <MonthlyComparison months={overview.data.monthly_comparative} />
 
-            <MonthlyComparison months={overview.data.monthly_comparative} />
-
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <TopCategories categories={overview.data.top_categories} />
-              <Insights
-                items={buildReportInsights({
-                  activeCount: installments.data.active_count,
-                  monthlyCommitted: installments.data.monthly_committed_amount,
-                })}
-              />
-            </section>
-          </>
-        )}
-      </main>
-    </div>
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TopCategories categories={overview.data.top_categories} />
+            <Insights
+              items={buildReportInsights({
+                activeCount: installments.data.active_count,
+                monthlyCommitted: installments.data.monthly_committed_amount,
+              })}
+            />
+          </section>
+        </>
+      )}
+    </AppShell>
   );
 }

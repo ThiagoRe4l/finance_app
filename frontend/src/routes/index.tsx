@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, AlertCircle, RotateCw } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryBars } from "@/components/dashboard/CategoryBars";
 import { Transactions } from "@/components/dashboard/Transactions";
@@ -218,44 +218,41 @@ function Index() {
   });
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
-        <Header
-          action={
-            /*
+    <AppShell>
+      <Header
+        action={
+          /*
               "Buscar" removido: era botão sem campo e sem estado, e o Dashboard
               não tem lista para filtrar — são agregados e 7 transações
               recentes. Mesma lógica do "Filtrar" de Transações: inerte ao lado
               de ações que funcionam é pior que ausente.
             */
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" />
-              Nova transação
-            </button>
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            Nova transação
+          </button>
+        }
+      />
+
+      {isError ? (
+        <ErrorBanner
+          message={
+            error instanceof Error ? error.message : "Erro desconhecido."
           }
+          onRetry={() => refetch()}
+          isRetrying={isFetching}
         />
+      ) : isPending ? (
+        <LoadingState />
+      ) : (
+        <Summary data={data} />
+      )}
 
-        {isError ? (
-          <ErrorBanner
-            message={
-              error instanceof Error ? error.message : "Erro desconhecido."
-            }
-            onRetry={() => refetch()}
-            isRetrying={isFetching}
-          />
-        ) : isPending ? (
-          <LoadingState />
-        ) : (
-          <Summary data={data} />
-        )}
-
-        {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
-        <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
-      </main>
-    </div>
+      {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
+      <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+    </AppShell>
   );
 }

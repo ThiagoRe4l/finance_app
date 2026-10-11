@@ -215,6 +215,15 @@ overflow por conteúdo (texto que não quebra, `flex` sem `min-w-0`, soma de gap
 não é string de classe. A causa não foi investigada. É o caso que o item futuro do Playwright
 (`docs/mobile-first.md` → M-7) mediria.
 
+## 🧭 Cabeçalho do Dashboard: `Header` local × `PageHeader` (registrado em 11/10/2026)
+
+**Não decidido; tratar na fatia 3.** `routes/index.tsx` tem uma função `Header` local; as outras
+4 telas usam `components/dashboard/PageHeader.tsx`. As classes do `<header>`, do eyebrow, do `h1`
+e do invólucro da ação são as mesmas. A diferença visual é uma: o parágrafo de descrição do
+`PageHeader` tem `max-w-xl`, o do `Header` local não — no desktop a descrição do Dashboard pode
+ficar mais larga. Fora disso, o `Header` local sempre renderiza o eyebrow e o invólucro da ação
+(o `PageHeader` só com a prop). Ficou fora da 1b porque unificar mudaria o desktop (M-9).
+
 ## 🧭 Pendência de documentação — referências ao CLAUDE.md (registrada em 08/10/2026)
 
 **Não decidido, sem prazo.** Na reorganização de 08/10/2026 as seções foram movidas para

@@ -166,6 +166,37 @@ cookie de sessão e SSR é a mesma classe de problema do `queryClient.clear()` n
 `viewport-fit=cover` e `lang="pt-BR"` entram na fatia 1a como pré-requisitos da barra inferior,
 não como PWA.
 
+### M-9: `AppShell` — layout externo único (decidido em 11/10/2026, fatia 1b)
+
+**Decidido.** `components/layout/AppShell.tsx` renderiza o que as 5 rotas repetem hoje, com as
+mesmas classes: `<div className="flex min-h-dvh bg-background text-foreground">`, `<Sidebar />`
+e `<main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">` com `children`. Conferido
+token por token em 11/10/2026: o wrapper, a `Sidebar` e o `<main>` são idênticos nas 5; nada
+fica entre `</main>` e `</div>`. O cabeçalho **fica fora**: o Dashboard tem `Header` local
+sem o `max-w-xl` do `PageHeader`, e unificar mudaria o desktop (backlog, fatia 3).
+
+**Descartado: rota de layout do TanStack** (pathless, `_app.tsx`). Mexe na árvore de rotas e no
+`routeTree.gen.ts` — raio maior que uma extração sem mudança visual.
+
+**Prova de "sem mudança visual":** estática — classes e estrutura idênticas, então o DOM
+renderizado é o mesmo — mais o teste de contrato sobre arquivo (as 5 rotas usam `<AppShell>` e
+não têm mais `<Sidebar`/`<main`; os tokens do `AppShell` escritos por extenso no teste; `Sidebar`
+antes do `<main>`; varredura P1–P6 inalterada). **Conferência visual pelo usuário: a 1280 e a
+768 px, nas 5 telas** (Início, Transações, Categorias, Parcelamentos, Relatórios). Sem impacto no
+contrato com o backend.
+
+**`min-w-0` no `<main>` — primeiro item da 1c, com teste vermelho.** O `<main>` é `flex-1`
+dentro de um `flex`; item de flex tem `min-width: auto` e cresce até a largura mínima do
+conteúdo, então um descendente largo alarga a página inteira e todos os cards vazam junto
+(Parcelamentos a 768 com a Sidebar, Relatórios a 360, Dashboard a 720 — prints do usuário).
+⚠️ **O `min-w-0` só confina:** o descendente largo continua saindo da própria caixa, e esse
+transbordo visível ainda dá rolagem horizontal. As causas reais ficam nas fatias:
+**3** — Dashboard a 720, causa não identificada por leitura, **a medir**; **4** — a grade
+`md:grid-cols-3` dos cards de resumo de Parcelamentos (trilha `1fr` não encolhe abaixo de
+"COMPROMETIDO/MÊS" + `p-6`); **5** — as barras do Comparativo (6 colunas × 2 barras `w-5` +
+`gap-6` ≈ 396 px mínimos). **Descartado: `overflow-x-hidden`**, que cortaria valores e ações em
+silêncio (M-4).
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -175,8 +206,8 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 |---|---|
 | 0 | Esta seção, a doc desatualizada (stack, árvore de diretórios), "Ver as telas localmente" e `.claude/worktrees/` no `.gitignore` |
 | 1a | `viewport-fit=cover`, `interactive-widget=resizes-content`, `lang="pt-BR"`, `dvh` no lugar de `100vh`, posição do toast escolhida para não colidir com as barras e o botão flutuante; o teste de contrato entra aqui |
-| 1b | Componente de layout único no lugar das 5 cópias de `<div flex min-h-screen><Sidebar/><main …>`, **sem mudança visual** |
-| 1c | Barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
+| 1b | Componente de layout único (`AppShell`, M-9) no lugar das 5 cópias de `<div flex min-h-dvh><Sidebar/><main …>`, **sem mudança visual** |
+| 1c | `min-w-0` no `<main>` do `AppShell` (primeiro item, M-9), barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
 | 2 | Transações: cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante, formulário de transação responsivo (M-3), que o Dashboard também usa |
 | 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), Fluxo Mensal compacto, recentes com truncamento |
 | 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |

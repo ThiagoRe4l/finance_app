@@ -9,7 +9,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
@@ -216,74 +216,71 @@ function TransacoesPage() {
   );
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
-        <PageHeader
-          eyebrow="Histórico"
-          title="Transações"
-          description="Histórico completo de entradas e saídas."
-          action={
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" /> Nova
-            </button>
+    <AppShell>
+      <PageHeader
+        eyebrow="Histórico"
+        title="Transações"
+        description="Histórico completo de entradas e saídas."
+        action={
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" /> Nova
+          </button>
+        }
+      />
+
+      <div className="mb-6 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por descrição ou categoria..."
+          className="w-full md:w-96 pl-10 pr-4 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      {isError ? (
+        <ErrorBanner
+          message={
+            error instanceof Error ? error.message : "Erro desconhecido."
           }
+          onRetry={() => refetch()}
+          isRetrying={isFetching}
         />
-
-        <div className="mb-6 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por descrição ou categoria..."
-            className="w-full md:w-96 pl-10 pr-4 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+      ) : (
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+          <TableHeader />
+          {isPending ? (
+            <LoadingRows />
+          ) : visible.length === 0 ? (
+            <EmptyState hasSearch={search.trim() !== ""} />
+          ) : (
+            visible.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                onEdit={() => setEditing(transaction)}
+                onDelete={() => setDeleting(transaction)}
+              />
+            ))
+          )}
         </div>
+      )}
 
-        {isError ? (
-          <ErrorBanner
-            message={
-              error instanceof Error ? error.message : "Erro desconhecido."
-            }
-            onRetry={() => refetch()}
-            isRetrying={isFetching}
-          />
-        ) : (
-          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-            <TableHeader />
-            {isPending ? (
-              <LoadingRows />
-            ) : visible.length === 0 ? (
-              <EmptyState hasSearch={search.trim() !== ""} />
-            ) : (
-              visible.map((transaction) => (
-                <TransactionRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  onEdit={() => setEditing(transaction)}
-                  onDelete={() => setDeleting(transaction)}
-                />
-              ))
-            )}
-          </div>
-        )}
-
-        <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
-        <TransactionFormDialog
-          key={editing?.id}
-          open={editing !== undefined}
-          onOpenChange={(open) => !open && setEditing(undefined)}
-          transaction={editing}
-        />
-        <DeleteTransactionDialog
-          transaction={deleting}
-          onOpenChange={(open) => !open && setDeleting(undefined)}
-        />
-      </main>
-    </div>
+      <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+      <TransactionFormDialog
+        key={editing?.id}
+        open={editing !== undefined}
+        onOpenChange={(open) => !open && setEditing(undefined)}
+        transaction={editing}
+      />
+      <DeleteTransactionDialog
+        transaction={deleting}
+        onOpenChange={(open) => !open && setDeleting(undefined)}
+      />
+    </AppShell>
   );
 }

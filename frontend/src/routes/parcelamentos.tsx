@@ -12,7 +12,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
@@ -280,86 +280,83 @@ function ParcelamentosPage() {
   };
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
-        <PageHeader
-          eyebrow="Mês corrente"
-          title="Parcelamentos"
-          description="Compras parceladas em aberto e impacto mensal no orçamento."
-          action={
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" /> Novo parcelamento
-            </button>
-          }
-        />
+    <AppShell>
+      <PageHeader
+        eyebrow="Mês corrente"
+        title="Parcelamentos"
+        description="Compras parceladas em aberto e impacto mensal no orçamento."
+        action={
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" /> Novo parcelamento
+          </button>
+        }
+      />
 
-        {isError ? (
-          <ErrorBanner
-            message={
-              error instanceof Error ? error.message : "Erro desconhecido."
-            }
-            onRetry={retry}
-            isRetrying={isFetching}
-          />
-        ) : isPending ? (
-          <>
-            <LoadingTotals />
-            <LoadingCards />
-          </>
-        ) : (
-          <>
-            {/*
+      {isError ? (
+        <ErrorBanner
+          message={
+            error instanceof Error ? error.message : "Erro desconhecido."
+          }
+          onRetry={retry}
+          isRetrying={isFetching}
+        />
+      ) : isPending ? (
+        <>
+          <LoadingTotals />
+          <LoadingCards />
+        </>
+      ) : (
+        <>
+          {/*
               Os três totais vêm de `GET /installments/summary` — nenhum é
               somado no cliente. "Comprometido" e "Ativos" excluem quitados; o
               mock somava a listagem inteira e inflava os dois.
             */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <TotalCard
-                label="Comprometido/mês"
-                value={formatBRL(summary.data.monthly_committed_amount)}
-              />
-              <TotalCard
-                label="Saldo a pagar"
-                value={formatBRL(summary.data.remaining_total_amount)}
-              />
-              <TotalCard
-                label="Parcelamentos ativos"
-                value={String(summary.data.active_count)}
-              />
-            </section>
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <TotalCard
+              label="Comprometido/mês"
+              value={formatBRL(summary.data.monthly_committed_amount)}
+            />
+            <TotalCard
+              label="Saldo a pagar"
+              value={formatBRL(summary.data.remaining_total_amount)}
+            />
+            <TotalCard
+              label="Parcelamentos ativos"
+              value={String(summary.data.active_count)}
+            />
+          </section>
 
-            {list.data.length === 0 ? (
-              <div className="bg-card rounded-2xl border border-border shadow-sm px-6 py-16 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Nenhum parcelamento cadastrado ainda.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {list.data.map((installment) => (
-                  <InstallmentCard
-                    key={installment.id}
-                    installment={installment}
-                    onEdit={() => setEditing(installment)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+          {list.data.length === 0 ? (
+            <div className="bg-card rounded-2xl border border-border shadow-sm px-6 py-16 text-center">
+              <p className="text-sm text-muted-foreground">
+                Nenhum parcelamento cadastrado ainda.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {list.data.map((installment) => (
+                <InstallmentCard
+                  key={installment.id}
+                  installment={installment}
+                  onEdit={() => setEditing(installment)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
-        <InstallmentFormDialog open={isCreating} onOpenChange={setIsCreating} />
-        <InstallmentFormDialog
-          key={editing?.id}
-          open={editing !== undefined}
-          onOpenChange={(open) => !open && setEditing(undefined)}
-          installment={editing}
-        />
-      </main>
-    </div>
+      <InstallmentFormDialog open={isCreating} onOpenChange={setIsCreating} />
+      <InstallmentFormDialog
+        key={editing?.id}
+        open={editing !== undefined}
+        onOpenChange={(open) => !open && setEditing(undefined)}
+        installment={editing}
+      />
+    </AppShell>
   );
 }
