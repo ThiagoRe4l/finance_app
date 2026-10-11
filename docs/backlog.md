@@ -184,6 +184,37 @@ passar; ficam registrados em vez de corrigidos.
 * **Miudezas:** linha ` *` vazia no fim do JSDoc de `comparePending`; `m.index ?? 0` repetido em
   `findViolations`.
 
+**Sobras da revisão do commit `01c0214`** (registradas em 10/10/2026). Também nenhuma deixa
+violação real passar hoje:
+
+* **`node:fs` em `src/lib/`.** `mobile-contract.ts` importa `readdirSync`, e `lib/` é descrito
+  como "funções puras". Só os testes o importam; um componente que importasse `findViolations`
+  quebraria o bundle. Saída provável: varredura (`scanFiles`/`scanDirs`) num módulo só de teste.
+* **Duas razões de mudança no mesmo arquivo:** o detector muda com o Tailwind, a varredura com
+  a árvore de pastas. Mesma saída do item acima.
+* **A guarda de diretórios perdeu independência.** `scanFiles` e `scanDirs` usam o mesmo
+  `isExcluded`: uma exclusão errada encolhe as duas listas juntas, e só o piso de 7 pastas
+  acusa. Pasta que seja link simbólico é pulada pelas duas sem aviso (já era assim antes).
+* **Laço sobre `EXCLUDED_DIRS` é tautológico:** confere a implementação contra a própria
+  constante. O teste da árvore temporária atenua, porque escreve `components/ui` por extenso.
+* **A árvore temporária dos testes não é apagada:** sobra uma pasta no diretório temporário a
+  cada execução. Saída: `after(() => rmSync(..., { recursive: true }))`.
+* **`repeat(auto-fill,…)` junto de 5 trilhas fixas passa no P1**, porque qualquer
+  `auto-fill`/`auto-fit` torna a grade adaptável. Não aparece em nenhuma tela.
+* **P2 assimétrico no `!`:** aceita `!` no lado que revela, não no `opacity-0`
+  (`!opacity-0 group-hover:opacity-100` passa).
+* **`variants()` divide por `:` sem respeitar colchetes.** Não muda resultado hoje; fica frágil
+  para variante arbitrária com `:` dentro.
+
+## 🧭 Relatórios com overflow horizontal a 360 px que o P6 não pegou (registrado em 10/10/2026)
+
+**Não decidido; investigar na fatia 5.** No emulador Android (360×800), visto pelo usuário, o
+Relatórios tem overflow horizontal: os cards e o Comparativo passam da largura da página. O
+contrato não acusou porque o P6 só vê **classe de largura fixa** (`w-[Npx]`, `w-80`, `w-96`);
+overflow por conteúdo (texto que não quebra, `flex` sem `min-w-0`, soma de gaps e paddings)
+não é string de classe. A causa não foi investigada. É o caso que o item futuro do Playwright
+(`docs/mobile-first.md` → M-7) mediria.
+
 ## 🧭 Pendência de documentação — referências ao CLAUDE.md (registrada em 08/10/2026)
 
 **Não decidido, sem prazo.** Na reorganização de 08/10/2026 as seções foram movidas para

@@ -215,7 +215,7 @@ test("✅ comparePending: contagem igual à lista não acusa nada", () => {
   assert.deepEqual(r, { extra: [], stale: [] });
 });
 
-// ── 1c. Endurecimento final (commit 6) — escritos antes da implementação ──
+// ── Trilhas mistas, P2 com grupo nomeado e `!`, escopo único da varredura ──
 
 test("P1 com trilhas mistas: repeat(3,1fr)_1fr_1fr são 5 colunas", () => {
   assert.deepEqual(

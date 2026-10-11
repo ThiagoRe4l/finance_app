@@ -182,20 +182,28 @@ npm run format   # Prettier
 ### Ver as telas localmente, sem tocar produção
 
 🔴 **O `backend/.env.local` da pasta principal aponta para produção** (`DATABASE_URL`) e é
-carregado sozinho, com `override=False`. Variável no comando vence o arquivo — por isso
-`DATABASE_URL` vai explícita nos dois comandos do backend.
+carregado sozinho, com `override=False`. Variável do ambiente vence o arquivo — por isso
+`DATABASE_URL` e `SESSION_SECRET` são exportadas **uma vez por terminal**, antes de qualquer
+comando do backend. Terminal novo esquece o `export`: sem ele, o `alembic` roda contra
+produção.
 
 ```bash
-cd backend            # Git Bash no Windows: source .venv/Scripts/activate
-DATABASE_URL=sqlite:///./dev.db alembic upgrade head
-DATABASE_URL=sqlite:///./dev.db SESSION_SECRET=dev-local-only \
-  uvicorn app.main:app --reload --port 8000
+cd backend            # Git Bash no Windows: venv (sem ponto); a .venv é a do container Linux
+py -3.12 -m venv venv && source venv/Scripts/activate && pip install -r requirements-dev.txt  # 1ª vez
+source venv/Scripts/activate                                                                # depois
+export DATABASE_URL=sqlite:///./dev.db SESSION_SECRET=dev-local-only
+echo "$DATABASE_URL"  # conferir ANTES do alembic: tem que sair o sqlite local
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
 
-# outro terminal
+# outro terminal — exige VITE_API_BASE_URL=/api no frontend/.env.local (abaixo)
 cd frontend && npm run dev   # o proxy /api do Vite encaminha para localhost:8000 (D-Auth-7)
 ```
 
-* `sqlite:///./dev.db` (três barras) é **relativo ao diretório atual**: os dois comandos rodam
+* **`VITE_API_BASE_URL=/api` no `frontend/.env.local`** (gitignorado). Sem ela, o front chama
+  `http://localhost:8000/api` direto, fora do proxy, e o login falha com "Failed to fetch".
+  A variável é lida na subida do Vite: depois de criá-la, reiniciar o `npm run dev`.
+* `sqlite:///./dev.db` (três barras) é **relativo ao diretório atual**: os comandos rodam
   de dentro de `backend/`. `*.db` está no `.gitignore`.
 * Banco novo é vazio, então a migration não pede `-x owner_email`. O primeiro login cria o
   usuário e o provisiona (D-Tenant-5).
@@ -204,8 +212,10 @@ cd frontend && npm run dev   # o proxy /api do Vite encaminha para localhost:800
 * O login usa `GOOGLE_CLIENT_ID` e `AUTH_ALLOWED_EMAILS` do `.env.local`, o que exige
   `python-dotenv` (`requirements-dev.txt`).
 * **Verificado em 07/10/2026**, numa cópia do backend sem `.env.local`: a migration criou o
-  `dev.db` nas três revisões, `/health` deu 200 e `/api/accounts` deu 401. **O login não foi
-  verificado.**
+  `dev.db` nas três revisões, `/health` deu 200 e `/api/accounts` deu 401.
+* ✅ **Login local verificado em 10/10/2026 pelo usuário**, no Windows (Git Bash), em
+  `http://localhost:8080`, com esta receita: `export` + `echo` antes do `alembic` e
+  `VITE_API_BASE_URL=/api` no `frontend/.env.local`.
 
 **Login de teste no celular — limitações** (regras do Google e do código; nada disto foi
 testado num celular):
@@ -218,8 +228,7 @@ testado num celular):
   ✅ **Porta verificada em 08/10/2026 no Windows: `8080`.** (No container do agente o
   `npm run dev` não roda — `vite: exec: node.exe: not found`, o `node_modules` é do Windows.)
   A origem `http://localhost:8080` **precisa estar cadastrada** em "Origens JavaScript
-  autorizadas"; hoje lá só estão `5173` e o domínio de produção. O cadastro fica com o
-  usuário. ⚠️ **O login local ainda não foi testado.**
+  autorizadas" — está, desde que o login local funcionou em 10/10/2026 (acima).
 * Caminhos que sobram: (1) o modo dispositivo do DevTools no PC, em `localhost` — é o caminho
   dos prints da reforma mobile; (2) no Android, `chrome://inspect` com *port forwarding* faz o
   `localhost:8080` do celular (a porta do `npm run dev`) chegar ao PC, com origem `localhost`
