@@ -89,11 +89,11 @@ Cartões empilhados no celular. Na prática só Transações muda: as outras tel
 
 ### M-5: gráficos
 
-* **Fluxo Mensal (Dashboard):** ficam as 6 colunas, compactadas no celular (gap e largura de
-  barra menores).
-* **Comparativo (Relatórios):** no celular vira lista mês a mês com entrada e saída. ⚠️ **Sem
-  coluna de saldo**: entrada − saída seria aritmética monetária no cliente, o que o front não faz
-  (ver "Nenhuma soma monetária sobrou no front").
+* **Fluxo Mensal (Dashboard) e Comparativo (Relatórios):** ⚠️ **substituído em 13/10/2026 pela
+  M-11** — os dois ficam em barras, com rolagem horizontal **dentro do gráfico** no celular. A
+  decisão anterior (Fluxo Mensal compactado; Comparativo virando lista mês a mês) saiu.
+* ⚠️ Continua valendo: **sem coluna de saldo** — entrada − saída seria aritmética monetária no
+  cliente, o que o front não faz (ver "Nenhuma soma monetária sobrou no front").
 * Distribuição de gastos, Maiores categorias e Insights ficam como estão — já são listas.
 
 ### M-6: mobile-first, e a Sidebar passa de `md` para `lg`
@@ -123,7 +123,9 @@ usa a navegação de celular.
 | P4 | `<button>`, `<Button>`, `<a>` ou `<Link>` com altura base explícita abaixo de `h-11` (44 px) | alvo de toque | `Sidebar.tsx`: só renderiza a partir de `lg`, com mouse |
 | P5 | `100vh`, `h-screen`, `min-h-screen`, `vh` em valor arbitrário | a barra do browser no celular | nenhuma |
 | P6 | largura fixa de 320 px ou mais sem prefixo (`w-[Npx]`/`min-w-[Npx]` com N ≥ 320, `w-80` = 320 px, `w-96`) | overflow horizontal | nenhuma |
+| P7 | `overflow-x-auto`, `overflow-x-scroll`, `overflow-auto` ou `overflow-scroll`, com ou sem prefixo (`overflow-y-*` é livre) | rolagem horizontal esconde valor e ações (M-4) | `components/shared/MonthScroller.tsx`, e só numa tag com `role="region"`, `tabIndex={0}` e `aria-label` |
 
+* **P7:** decidido em 13/10/2026 (M-11); entra na fatia 1d.
 * **Migração:** o teste entra na fatia 1a com uma lista de pendências (arquivo × padrão) que
   **só diminui** — cada fatia remove as suas. Acrescentar uma entrada é mudança no próprio teste,
   visível no diff.
@@ -194,7 +196,8 @@ transbordo visível ainda dá rolagem horizontal. As causas reais ficam nas fati
 **3** — Dashboard a 720, causa não identificada por leitura, **a medir**; **4** — a grade
 `md:grid-cols-3` dos cards de resumo de Parcelamentos (trilha `1fr` não encolhe abaixo de
 "COMPROMETIDO/MÊS" + `p-6`); **5** — as barras do Comparativo (6 colunas × 2 barras `w-5` +
-`gap-6` ≈ 396 px mínimos). **Descartado: `overflow-x-hidden`**, que cortaria valores e ações em
+`gap-6` ≈ 396 px mínimos) — ⚠️ **medido e confirmado em 13/10/2026, tratado na fatia 1d (M-11)**.
+**Descartado: `overflow-x-hidden`**, que cortaria valores e ações em
 silêncio (M-4).
 
 ### M-10: fatia 1c — barras, medidas e empilhamento (decidido em 11/10/2026)
@@ -249,6 +252,99 @@ sem `useIsMobile`, sem troca de componente na hidratação (mesmo motivo do M-3)
   computada é o `min-w-0`, neutro quando nada transborda. O usuário confere por olho a 1280.
   **Abaixo de 1024 px a mudança é intencional** (768 passa a usar a navegação de celular, M-6).
 
+### M-11: fatia 1d — barra inferior cortada e gráficos com rolagem interna (decidido em 13/10/2026)
+
+**Decidido antes da implementação**, a partir da validação da 1c no DevTools (360/390/768).
+
+**Diagnóstico — confirmado por medição.** A barra inferior aparecia cortada (só os ícones, sem
+rótulos, colada na borda) em **Relatórios** (o primeiro relato atribuía a tela ao Dashboard; era
+Relatórios). As classes das barras estão certas (`BottomNav.tsx`: `fixed bottom-0 inset-x-0`;
+`TopBar.tsx`: `fixed top-0 inset-x-0`), e nenhum ancestral tem `transform`, `filter`,
+`backdrop-filter`, `will-change`, `contain`, `container-type`, `perspective` ou `overflow`
+(cadeia: `AppShell` → fragmento do `AuthGate` → `body` → `html`). Quem rola é a janela. A causa é
+o **transbordo horizontal do documento**: no Chrome em modo celular, com o conteúdo mais largo
+que o viewport, a escala mínima cai abaixo de 1 e o *layout viewport* — a referência de
+`position: fixed` — cresce na mesma proporção, **inclusive na altura**. O `bottom-0` se ancora
+abaixo da borda visível; a barra de cima não sofre, porque os dois topos coincidem.
+
+Medido pelo usuário a 440×956, modo Mobile:
+
+| Tela | `cw` | `sw` | `vvH` | `navBottom` | `largos` |
+|---|---|---|---|---|---|
+| Relatórios | 440 | 453 | 956 | 985 | as colunas do Comparativo (`div.flex-1…`, `div.flex.items-end.gap-1.5.h-56…`, `div.w-5…`), borda direita em 453 |
+| Transações | = `cw` | = `cw` | — | = `vvH` | vazio |
+| Dashboard (dados zerados) | = `cw` | = `cw` | — | = `vvH` | vazio |
+
+Previsão para Relatórios: `vvH × (sw/cw − 1)` = 956 × (453/440 − 1) ≈ 28 px; medido: 985 − 956 =
+29 px. O 453 bate com as classes: a 440, o `<main>` tem 392 px úteis (`p-6`), o conteúdo do card
+começa em x = 57 (24 + borda + `p-8`) e as colunas exigem 6 × 46 + 5 × 24 = 396 px. Transações
+não transborda porque o card da tabela tem `overflow-hidden`.
+
+**Consequência:** nada muda nas barras. A barra fica inteira quando o documento não transborda —
+a correção é tirar o transbordo. **Descartado:** `overflow-x-hidden`/`clip` no wrapper, pelo mesmo
+motivo do M-9 (corta valor e ação em silêncio).
+
+**Procedimento de verificação** (Console do DevTools, modo Mobile; o Chrome exige digitar
+`allow pasting` antes de colar):
+
+```js
+({cw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth, vvH: Math.round(visualViewport.height), vvScale: visualViewport.scale, navBottom: (()=>{const n=[...document.querySelectorAll('nav')].find(n=>getComputedStyle(n).position==='fixed'); return n?Math.round(n.getBoundingClientRect().bottom):null})(), largos: [...document.querySelectorAll('main *')].filter(e=>e.getBoundingClientRect().right>document.documentElement.clientWidth+0.5).map(e=>[e.tagName,e.className.toString().slice(0,60),Math.round(e.getBoundingClientRect().right)]).slice(0,10)})
+```
+
+Esperado: `sw === cw`, `navBottom === vvH`, `largos` vazio. A partir de `lg`, `navBottom` é o da
+barra escondida e não vale.
+
+**Decisão: os gráficos de meses rolam para o lado dentro do card** (pedido do usuário; substitui
+o M-5). Valem para os dois — e só eles — gráficos de meses: **Fluxo Mensal**
+(`components/dashboard/CashFlow.tsx`) e **Comparativo Mensal** (`MonthlyComparison` em
+`routes/relatorios.tsx`).
+
+* **Estrutura:** componente único `components/shared/MonthScroller.tsx` (fora de `ui/`). O título
+  e a legenda ficam **fora** da área rolável, num cabeçalho com `flex-wrap gap-x-4` (hoje é
+  `justify-between` sem `gap`, e no Comparativo título e legenda ficam no limite da largura). A
+  área rolável tem `overflow-x-auto`; dentro dela, a trilha é `w-max` e cada coluna tem largura
+  fixa e `flex-none` (pelo menos a das duas barras: 28 px no Fluxo, 46 px no Comparativo), então
+  **a largura do conteúdo sai do número de meses** (n × coluna + (n − 1) × gap) **sem nenhum
+  `min-w-[…]`**, que seria P6. A partir de `md`, `md:w-full` e `md:flex-1` devolvem o layout de
+  hoje (cabe: 606 px úteis no Comparativo a 768; ~374 px no Fluxo a 1024 com a Sidebar).
+* **Acessibilidade:** a área rolável tem `role="region"`, `aria-label` e `tabIndex={0}` (o Safari
+  não torna área rolável focável sozinho), e anel de foco visível. Custo aceito: uma parada de Tab
+  no desktop, onde nada rola.
+* **Posição inicial: o mês mais recente**, que é o último da API (ordem cronológica). Via
+  `useLayoutEffect` (`scrollLeft = scrollWidth`) **dependente de `months.length`**: refetch com o
+  mesmo número de meses não faz a posição pular. Sem salto na hidratação: o gráfico só monta no
+  cliente, depois do `useQuery` (nenhuma rota tem loader). A **barra de rolagem fica visível** — é
+  o que avisa que há meses à esquerda. Contras aceitos: a leitura começa no fim da série, e os
+  meses antigos ficam fora da vista. **Descartado:** `flex-row-reverse` com o array invertido (só
+  CSS, mas a ordem de leitura fica invertida em relação à visual) e `justify-end` (o transbordo à
+  esquerda fica inalcançável pela rolagem).
+* **P7 no contrato:** hoje nenhuma regra fala de overflow. O P7 (tabela do M-7) proíbe rolagem
+  horizontal fora do `MonthScroller` — o que também barra de vez a rolagem horizontal da lista de
+  Transações, descartada no M-4. `overflow-y-auto` (os formulários em `Dialog`) continua livre.
+  `style={{ minWidth }}` fica evitado: o detector não lê `style` além do `100vh`.
+* **Descartados:** a lista mês a mês do M-5 (pedido do usuário); só compactar as colunas (o
+  Comparativo, com barras `w-5`, não cabe a 360).
+* **Sem impacto no contrato com o backend.**
+
+**Fora da 1d, registrado:**
+
+* **Cartão de métrica do Dashboard — risco não confirmado.** Por leitura, a 360 o valor em
+  `text-2xl` (sem quebra: o `Intl` põe espaço inseparável depois de "R$") tem ~98 px úteis na
+  grade `grid-cols-2`. A medição foi com dados zerados e não transbordou. **Medir na fatia 3**,
+  com o teste de "R$ 100.000,00" que ela já prevê.
+* **Cabeçalho da tabela de Transações sobreposto a 360/390** (DATA sobre DESCRIÇÃO, CATEGORIA
+  sobre TIPO): `grid-cols-12` é `repeat(12, minmax(0, 1fr))`, as trilhas encolhem a ~7 px e cada
+  título, uma palavra só, sai da célula e é desenhado sobre a vizinha. As linhas têm o mesmo
+  mecanismo. **Fica para a fatia 2**, que troca a tabela por cartões (M-4): um remendo no
+  cabeçalho esconderia só metade e seria jogado fora.
+* **Rótulos de mês não se sobrepõem:** cada coluna tem pelo menos a largura do próprio rótulo; o
+  problema era só o transbordo.
+* Linhas nome × valor, texto alternativo por mês e Playwright: ver `docs/backlog.md`.
+
+**Critério de aceite da 1d:** o usuário roda o procedimento acima em Relatórios a 360, 390 e 440 e
+espera `sw === cw`, `navBottom === vvH` e `largos` vazio. Se `largos` listar algo, o que aparecer
+vira uma fatia seguinte, com decisão própria.
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -260,10 +356,11 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 1a | `viewport-fit=cover`, `interactive-widget=resizes-content`, `lang="pt-BR"`, `dvh` no lugar de `100vh`, posição do toast escolhida para não colidir com as barras e o botão flutuante; o teste de contrato entra aqui |
 | 1b | Componente de layout único (`AppShell`, M-9) no lugar das 5 cópias de `<div flex min-h-dvh><Sidebar/><main …>`, **sem mudança visual** |
 | 1c | `min-w-0` no `<main>` do `AppShell` (primeiro item, M-9), barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
+| 1d | Gráficos de meses com rolagem interna (`MonthScroller`, M-11): Fluxo Mensal e Comparativo, cabeçalhos com `flex-wrap gap-x-4`, regra P7 no contrato |
 | 2 | Transações: cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante, formulário de transação responsivo (M-3), que o Dashboard também usa |
-| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), Fluxo Mensal compacto, recentes com truncamento |
+| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento |
 | 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
-| 5 | Relatórios: Comparativo em lista no celular, totais |
+| 5 | Relatórios: totais (o Comparativo saiu para a 1d, M-11) |
 
 ---
 

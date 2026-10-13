@@ -10,7 +10,7 @@ decisão registrada, teste vermelho, implementação.
 | Mecanismo contra teste dependente de data | aqui, item 0.1 |
 | Vitest para teste de componente | "Testes do frontend: runner nativo do Node" |
 | SSR sem benefício → virar SPA estático | "🚢 Deploy → D-Deploy-1", e item 0.2 abaixo |
-| Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7" |
+| Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7"; defeito real em "Pendências da validação da fatia 1c" |
 | PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
@@ -214,6 +214,31 @@ contrato não acusou porque o P6 só vê **classe de largura fixa** (`w-[Npx]`, 
 overflow por conteúdo (texto que não quebra, `flex` sem `min-w-0`, soma de gaps e paddings)
 não é string de classe. A causa não foi investigada. É o caso que o item futuro do Playwright
 (`docs/mobile-first.md` → M-7) mediria.
+
+⚠️ **Atualizado em 13/10/2026: causa medida.** As colunas do Comparativo (`sw` 453 contra `cw`
+440), que também empurravam a barra inferior para fora da tela. Decisão e correção em
+`docs/mobile-first.md` → M-11 (fatia 1d). Os cards de totais não apareceram na medição.
+
+## 🧭 Pendências da validação da fatia 1c (registradas em 13/10/2026)
+
+**Não decidido; cada item tem a fatia indicada.** Saíram da análise da M-11
+(`docs/mobile-first.md`) e ficaram fora da 1d de propósito.
+
+* **Linhas nome × valor sem `gap` nem `min-w-0`** — fatias 3 e 5. `CategoryBars.tsx` (nome da
+  categoria × valor), "Maiores categorias" em `routes/relatorios.tsx` e
+  `components/dashboard/Transactions.tsx` (Transações Recentes) usam `flex justify-between` sem
+  `gap`. Nome com espaço quebra linha; nome de **palavra única** longa (mais de ~160 px a 360)
+  empurra o valor para fora do card. Por leitura, não medido: conferir com uma categoria chamada,
+  por exemplo, "Supermercadoatacadista".
+* **Texto alternativo por mês nos gráficos** (`sr-only`, por exemplo "Out: entradas R$ X, saídas
+  R$ Y", com `formatBRL` sobre as strings da API, sem aritmética). Hoje as barras não dizem nada ao
+  leitor de tela. Ficou fora da 1d para não misturar com a rolagem.
+* **Promover o Playwright do M-7.** O defeito da M-11 passou pelas duas camadas automáticas:
+  `layout-bars.test.ts` assere as classes das barras, que estavam certas, e o contrato P1–P6 só
+  vê string de classe. A causa estava em outro arquivo e no layout calculado. Só uma medição no
+  browser (`scrollWidth <= clientWidth` e a borda de baixo da barra dentro do `visualViewport`)
+  pegaria — a mesma do procedimento manual da M-11. Continua sem orçamento; o argumento passou a
+  ter um defeito real, não uma hipótese.
 
 ## 🧭 Cabeçalho do Dashboard: `Header` local × `PageHeader` (registrado em 11/10/2026)
 
