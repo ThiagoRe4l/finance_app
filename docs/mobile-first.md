@@ -361,16 +361,36 @@ P4 × 2 (editar e excluir com `h-7`) e P3 × 1 (busca com `text-sm`).
 **2a — formulário de transação (M-3).** `TransactionFormDialog.tsx` muda; o Dashboard o usa e
 muda junto, sem tocar em `routes/index.tsx`. Classes no ponto de uso; `components/ui/` não muda.
 
-* **Ancorado embaixo no celular**, com margem lateral, cantos e a área segura de baixo;
-  `max-h` em `dvh`. A partir de `sm`, centrado como hoje (os tokens `sm:` devolvem o que existe).
+* **Ancorado embaixo no celular**, com margem lateral, cantos e a área segura de baixo; `max-h`
+  em `dvh` descontando as duas áreas seguras (com `viewport-fit=cover`, o topo de um formulário
+  longo iria para baixo do entalhe). `outline-none` no diálogo: no toque o foco vai para ele, e
+  o contorno do browser desenharia em volta da folha inteira. **Com variantes `max-sm:`** sobre
+  as classes do `ui/dialog` (posição, largura — `max-sm:w-auto max-sm:max-w-none`, senão o
+  `w-full` com `left-2 right-2` estoura 8 px —, translação, cantos e a animação): a partir de
+  `sm` as classes do shadcn ficam sem nenhuma sobreposição e o diálogo é o de hoje por
+  construção. A animação do shadcn entra de `left-1/2` e `top-[48%]` com zoom; abaixo de `sm`
+  ela é anulada (`slide-in-from-left-0`, `slide-in-from-bottom-8`, `zoom-in-100` e os
+  `slide-out`/`zoom-out` equivalentes), e a folha só sobe. **Ordem do CSS verificada em
+  24/10/2026**, compilando com `tailwindcss` 4.3.3 e `tw-animate-css` 1.4.0 fora do repo: as
+  regras `max-sm:` saem dentro de `@media (width < 40rem)`, depois das do shadcn, com a mesma
+  especificidade, e vencem.
 * **Rodapé fixo:** o conteúdo do formulário rola por dentro (`overflow-y-auto`, livre no P7) e o
-  `DialogFooter` fica fora da rolagem. Botões do rodapé com `h-11 sm:h-9`.
+  `DialogFooter` fica fora da rolagem. Botões do rodapé com `h-11 sm:h-9`, e `max-sm:gap-2` entre
+  eles quando empilham. O miolo tem `-mx-1 px-1`, para a rolagem não cortar o anel de foco dos
+  campos. `Popover` e `Select` são portalizados (`ui/popover.tsx`, `ui/select.tsx`): o
+  `overflow-hidden` do diálogo não os corta. Vale em toda largura: no desktop só faz diferença se
+  o formulário passar de `90dvh`.
 * **Alvos de 44 px no celular, sem editar `ui/`:** a linha de cada `Switch` ("Despesa fixa",
-  "Desvincular") vira alvo inteiro com `min-h-11`; `Input`, `SelectTrigger` e o botão de data com
-  `h-11 sm:h-9` (o acréscimo de inventário aplicado ao formulário). Os campos de texto já têm
-  16 px no celular (`ui/input.tsx`: `text-base md:text-sm`); o `SelectTrigger` tem `text-sm`, mas
-  é `<button>` e não dá zoom. **O X de fechar do shadcn fica como está** ("Cancelar" é a
-  alternativa de 44 px).
+  "Desvincular") vira alvo inteiro: a linha ganha `relative max-sm:min-h-11` e o `<Label>` do
+  shadcn, que continua onde está, estica a área de clique sobre ela só abaixo de `sm`
+  (`max-sm:after:absolute max-sm:after:inset-0`); no desktop a linha é a de hoje. Fazer do
+  `<Label>` o invólucro da linha mudaria o desktop: o `leading-none` dele define `--tw-leading`,
+  que é herdado pela descrição. `Input`, `SelectTrigger` e o botão de data com `h-11 sm:h-9` (o
+  acréscimo de inventário aplicado ao formulário). A categoria usa o `CategorySelect`
+  compartilhado, que ganha a prop opcional `triggerClassName`; sem ela o gatilho é o de hoje, e
+  Parcelamentos não muda. Os campos de texto já têm 16 px no celular (`ui/input.tsx`: `text-base
+  md:text-sm`); o `SelectTrigger` tem `text-sm`, mas é `<button>` e não dá zoom. **O X de fechar
+  do shadcn fica como está** ("Cancelar" é a alternativa de 44 px).
 * **Sem teclado sozinho em tela de toque.** O `autoFocus` da descrição foca o campo na montagem,
   antes do efeito do `FocusScope` do Radix — que então vê o foco já dentro do diálogo e **nem
   dispara** `onOpenAutoFocus` (`@radix-ui/react-focus-scope` 1.1.16). Tirar só o `autoFocus` não
@@ -383,7 +403,8 @@ muda junto, sem tocar em `routes/index.tsx`. Classes no ponto de uso; `component
   diálogo só abre no cliente). O `autoFocus` do `Calendar`, dentro do `Popover` da data, fica:
   não é campo de texto. Categorias e Parcelamentos têm o mesmo `autoFocus` — fatia 4.
 * **Exclusão (`DeleteTransactionDialog.tsx`):** o `AlertDialog` continua centrado e ganha margem
-  lateral no celular (M-3).
+  lateral e cantos no celular (`max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg`, M-3); Cancelar e
+  Excluir com `h-11 sm:h-9`.
 
 **2b — lista de Transações (M-4).** Muda `routes/transacoes.tsx` e cria
 `components/shared/FloatingActionButton.tsx`.
@@ -418,8 +439,13 @@ muda junto, sem tocar em `routes/index.tsx`. Classes no ponto de uso; `component
   o adota na fatia 3**; `routes/index.tsx` não muda na 2.
 * O cabeçalho sobreposto (M-11) some junto com a tabela abaixo de `lg`.
 
-**Verificação pelo usuário.** No 2a, num Android real, abrir "Nova transação", focar "Valor" e o
-campo mais baixo, e ver o rodapé acima do teclado; e conferir que o teclado não abre sozinho. No
+**Verificação pelo usuário.** No 2a, num Android real — **observação no aparelho, não garantia**:
+abrir "Nova transação" e conferir que o teclado não abre sozinho; focar "Valor" e o campo mais
+baixo e conferir que **o campo focado fica visível e que dá para chegar ao rodapé** (rolando, se
+preciso). Não se promete o rodapé acima do teclado: no padrão do Chrome Android
+(`resizes-visual`) o teclado não redimensiona o layout, e o rodapé pode ficar sob ele sem ser
+defeito. A 1a pôs `interactive-widget=resizes-content`, com o qual o layout deveria encolher —
+nunca verificado num aparelho; o Safari do iOS ignora a chave. No
 2b, rodar o procedimento da M-11 em Transações a 360, 390 e 768, com uma descrição de 60
 caracteres sem espaço e o valor "R$ 100.000,00"; conferir os alvos na aba Computed (≥ 44 × 44);
 rolar até o fim e ver o último cartão descoberto; focar a busca num Android e ver onde a barra e o

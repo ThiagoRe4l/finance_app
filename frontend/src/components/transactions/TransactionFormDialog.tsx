@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CalendarIcon, Loader2 } from "lucide-react";
@@ -84,6 +84,7 @@ export function TransactionFormDialog({
   const [values, setValues] = useState<TransactionFormInput>(emptyValues);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [unlink, setUnlink] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   /*
    * ⚠️ Debt registrada no CLAUDE.md: `account_id` é obrigatório no POST, mas não
@@ -212,8 +213,36 @@ export function TransactionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
+      {/*
+        Abaixo de `sm` vira folha ancorada embaixo (M-3, M-12). As `max-sm:`
+        sobrepõem posição, largura e animação do `ui/dialog` só no celular; a
+        partir de `sm` o diálogo fica centrado como hoje. A animação do shadcn
+        vem de `left-1/2` e `top-[48%]`: anulada aqui, a folha só sobe de baixo,
+        sem zoom. A altura desconta as duas áreas seguras (o topo não vai para
+        baixo do entalhe). Em toda largura quem rola é o miolo e o rodapé fica
+        fora da rolagem — no desktop só aparece se o formulário passar de 90dvh.
+        `outline-none`: no toque o foco vai para o próprio diálogo, e o contorno
+        do browser desenharia em volta da folha inteira.
+      */}
+      <DialogContent
+        className="flex flex-col overflow-hidden outline-none sm:max-w-lg max-h-[90dvh] max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] max-sm:top-auto max-sm:bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] max-sm:left-2 max-sm:right-2 max-sm:w-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-xl max-sm:data-[state=open]:slide-in-from-left-0 max-sm:data-[state=open]:slide-in-from-bottom-8 max-sm:data-[state=closed]:slide-out-to-left-0 max-sm:data-[state=closed]:slide-out-to-bottom-8 max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100"
+        onOpenAutoFocus={(event) => {
+          /*
+           * Em tela de toque o teclado não abre sozinho: o foco vai para o
+           * próprio diálogo (o leitor de tela entra nele). Com mouse, a
+           * descrição recebe o foco, como antes. O foco automático do próprio
+           * campo saiu: com ele o Radix nem dispara este evento. E sem
+           * `preventDefault()` o Radix focaria o campo selecionando o texto.
+           */
+          event.preventDefault();
+          if (window.matchMedia("(pointer: coarse)").matches) {
+            (event.currentTarget as HTMLElement | null)?.focus();
+          } else {
+            titleRef.current?.focus();
+          }
+        }}
+      >
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
             <DialogTitle>
               {isEditing ? "Editar transação" : "Nova transação"}
@@ -225,15 +254,16 @@ export function TransactionFormDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-5 py-6">
+          <div className="grid gap-5 py-6 min-h-0 flex-1 overflow-y-auto -mx-1 px-1">
             <div className="grid gap-2">
               <Label htmlFor="tx-title">Descrição</Label>
               <Input
                 id="tx-title"
+                ref={titleRef}
                 value={values.title}
                 onChange={(e) => update("title", e.target.value)}
                 placeholder="Supermercado"
-                autoFocus
+                className="h-11 sm:h-9"
               />
               {errors.title && (
                 <p className="text-xs text-destructive">{errors.title}</p>
@@ -247,7 +277,7 @@ export function TransactionFormDialog({
                   value={values.type}
                   onValueChange={(v) => update("type", v)}
                 >
-                  <SelectTrigger id="tx-type">
+                  <SelectTrigger id="tx-type" className="h-11 sm:h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -268,6 +298,7 @@ export function TransactionFormDialog({
                   onChange={(e) => update("amount", e.target.value)}
                   placeholder="342,50"
                   inputMode="decimal"
+                  className="h-11 sm:h-9"
                 />
                 {errors.amount && (
                   <p className="text-xs text-destructive">{errors.amount}</p>
@@ -282,7 +313,7 @@ export function TransactionFormDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    className="justify-start font-normal"
+                    className="justify-start font-normal h-11 sm:h-9"
                   >
                     <CalendarIcon className="h-4 w-4" />
                     {values.date ? formatFullDate(values.date) : "Selecione"}
@@ -313,6 +344,7 @@ export function TransactionFormDialog({
               <Label htmlFor="tx-category">Categoria</Label>
               <CategorySelect
                 id="tx-category"
+                triggerClassName="h-11 sm:h-9"
                 value={values.category_id}
                 onValueChange={(v) => update("category_id", v)}
               />
@@ -333,7 +365,7 @@ export function TransactionFormDialog({
                   }
                   disabled={values.is_fixed}
                 >
-                  <SelectTrigger id="tx-installment">
+                  <SelectTrigger id="tx-installment" className="h-11 sm:h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -358,9 +390,20 @@ export function TransactionFormDialog({
               </div>
             )}
 
-            <div className="flex items-center justify-between">
+            {/*
+              A linha inteira é o alvo do Switch no celular: abaixo de `sm` o
+              `::after` do rótulo cobre a linha (`relative`), e clicar no rótulo
+              aciona o Switch. O `<Label>` do shadcn fica como está, e no
+              desktop a linha se comporta como antes.
+            */}
+            <div className="relative flex items-center justify-between max-sm:min-h-11">
               <div className="grid gap-1">
-                <Label htmlFor="tx-fixed">Despesa fixa</Label>
+                <Label
+                  htmlFor="tx-fixed"
+                  className="max-sm:after:absolute max-sm:after:inset-0"
+                >
+                  Despesa fixa
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   {/* O backend rejeita as duas juntas com 422; aqui o controle
                       já fica travado antes de o usuário montar o estado. */}
@@ -381,9 +424,14 @@ export function TransactionFormDialog({
             )}
 
             {isEditing && transaction?.installment && (
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="relative flex items-center justify-between rounded-lg border border-border p-3 max-sm:min-h-11">
                 <div className="grid gap-1">
-                  <Label htmlFor="tx-unlink">Desvincular do parcelamento</Label>
+                  <Label
+                    htmlFor="tx-unlink"
+                    className="max-sm:after:absolute max-sm:after:inset-0"
+                  >
+                    Desvincular do parcelamento
+                  </Label>
                   <p className="text-xs text-muted-foreground">
                     Parcela {transaction.installment.current_installment}/
                     {transaction.installment.total_installments}. O lançamento
@@ -399,16 +447,21 @@ export function TransactionFormDialog({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="max-sm:gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={mutation.isPending}
+              className="h-11 sm:h-9"
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button
+              type="submit"
+              disabled={mutation.isPending}
+              className="h-11 sm:h-9"
+            >
               {mutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin" />
               )}
