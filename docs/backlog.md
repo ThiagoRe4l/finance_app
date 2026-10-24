@@ -233,6 +233,14 @@ não é string de classe. A causa não foi investigada. É o caso que o item fut
 * **Texto alternativo por mês nos gráficos** (`sr-only`, por exemplo "Out: entradas R$ X, saídas
   R$ Y", com `formatBRL` sobre as strings da API, sem aritmética). Hoje as barras não dizem nada ao
   leitor de tela. Ficou fora da 1d para não misturar com a rolagem.
+* **Affordance de rolagem horizontal no toque** (ex.: gradiente na borda esquerda) — avaliar
+  depois de o usuário ver num aparelho real. A 1d deixa a barra de rolagem visível como aviso de
+  que há meses à esquerda, mas no Android ela some sozinha depois de um instante: no toque o
+  aviso é mais fraco que no desktop. Fora do escopo da 1d e sem teste possível no container.
+* **Rotação de tela não volta a rolagem ao mês mais recente.** Ao girar o aparelho de horizontal
+  (≥ 768 px, nada rola) para vertical, o gráfico fica nos meses antigos: o `useLayoutEffect` do
+  `MonthScroller` só roda quando `count` muda (M-11). Corrigir pede observar a largura
+  (`ResizeObserver`), que é estado novo — fica para depois.
 * **Promover o Playwright do M-7.** O defeito da M-11 passou pelas duas camadas automáticas:
   `layout-bars.test.ts` assere as classes das barras, que estavam certas, e o contrato P1–P6 só
   vê string de classe. A causa estava em outro arquivo e no layout calculado. Só uma medição no

@@ -257,6 +257,57 @@ test("P2 com grupo nomeado e com !: group-hover/row: e !opacity-100 são pegos",
   );
 });
 
+// ── P7: rolagem horizontal (M-11, fatia 1d) ─────────────────────────────
+// Escritos antes da implementação: vermelhos até o detector conhecer o P7.
+
+test("P7: overflow-x-auto/-scroll e overflow-auto/-scroll são pegos, com ou sem prefixo", () => {
+  for (const cls of [
+    "overflow-x-auto",
+    "overflow-x-scroll",
+    "overflow-auto",
+    "overflow-scroll",
+    "md:overflow-x-auto",
+    "[&>div]:overflow-auto",
+    "!overflow-x-auto",
+    "overflow-x-auto!",
+  ]) {
+    assert.deepEqual(rules(`<div className="${cls}" />`), ["P7"], cls);
+  }
+  // Fora de `className` também: o detector olha classe em qualquer lugar.
+  assert.deepEqual(rules(`cn("flex", "overflow-x-auto")`), ["P7"]);
+});
+
+test("✅ P7: rolagem vertical e corte não são rolagem horizontal", () => {
+  // Já passa antes do P7 existir (nada é pego). Vale como trava contra um P7
+  // largo demais — os formulários em Dialog usam overflow-y-auto.
+  for (const cls of [
+    "overflow-y-auto",
+    "overflow-y-scroll",
+    "overflow-hidden",
+    "overflow-x-hidden",
+    "overflow-x-clip",
+    "overflow-visible",
+    "overscroll-x-contain",
+  ]) {
+    assert.deepEqual(rules(`<div className="${cls}" />`), [], cls);
+  }
+});
+
+test("P7: components/ui/ fica fora porque está excluído, não porque o detector o ignora", () => {
+  // O `Table` do shadcn usa `overflow-auto` (ver o item (b) da 1d). Se a
+  // exclusão de `components/ui` sumir, a varredura o acusa — este teste prova
+  // que o detector o vê e que só a exclusão o tira.
+  const table = readFileSync(join(SRC, "components/ui/table.tsx"), "utf8");
+  assert.ok(
+    findViolations(table).some((v) => v.rule === "P7"),
+    "o detector não vê o overflow-auto do ui/table.tsx",
+  );
+  assert.ok(
+    !scanFiles(SRC).includes("components/ui/table.tsx"),
+    "ui/table.tsx entrou na varredura",
+  );
+});
+
 /** Monta uma árvore `src/` descartável no diretório temporário do SO. */
 function fixture(paths: string[]): string {
   const src = mkdtempSync(join(tmpdir(), "mobile-contract-"));
@@ -326,11 +377,14 @@ const PENDING: Record<string, PendingEntry[]> = {
   ],
 };
 
-/** Exceções justificadas da tabela P1–P6. */
+/** Exceções justificadas da tabela P1–P7. */
 const EXCEPTIONS: Record<string, Rule[]> = {
   // A tabela M-7 a isenta porque ela só renderiza a partir de `lg`, com mouse
   // (`hidden lg:flex` desde a fatia 1c).
   "components/dashboard/Sidebar.tsx": ["P4"],
+  // M-11: a única rolagem horizontal permitida, numa região focável
+  // (`month-scroller.test.ts` confere `role`, `tabIndex` e `aria-label`).
+  "components/shared/MonthScroller.tsx": ["P7"],
 };
 
 const files = scanFiles(SRC);
@@ -371,6 +425,21 @@ test("todo diretório varrido contribui com pelo menos um arquivo", () => {
       `${excluded}/ não entra na varredura`,
     );
   }
+});
+
+test("P7: a exceção do MonthScroller cobre exatamente uma rolagem horizontal", () => {
+  // Sem isto a exceção valeria para o arquivo inteiro: uma segunda área
+  // rolável ali passaria calada, e um MonthScroller sem rolagem também.
+  const rel = "components/shared/MonthScroller.tsx";
+  assert.ok(files.includes(rel), `${rel} não está na varredura`);
+  // Conta classes, não linhas: o detector acusa uma violação por padrão por
+  // linha, e uma segunda rolagem na mesma linha passaria pela contagem dele.
+  const classes = (
+    readFileSync(join(SRC, rel), "utf8").match(/[^\s"'`{}]+/g) ?? []
+  ).filter((t) =>
+    findViolations(`<div className="${t}" />`).some((v) => v.rule === "P7"),
+  );
+  assert.deepEqual(classes, ["overflow-x-auto"]);
 });
 
 test("nenhuma violação além da lista de pendências (arquivo, padrão e quantidade)", () => {

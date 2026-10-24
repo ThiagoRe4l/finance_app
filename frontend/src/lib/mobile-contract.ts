@@ -1,5 +1,5 @@
 /**
- * Detector dos padrões proibidos P1–P6 da reforma mobile-first
+ * Detector dos padrões proibidos P1–P7 da reforma mobile-first
  * (`docs/mobile-first.md` → M-7).
  *
  * Heurística sobre strings de classe, não layout medido: pega a volta dos
@@ -11,7 +11,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
-export type Rule = "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
+export type Rule = "P1" | "P2" | "P3" | "P4" | "P5" | "P6" | "P7";
 
 export type Violation = { rule: Rule; line: number; match: string };
 
@@ -125,9 +125,11 @@ const P5 = /^(?:min-h-screen|h-screen|max-h-screen)$/;
 const P5_ARBITRARY_VH = /(?<![dsl])\d+vh\b/;
 const P6_ARBITRARY = /^(?:min-)?w-\[(\d+(?:\.\d+)?)(px|rem)\]$/;
 const P6_SCALE = /^(?:min-)?w-(?:80|96)$/;
+/** Rolagem horizontal (M-11); `overflow-y-*` é livre. */
+const P7 = /^overflow-(?:x-)?(?:auto|scroll)$/;
 
 /**
- * Violações de P1–P6 num arquivo `.tsx`.
+ * Violações de P1–P7 num arquivo `.tsx`.
  *
  * ⚠️ **Uma violação por padrão por linha.** Uma segunda violação do mesmo
  * padrão na mesma linha não é contada (é o que a lista de pendências mede).
@@ -144,7 +146,7 @@ export function findViolations(source: string): Violation[] {
     }
   };
 
-  // P1, P5 e P6 olham classe por classe, em qualquer lugar do arquivo.
+  // P1, P5, P6 e P7 olham classe por classe, em qualquer lugar do arquivo.
   for (const m of source.matchAll(CLASS_TOKEN)) {
     const cls = m[0];
     const index = m.index ?? 0;
@@ -155,6 +157,8 @@ export function findViolations(source: string): Violation[] {
     const width = P6_ARBITRARY.exec(cls);
     if (width && toPx(width[1], width[2]) >= 320) add("P6", index, cls);
     if (P6_SCALE.test(cls)) add("P6", index, cls);
+    // P7, como o P5, vale com ou sem prefixo.
+    if (P7.test(withoutImportant(utility(cls)))) add("P7", index, cls);
   }
   // `100vh` cru em `style={{ … }}` também é P5.
   for (const m of source.matchAll(/(?<![dsl\w])100vh\b/g)) {

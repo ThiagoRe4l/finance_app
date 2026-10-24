@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, RotateCw } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { MonthScroller } from "@/components/shared/MonthScroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatBRL, parseMoney } from "@/lib/money";
@@ -120,7 +121,7 @@ function MonthlyComparison({
 
   return (
     <section className="bg-card p-8 rounded-2xl border border-border shadow-sm mb-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-8">
         <div>
           <h2 className="text-sm font-medium">Comparativo Mensal</h2>
           <p className="text-xs text-muted-foreground mt-1">
@@ -136,11 +137,18 @@ function MonthlyComparison({
           </span>
         </div>
       </div>
-      <div className="flex items-end gap-6 h-64">
+      {/*
+        Rolagem dentro do gráfico no celular (M-11): eram 6 colunas de 46 px
+        mínimos + gaps, 396 px num card de 246 a 360, e o transbordo empurrava
+        a barra inferior para fora da tela. A coluna tem largura fixa (`w-12` ≥
+        as duas barras `w-5` + `gap-1.5`) e só cresce a partir de `md`. A
+        altura que a trilha tinha (`h-64`) passou para a coluna.
+      */}
+      <MonthScroller label="Comparativo mensal" count={months.length}>
         {bars.map((bar, i) => (
           <div
             key={`${bar.month}-${i}`}
-            className="flex-1 flex flex-col items-center gap-2"
+            className="flex w-12 flex-none md:flex-1 flex-col items-center justify-end gap-2 h-64"
           >
             <div className="flex items-end gap-1.5 h-56 w-full justify-center">
               <div
@@ -159,7 +167,7 @@ function MonthlyComparison({
             <span className="text-xs text-muted-foreground">{bar.month}</span>
           </div>
         ))}
-      </div>
+      </MonthScroller>
     </section>
   );
 }
