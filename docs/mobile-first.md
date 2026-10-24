@@ -345,6 +345,88 @@ o M-5). Valem para os dois — e só eles — gráficos de meses: **Fluxo Mensal
 espera `sw === cw`, `navBottom === vvH` e `largos` vazio. Se `largos` listar algo, o que aparecer
 vira uma fatia seguinte, com decisão própria.
 
+### M-12: fatia 2 — Transações no celular (decidido em 24/10/2026)
+
+**Decidido antes da implementação**, a partir do mapa da fatia 2. Dividida em dois commits verdes,
+**2a** (formulário) e **2b** (lista), porque mudam arquivos diferentes e se conferem de formas
+diferentes: o 2a no teclado de um aparelho real, o 2b em largura e alvos no DevTools. Em cada um,
+depois do verde e do code-review, o diff fica staged; o usuário confere no DevTools e só então
+autoriza o commit.
+
+**Pendências do contrato.** As 6 são de `routes/transacoes.tsx` e saem no 2b: P1 × 2
+(`COLUMNS` e o cabeçalho, `grid-cols-12`), P2 × 1 (ações com `opacity-0 group-hover:opacity-100`),
+P4 × 2 (editar e excluir com `h-7`) e P3 × 1 (busca com `text-sm`).
+`TransactionFormDialog.tsx` e `DeleteTransactionDialog.tsx` não têm nenhuma; entram pelo M-3.
+
+**2a — formulário de transação (M-3).** `TransactionFormDialog.tsx` muda; o Dashboard o usa e
+muda junto, sem tocar em `routes/index.tsx`. Classes no ponto de uso; `components/ui/` não muda.
+
+* **Ancorado embaixo no celular**, com margem lateral, cantos e a área segura de baixo;
+  `max-h` em `dvh`. A partir de `sm`, centrado como hoje (os tokens `sm:` devolvem o que existe).
+* **Rodapé fixo:** o conteúdo do formulário rola por dentro (`overflow-y-auto`, livre no P7) e o
+  `DialogFooter` fica fora da rolagem. Botões do rodapé com `h-11 sm:h-9`.
+* **Alvos de 44 px no celular, sem editar `ui/`:** a linha de cada `Switch` ("Despesa fixa",
+  "Desvincular") vira alvo inteiro com `min-h-11`; `Input`, `SelectTrigger` e o botão de data com
+  `h-11 sm:h-9` (o acréscimo de inventário aplicado ao formulário). Os campos de texto já têm
+  16 px no celular (`ui/input.tsx`: `text-base md:text-sm`); o `SelectTrigger` tem `text-sm`, mas
+  é `<button>` e não dá zoom. **O X de fechar do shadcn fica como está** ("Cancelar" é a
+  alternativa de 44 px).
+* **Sem teclado sozinho em tela de toque.** O `autoFocus` da descrição foca o campo na montagem,
+  antes do efeito do `FocusScope` do Radix — que então vê o foco já dentro do diálogo e **nem
+  dispara** `onOpenAutoFocus` (`@radix-ui/react-focus-scope` 1.1.16). Tirar só o `autoFocus` não
+  basta: sem ele, o Radix foca o primeiro campo sozinho, com `select: true` — o que selecionaria o
+  título na edição. **Proposta:** sem `autoFocus`; `onOpenAutoFocus` no `DialogContent` sempre chama
+  `preventDefault()` e, se `matchMedia("(pointer: coarse)")` casar, foca o próprio diálogo (o
+  `FocusScope` tem `tabIndex={-1}`: o leitor de tela entra nele e o teclado não abre); se não, foca
+  a descrição por `ref`, como o `autoFocus` de hoje (sem selecionar o texto). É consulta de
+  modalidade de entrada no momento do evento, não hook de largura: sem estado e sem hidratação (o
+  diálogo só abre no cliente). O `autoFocus` do `Calendar`, dentro do `Popover` da data, fica:
+  não é campo de texto. Categorias e Parcelamentos têm o mesmo `autoFocus` — fatia 4.
+* **Exclusão (`DeleteTransactionDialog.tsx`):** o `AlertDialog` continua centrado e ganha margem
+  lateral no celular (M-3).
+
+**2b — lista de Transações (M-4).** Muda `routes/transacoes.tsx` e cria
+`components/shared/FloatingActionButton.tsx`.
+
+* **Cartões abaixo de `lg`, tabela a partir de `lg`**, só com CSS e as duas marcações renderizadas
+  (`lg:hidden` / `hidden lg:block`). `display: none` tira a oculta da árvore de acessibilidade e da
+  ordem de Tab. Custo aceito: DOM em dobro por transação, sem paginação. A partir de `lg` a tabela é
+  a de hoje: as classes ganham prefixo, e o teste as escreve por extenso. De 768 a 1023 a mudança é
+  intencional (M-6): o tablet é de toque, e a coluna de ações da tabela teria ~37 px, sem espaço
+  para dois alvos de 44 px. **Descartados:** marcação única responsiva (classes densas, e a ordem
+  do cartão presa à das colunas); trocar por JS (M-3, M-10).
+* **Cartão:** linha 1, descrição e valor (`shrink-0 whitespace-nowrap tabular-nums`); linha 2,
+  data · categoria (`truncate`) e o tipo, com `flex-wrap`, e editar/excluir à direita, `h-11 w-11`,
+  sempre visíveis. **Descrição em até duas linhas (`line-clamp-2`)**, com `min-w-0` no pai, e
+  **palavra única longa quebra** (`wrap-anywhere`, que entra no cálculo da largura mínima, ao
+  contrário de `break-words`). `title` não conta como solução: não funciona no toque. O
+  `aria-label` dos botões já leva o título inteiro.
+* **Ações na tabela:** `h-11 w-11 lg:h-7 lg:w-7` e esconder no hover só a partir de `lg`
+  (`lg:opacity-0 lg:group-hover:opacity-100`, mais o `focus-within`).
+* **Esqueleto e estados:** abaixo de `lg`, esqueleto de cartão no lugar das linhas de
+  `grid-cols-12`; o estado vazio e o banner de erro aparecem **uma vez só**, fora das duas
+  marcações.
+* **Controles da página (inventário):** busca com `text-base md:text-sm` e `min-h-11 lg:min-h-0`
+  (hoje ~38 px de altura; com `text-base`, ~42 px); "Nova" no cabeçalho com `hidden lg:flex` (o
+  flutuante a substitui no celular); "Tentar novamente" do banner de erro com
+  `min-h-11 lg:min-h-0`. Não há filtro nem seletor na página.
+* **Botão flutuante** (`components/shared/FloatingActionButton.tsx`), só em Transações nesta
+  fatia: `fixed`, `lg:hidden`, `z-40` (o nível das barras, M-10b), à direita, acima da barra
+  inferior (`--app-bottombar-height` + `env(safe-area-inset-bottom)` + 1rem), `h-14 w-14`
+  (≥ 44 px, com teste) e `aria-label="Nova transação"`. Não colide com o toast, que fica no topo. A
+  lista ganha folga embaixo abaixo de `lg`, para o botão não cobrir o último cartão. **O Dashboard
+  o adota na fatia 3**; `routes/index.tsx` não muda na 2.
+* O cabeçalho sobreposto (M-11) some junto com a tabela abaixo de `lg`.
+
+**Verificação pelo usuário.** No 2a, num Android real, abrir "Nova transação", focar "Valor" e o
+campo mais baixo, e ver o rodapé acima do teclado; e conferir que o teclado não abre sozinho. No
+2b, rodar o procedimento da M-11 em Transações a 360, 390 e 768, com uma descrição de 60
+caracteres sem espaço e o valor "R$ 100.000,00"; conferir os alvos na aba Computed (≥ 44 × 44);
+rolar até o fim e ver o último cartão descoberto; focar a busca num Android e ver onde a barra e o
+botão flutuante ficam (M-10a). Por olho a 1280, nas duas telas.
+
+**Sem impacto no contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -357,8 +439,8 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 1b | Componente de layout único (`AppShell`, M-9) no lugar das 5 cópias de `<div flex min-h-dvh><Sidebar/><main …>`, **sem mudança visual** |
 | 1c | `min-w-0` no `<main>` do `AppShell` (primeiro item, M-9), barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
 | 1d | Gráficos de meses com rolagem interna (`MonthScroller`, M-11): Fluxo Mensal e Comparativo, cabeçalhos com `flex-wrap gap-x-4`, regra P7 no contrato |
-| 2 | Transações: cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante, formulário de transação responsivo (M-3), que o Dashboard também usa |
-| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento |
+| 2 | Transações (M-12), em dois commits: **2a**, formulário de transação responsivo (M-3), que o Dashboard também usa, e margem lateral na exclusão; **2b**, cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante |
+| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento, botão flutuante (o componente da 2b, M-12) |
 | 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
 | 5 | Relatórios: totais (o Comparativo saiu para a 1d, M-11) |
 
