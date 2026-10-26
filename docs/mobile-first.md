@@ -439,6 +439,24 @@ muda junto, sem tocar em `routes/index.tsx`. Classes no ponto de uso; `component
   o adota na fatia 3**; `routes/index.tsx` não muda na 2.
 * O cabeçalho sobreposto (M-11) some junto com a tabela abaixo de `lg`.
 
+**Decidido em 24/10/2026, na aprovação dos testes vermelhos da 2b:**
+
+* **Nomes:** `TransactionCard` e `LoadingCards` em `routes/transacoes.tsx`; o botão flutuante é
+  `FloatingActionButton` com as props `label` e `onClick` (o Dashboard o reusa na fatia 3).
+* **Folga do último cartão: pelo menos 4rem** (`pb-16` na lista de cartões). O botão cobre 3rem
+  acima do padding do `<main>` (1rem de distância + 3.5rem de altura − 1.5rem de padding); sobra
+  1rem.
+* **Os 16 px vazios do `PageHeader` ficam aceitos na 2b.** O `PageHeader` põe o `action` num
+  `<div>` próprio; com o "Nova" em `hidden`, ele fica vazio no celular e o `gap-4` do cabeçalho
+  ainda soma 16 px. Mexer no `PageHeader` muda as outras telas: vai para a **fatia 3**, junto de
+  `Header` × `PageHeader`.
+* **Consequência da implementação:** o estado vazio fica fora das duas marcações, então **a partir
+  de `lg` ele não tem mais o cabeçalho da tabela** em cima (antes ficava dentro do card da tabela).
+  É a única mudança a 1280 px, só com a lista vazia.
+* **Backlog:** a tabela a partir de `lg` esconde as ações no hover, e num tablet na horizontal
+  (≥ 1024 px) sem mouse elas não aparecem; o `group-focus-within` só ajuda com teclado. Avaliar
+  condicionar o esconder a `@media (hover: hover)`.
+
 **Verificação pelo usuário.** No 2a, num Android real — **observação no aparelho, não garantia**:
 abrir "Nova transação" e conferir que o teclado não abre sozinho; focar "Valor" e o campo mais
 baixo e conferir que **o campo focado fica visível e que dá para chegar ao rodapé** (rolando, se
@@ -466,7 +484,7 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 1c | `min-w-0` no `<main>` do `AppShell` (primeiro item, M-9), barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
 | 1d | Gráficos de meses com rolagem interna (`MonthScroller`, M-11): Fluxo Mensal e Comparativo, cabeçalhos com `flex-wrap gap-x-4`, regra P7 no contrato |
 | 2 | Transações (M-12), em dois commits: **2a**, formulário de transação responsivo (M-3), que o Dashboard também usa, e margem lateral na exclusão; **2b**, cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante |
-| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento, botão flutuante (o componente da 2b, M-12) |
+| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento, botão flutuante (o componente da 2b, M-12), o `<div>` vazio do `action` do `PageHeader` no celular (M-12) |
 | 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
 | 5 | Relatórios: totais (o Comparativo saiu para a 1d, M-11) |
 

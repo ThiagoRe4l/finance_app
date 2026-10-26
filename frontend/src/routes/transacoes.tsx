@@ -23,6 +23,7 @@ import {
 } from "@/lib/transactions";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
 import { DeleteTransactionDialog } from "@/components/transactions/DeleteTransactionDialog";
+import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
 
 export const Route = createFileRoute("/transacoes")({
   head: () => ({
@@ -48,12 +49,14 @@ const typeColor: Record<TransactionLabel, string> = {
 // e sem ela toda listagem custa dois round-trips.
 const TRANSACTIONS_ENDPOINT = "/transactions/";
 
+// Só a tabela, que aparece a partir de `lg`, usa a grade; abaixo disso a
+// lista é de cartões (M-12).
 const COLUMNS =
-  "grid grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-0 items-center";
+  "grid lg:grid-cols-12 gap-4 px-6 py-4 border-b border-border last:border-0 items-center";
 
 function TableHeader() {
   return (
-    <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+    <div className="grid lg:grid-cols-12 gap-4 px-6 py-3 border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
       <div className="col-span-1">Data</div>
       <div className="col-span-4">Descrição</div>
       <div className="col-span-2">Categoria</div>
@@ -83,6 +86,31 @@ function LoadingRows() {
   );
 }
 
+function LoadingCards() {
+  return (
+    <>
+      {Array.from({ length: 6 }, (_, i) => (
+        // `aria-hidden`: sem ele, o leitor de tela anuncia "lista, 6 itens"
+        // vazios durante o carregamento.
+        <li
+          key={i}
+          aria-hidden="true"
+          className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        </li>
+      ))}
+    </>
+  );
+}
+
 function ErrorBanner({
   message,
   onRetry,
@@ -106,7 +134,7 @@ function ErrorBanner({
       <button
         onClick={onRetry}
         disabled={isRetrying}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
+        className="flex items-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
       >
         <RotateCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
         {isRetrying ? "Tentando..." : "Tentar novamente"}
@@ -167,14 +195,16 @@ function TransactionRow({
       {/*
         Coluna própria, ao contrário dos cards de Categorias: numa tabela há
         onde pôr os controles sem sobrepor conteúdo. Continuam no hover para
-        não poluir a leitura, com `focus-within` para o teclado.
+        não poluir a leitura, com `focus-within` para o teclado — só a partir
+        de `lg`, onde a tabela aparece (P2). Os 44 px de base são do P4: a
+        tabela só renderiza a partir de `lg`, e lá valem os 28 px de hoje.
       */}
-      <div className="col-span-1 flex justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+      <div className="col-span-1 flex justify-end gap-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={onEdit}
           aria-label={`Editar ${transaction.title}`}
-          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          className="h-11 w-11 lg:h-7 lg:w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -182,12 +212,87 @@ function TransactionRow({
           type="button"
           onClick={onDelete}
           aria-label={`Excluir ${transaction.title}`}
-          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="h-11 w-11 lg:h-7 lg:w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * O cartão do celular (M-4, M-12): descrição e valor em cima; data, categoria
+ * e tipo embaixo, com as ações sempre visíveis à direita.
+ */
+function TransactionCard({
+  transaction,
+  onEdit,
+  onDelete,
+}: {
+  transaction: Transaction;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { label, meta } = deriveTransactionLabel(transaction);
+  const amount = signedAmount(transaction);
+  const isIncome = amount > 0;
+
+  return (
+    <li className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        {/*
+          `wrap-anywhere` entra na largura mínima, ao contrário de
+          `break-words`: uma palavra única longa quebra em vez de alargar o
+          cartão. O `aria-label` dos botões leva o título inteiro.
+        */}
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 wrap-anywhere text-sm font-medium">
+            {transaction.title}
+          </p>
+        </div>
+        <p
+          className={`shrink-0 whitespace-nowrap tabular-nums text-sm font-medium ${
+            isIncome ? "text-[oklch(0.55_0.15_155)]" : "text-foreground"
+          }`}
+        >
+          {isIncome ? "+" : ""}
+          {formatBRL(amount)}
+        </p>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            {formatShortDate(transaction.date)}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span className="min-w-0 truncate">{transaction.category.name}</span>
+          <span
+            className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full ${typeColor[label]}`}
+          >
+            {meta ? `${label} ${meta}` : label}
+          </span>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={`Editar ${transaction.title}`}
+            className="h-11 w-11 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`Excluir ${transaction.title}`}
+            className="h-11 w-11 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -224,7 +329,7 @@ function TransacoesPage() {
         action={
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
           >
             <Plus className="h-4 w-4" /> Nova
           </button>
@@ -238,7 +343,7 @@ function TransacoesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por descrição ou categoria..."
-          className="w-full md:w-96 pl-10 pr-4 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full md:w-96 pl-10 pr-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
 
@@ -250,26 +355,54 @@ function TransacoesPage() {
           onRetry={() => refetch()}
           isRetrying={isFetching}
         />
-      ) : (
+      ) : !isPending && visible.length === 0 ? (
+        // Vazio uma vez só, fora das duas marcações (M-12).
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-          <TableHeader />
-          {isPending ? (
-            <LoadingRows />
-          ) : visible.length === 0 ? (
-            <EmptyState hasSearch={search.trim() !== ""} />
-          ) : (
-            visible.map((transaction) => (
-              <TransactionRow
-                key={transaction.id}
-                transaction={transaction}
-                onEdit={() => setEditing(transaction)}
-                onDelete={() => setDeleting(transaction)}
-              />
-            ))
-          )}
+          <EmptyState hasSearch={search.trim() !== ""} />
         </div>
+      ) : (
+        <>
+          {/*
+            Cartões abaixo de `lg`, tabela a partir de `lg`: as duas marcações
+            renderizadas, escolhidas só por CSS (M-12). O `pb-16` é a folga
+            para o botão flutuante não cobrir o último cartão.
+          */}
+          <ul className="lg:hidden flex flex-col gap-3 pb-16">
+            {isPending ? (
+              <LoadingCards />
+            ) : (
+              visible.map((transaction) => (
+                <TransactionCard
+                  key={transaction.id}
+                  transaction={transaction}
+                  onEdit={() => setEditing(transaction)}
+                  onDelete={() => setDeleting(transaction)}
+                />
+              ))
+            )}
+          </ul>
+          <div className="hidden lg:block bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <TableHeader />
+            {isPending ? (
+              <LoadingRows />
+            ) : (
+              visible.map((transaction) => (
+                <TransactionRow
+                  key={transaction.id}
+                  transaction={transaction}
+                  onEdit={() => setEditing(transaction)}
+                  onDelete={() => setDeleting(transaction)}
+                />
+              ))
+            )}
+          </div>
+        </>
       )}
 
+      <FloatingActionButton
+        label="Nova transação"
+        onClick={() => setIsCreating(true)}
+      />
       <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
       <TransactionFormDialog
         key={editing?.id}

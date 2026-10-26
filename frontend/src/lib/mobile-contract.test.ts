@@ -361,12 +361,6 @@ test("scanDirs: as raízes e suas pastas, sem components/ui/ nem o que está den
  * P5 não aparece de propósito: a fatia 1a trocou todo `vh` por `dvh`.
  */
 const PENDING: Record<string, PendingEntry[]> = {
-  "routes/transacoes.tsx": [
-    { rule: "P1", count: 2, slice: "2" },
-    { rule: "P2", count: 1, slice: "2" },
-    { rule: "P3", count: 1, slice: "2" },
-    { rule: "P4", count: 2, slice: "2" },
-  ],
   "routes/categorias.tsx": [
     { rule: "P2", count: 1, slice: "4" },
     { rule: "P4", count: 2, slice: "4" },

@@ -12,6 +12,7 @@ decisão registrada, teste vermelho, implementação.
 | SSR sem benefício → virar SPA estático | "🚢 Deploy → D-Deploy-1", e item 0.2 abaixo |
 | Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7"; defeito real em "Pendências da validação da fatia 1c" |
 | PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
+| Ações da tabela de Transações só no hover: invisíveis em tablet na horizontal sem mouse; avaliar `hover: hover` | "📱 Mobile-first → M-12" (decisões da 2b) |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
