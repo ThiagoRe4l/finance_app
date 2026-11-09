@@ -26,7 +26,6 @@ function read(rel: string): string {
 
 const PAGE = "../routes/transacoes.tsx";
 const FAB = "../components/shared/FloatingActionButton.tsx";
-const DASHBOARD = "../routes/index.tsx";
 
 /**
  * A tag de abertura que começa no `<` em `from`, até o `>` que a fecha,
@@ -389,9 +388,4 @@ test("Transações usa o flutuante para abrir o formulário de criação", () =>
   const tag = tagAt(src, at);
   assert.match(tag, /label="Nova transação"/);
   assert.match(tag, /onClick=\{\(\) => setIsCreating\(true\)\}/);
-});
-
-test("✅ o Dashboard ainda não usa o flutuante (fatia 3)", () => {
-  // Regressão: já passa hoje. `routes/index.tsx` não muda na fatia 2 (M-12).
-  assert.doesNotMatch(read(DASHBOARD), /FloatingActionButton/);
 });

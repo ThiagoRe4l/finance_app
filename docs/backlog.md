@@ -13,6 +13,9 @@ decisão registrada, teste vermelho, implementação.
 | Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7"; defeito real em "Pendências da validação da fatia 1c" |
 | PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
 | Ações da tabela de Transações só no hover: invisíveis em tablet na horizontal sem mouse; avaliar `hover: hover` | "📱 Mobile-first → M-12" (decisões da 2b) |
+| Dashboard de 1024 a 1535 px: cartões de métrica com ~100 a ~164 px úteis, o pior caso estoura (numa linha só, com o `whitespace-nowrap` da 3a); candidato `lg:grid-cols-2 2xl:grid-cols-4`; medir antes de decidir | "📱 Mobile-first → M-13" |
+| ⚠️ Defeito: cor do valor nos cartões de métrica com percentual `null` cai em verde | aqui, "Cor do valor nos cartões de métrica" |
+| Auxiliares de leitura de JSX copiados em 4 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos (code-review da 3a, 27/10/2026; fora da reforma) | — |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -248,6 +251,25 @@ não é string de classe. A causa não foi investigada. É o caso que o item fut
   browser (`scrollWidth <= clientWidth` e a borda de baixo da barra dentro do `visualViewport`)
   pegaria — a mesma do procedimento manual da M-11. Continua sem orçamento; o argumento passou a
   ter um defeito real, não uma hipótese.
+
+## 🧭 Cor do valor nos cartões de métrica — defeito, não corrigido (registrado em 26/10/2026)
+
+**Defeito conhecido; fora da fatia 3 por decisão (M-13).** O `MetricCard` pinta o valor pelo
+`tone`, e o `tone` julga a **variação percentual**, não o sinal do valor (`routes/index.tsx`):
+Saldo e Economia ficam vermelhos só com o percentual `< 0`, Despesas só com `> 0` (inversão de
+propósito: gasto subindo é ruim), e Receitas é `neutral` fixo. O defeito é o `?? 0`: percentual
+`null` vira 0, e 0 dá `"positive"` — verde —, enquanto `formatDelta(null)` some com o rodapé. O
+verde aparece sem seta nem número que o justifique.
+
+Quando o backend manda `null` (`routers/dashboard.py`): `expenses_change_pct` sem saída no mês
+anterior; `balance_change_pct` com saldo zero no fim do mês anterior. O caso visto pelo Thiago
+(26/10/2026) — Receitas 0, Despesas 4.500, Saldo −4.500 — dá saldo anterior 0, então os dois
+percentuais são `null` e Saldo e Despesas saem verdes (por leitura, não conferido com os dados
+dele).
+
+**Proposta:** extrair a escolha do tom para uma função pura em `lib/dashboard.ts`, testável pelo
+runner atual, com `null` → `"neutral"`, e ligar o JSX a ela. A ligação em si continua sem teste
+(ver "Testes do frontend: runner nativo do Node").
 
 ## 🧭 Cabeçalho do Dashboard: `Header` local × `PageHeader` (registrado em 11/10/2026)
 

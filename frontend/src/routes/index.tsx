@@ -17,6 +17,7 @@ import {
 } from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
+import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -61,7 +62,7 @@ function Header({ action }: { action: React.ReactNode }) {
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
@@ -77,7 +78,7 @@ function LoadingState() {
         <Skeleton className="lg:col-span-2 h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
       </section>
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
         <Skeleton className="lg:col-span-2 h-72 rounded-2xl" />
       </section>
     </>
@@ -135,7 +136,7 @@ function Summary({ data }: { data: DashboardSummary }) {
 
   return (
     <>
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         {/*
           `tone` = julgamento (cor), `trend` = direção real (seta). São passados
           de forma independente: acoplar os dois foi o que fez "+325,8%" em
@@ -180,7 +181,7 @@ function Summary({ data }: { data: DashboardSummary }) {
         <Transactions transactions={data.recent_transactions} />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
         <div className="lg:col-span-2">
           <CategoryBars
             categories={data.category_distribution}
@@ -229,7 +230,7 @@ function Index() {
             */
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <Plus className="h-4 w-4" />
             Nova transação
@@ -250,6 +251,11 @@ function Index() {
       ) : (
         <Summary data={data} />
       )}
+
+      <FloatingActionButton
+        label="Nova transação"
+        onClick={() => setIsCreating(true)}
+      />
 
       {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
       <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />

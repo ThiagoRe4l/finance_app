@@ -471,6 +471,61 @@ botão flutuante ficam (M-10a). Por olho a 1280, nas duas telas.
 
 **Sem impacto no contrato com o backend.**
 
+### M-13: fatia 3 — Dashboard no celular (decidido em 26/10/2026)
+
+**Decidido antes da implementação**, a partir do que o Thiago viu a ~390 px: os cartões de métrica
+(2 × 2, valor em 24 px, cartão de ~170 px) estouram, e "−R$ 4.500,00" quebra depois do sinal com
+o número passando da borda direita. Dividida em dois commits, como a 2: **3a** e, só depois da 3a
+validada, **3b**.
+
+**Diagnóstico.** O `formatBRL` devolve `"-R$ 100.000,00"` com hífen ASCII (U+002D) no sinal e
+espaço inseparável (U+00A0) depois de "R$" (medido no Node): a única quebra possível é logo
+depois do sinal. Abaixo de `md` o cartão tem (W − 64) / 2 px, e o útil com `p-6` é 78 / 98 /
+113 px a 320 / 360 / 390. "−R$ 100.000,00" em 24 px tem **~175 px (estimativa**: ~7,3 em em Inter
+semibold `tabular-nums`; a Inter não está no container — confere com o que o Thiago viu).
+
+**3a — cartões de métrica, recentes e botão flutuante.** Muda `routes/index.tsx`,
+`components/dashboard/MetricCard.tsx` e `components/dashboard/Transactions.tsx`.
+
+* **Cartões de métrica: coluna única abaixo de `sm`** (`grid-cols-1 sm:grid-cols-2`, mantendo o
+  `lg:grid-cols-4` e o `gap-4 md:gap-6` de hoje), com 24 px e `p-6` como estão. Útil a 320: 222 px.
+  O `LoadingState` usa a mesma grade. **Descartados:** fonte e padding menores em 2 colunas
+  (`text-base` com `p-4` só garante a partir de ~366 px; `text-sm` com `p-3` garante 320, mas o
+  número fica do tamanho do texto corrido) e fonte proporcional ao cartão (`cqi`: 12,9 px a 320, e
+  com piso legível de 14 px só garante a partir de ~336). Custo aceito: os 4 cartões empilhados
+  ocupam ~560 px, e o gráfico desce abaixo da dobra.
+* **O valor ganha `whitespace-nowrap`** (com o `tabular-nums` que já tem), **sem `truncate` nem
+  `overflow-hidden`: dinheiro nunca é cortado.** O valor continua um elemento só, sinal e número
+  juntos. **Vale em toda largura** (decidido em 27/10/2026, no code-review da 3a): a grade de `lg`
+  não muda, mas o valor não quebra em nenhuma largura. De 1024 a 1535 px o pior caso (estimativa)
+  já estourava por poucos pixels antes, com o sinal numa linha separada, e continua estourando,
+  agora numa linha só (item do backlog, abaixo).
+* **Limite aceito:** a 320 px o útil é 222 px, e valores a partir de ~R$ 1.000.000 (~230 px em
+  24 px, **estimativa**) podem estourar o cartão e, com ele, o documento (M-11).
+* **Transações recentes:** linha com `gap-3`; à esquerda `min-w-0 flex-1`, com `truncate` no
+  título e na categoria; o valor com `shrink-0 whitespace-nowrap`. "Ver todas" continua `<a>`, com
+  `inline-flex min-h-11 items-center lg:min-h-0`.
+* **Botão flutuante:** `<FloatingActionButton label="Nova transação">` no Dashboard (o componente
+  da 2b), e o "Nova transação" do cabeçalho com `hidden lg:flex`. Folga embaixo: `pb-16 lg:pb-0` na
+  última seção, a mesma conta dos 4rem da M-12 — no `Summary` e no `LoadingState`, porque o
+  flutuante aparece também durante o carregamento (code-review da 3a).
+
+**3b — `PageHeader` com `actionClassName`.** Commit separado, só depois da 3a validada. O
+`PageHeader` ganha a prop opcional `actionClassName`, aplicada com
+`cn("flex items-center gap-3", actionClassName)` (sem a prop, a string é a de hoje e as outras
+telas não mudam); o Dashboard troca o `Header` local pelo `PageHeader`; Transações e Dashboard
+passam `actionClassName="hidden lg:flex"`, o que tira os 16 px vazios do `<div>` da ação no
+celular (M-12). Unificar só muda o `max-w-xl` da descrição, que a ~440 px (estimativa) não quebra.
+
+**Fora da 3, registrado em `docs/backlog.md`:**
+
+* **Dashboard de 1024 a 1535 px:** cartões de métrica com ~100 a ~164 px úteis, o pior caso
+  estoura (com o `whitespace-nowrap`, numa linha só); candidato `lg:grid-cols-2 2xl:grid-cols-4`;
+  medir antes de decidir. A grade de desktop não muda na 3.
+* **Cor do valor:** o `tone` com percentual `null` cai em verde (defeito, não corrigido na 3).
+
+**Sem impacto no contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -484,7 +539,7 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 1c | `min-w-0` no `<main>` do `AppShell` (primeiro item, M-9), barra inferior, barra superior com conta e logout, Sidebar de `md` para `lg` |
 | 1d | Gráficos de meses com rolagem interna (`MonthScroller`, M-11): Fluxo Mensal e Comparativo, cabeçalhos com `flex-wrap gap-x-4`, regra P7 no contrato |
 | 2 | Transações (M-12), em dois commits: **2a**, formulário de transação responsivo (M-3), que o Dashboard também usa, e margem lateral na exclusão; **2b**, cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante |
-| 3 | Dashboard: cartões de métrica (o print provou o vazamento; testar com "R$ 100.000,00"), recentes com truncamento, botão flutuante (o componente da 2b, M-12), o `<div>` vazio do `action` do `PageHeader` no celular (M-12) |
+| 3 | Dashboard (M-13), em dois commits: **3a**, cartões de métrica em coluna única abaixo de `sm`, recentes com truncamento, "Ver todas" com 44 px, botão flutuante (o componente da 2b); **3b**, `PageHeader` com `actionClassName`, o Dashboard adotando o `PageHeader` e o `<div>` vazio da ação no celular (M-12) |
 | 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
 | 5 | Relatórios: totais (o Comparativo saiu para a 1d, M-11) |
 
