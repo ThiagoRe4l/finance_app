@@ -1,8 +1,11 @@
+import { cn } from "@/lib/utils";
+
 interface PageHeaderProps {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: React.ReactNode;
+  actionClassName?: string;
 }
 
 export function PageHeader({
@@ -10,6 +13,7 @@ export function PageHeader({
   title,
   description,
   action,
+  actionClassName,
 }: PageHeaderProps) {
   return (
     <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -26,7 +30,11 @@ export function PageHeader({
           </p>
         )}
       </div>
-      {action && <div className="flex items-center gap-3">{action}</div>}
+      {action && (
+        <div className={cn("flex items-center gap-3", actionClassName)}>
+          {action}
+        </div>
+      )}
     </header>
   );
 }

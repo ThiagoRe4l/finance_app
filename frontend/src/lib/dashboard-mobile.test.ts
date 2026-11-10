@@ -293,9 +293,22 @@ test('"Nova transação" do cabeçalho só a partir de lg', () => {
   const at = src.search(/\/>\s*Nova transação\s*</);
   assert.ok(at >= 0, "sem o botão Nova transação no cabeçalho");
   const button = tagAt(src, src.lastIndexOf("<button", at));
-  assertTokens(button, ["hidden", "lg:flex"]);
-  // `flex` sem prefixo vence o `hidden` e o botão voltaria no celular.
-  assertNoTokens(button, ["flex"]);
+  // A visibilidade mora no contêiner da ação (M-13, 3b): o botão não repete o
+  // `hidden`, e o `actionClassName` é quem o esconde no celular.
+  const cls = classesIn(button);
+  const headerAt = src.lastIndexOf("<PageHeader", at);
+  const header = headerAt < 0 ? "" : tagAt(src, headerAt);
+  const problems: string[] = [];
+  if (!cls.includes("flex")) problems.push("botão sem flex");
+  for (const token of ["hidden", "lg:flex"]) {
+    if (cls.includes(token)) problems.push(`botão com ${token}`);
+  }
+  if (headerAt < 0 || headerAt + header.length <= at) {
+    problems.push("botão fora de um <PageHeader>");
+  } else if (!header.includes('actionClassName="hidden lg:flex"')) {
+    problems.push('<PageHeader> sem actionClassName="hidden lg:flex"');
+  }
+  assert.deepEqual(problems, []);
 });
 
 test("a última seção tem folga embaixo abaixo de lg para o flutuante", () => {
@@ -310,4 +323,12 @@ test("LoadingState: a última seção tem a mesma folga embaixo abaixo de lg", (
   const src = fn(read(DASHBOARD), "LoadingState");
   const last = tagAt(src, src.lastIndexOf("<section"));
   assertTokens(last, ["pb-16", "lg:pb-0"]);
+});
+
+test('"Tentar novamente" do Dashboard com 44 px abaixo de lg', () => {
+  // Paridade com o banner de Transações (M-12): é a única ação da tela com a
+  // API fora, e o P4 só vê altura explícita.
+  const src = fn(read(DASHBOARD), "ErrorBanner");
+  const button = tagAt(src, src.indexOf("<button"));
+  assertTokens(button, ["min-h-11", "lg:min-h-0"]);
 });

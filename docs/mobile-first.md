@@ -469,6 +469,10 @@ caracteres sem espaço e o valor "R$ 100.000,00"; conferir os alvos na aba Compu
 rolar até o fim e ver o último cartão descoberto; focar a busca num Android e ver onde a barra e o
 botão flutuante ficam (M-10a). Por olho a 1280, nas duas telas.
 
+**Conferido pelo Thiago em Android real em 08/11/2026** (2a, 2b e 3a): botão redondo, formulário
+sem teclado automático, lixeira visível, aviso de exclusão cabendo, busca sem zoom, Dashboard em
+coluna única com valores numa linha. Não reportou problemas.
+
 **Sem impacto no contrato com o backend.**
 
 ### M-13: fatia 3 — Dashboard no celular (decidido em 26/10/2026)
@@ -510,12 +514,34 @@ semibold `tabular-nums`; a Inter não está no container — confere com o que o
   última seção, a mesma conta dos 4rem da M-12 — no `Summary` e no `LoadingState`, porque o
   flutuante aparece também durante o carregamento (code-review da 3a).
 
-**3b — `PageHeader` com `actionClassName`.** Commit separado, só depois da 3a validada. O
-`PageHeader` ganha a prop opcional `actionClassName`, aplicada com
-`cn("flex items-center gap-3", actionClassName)` (sem a prop, a string é a de hoje e as outras
-telas não mudam); o Dashboard troca o `Header` local pelo `PageHeader`; Transações e Dashboard
-passam `actionClassName="hidden lg:flex"`, o que tira os 16 px vazios do `<div>` da ação no
-celular (M-12). Unificar só muda o `max-w-xl` da descrição, que a ~440 px (estimativa) não quebra.
+**Conferido pelo Thiago em Android real em 08/11/2026** (2a, 2b e 3a): botão redondo, formulário
+sem teclado automático, lixeira visível, aviso de exclusão cabendo, busca sem zoom, Dashboard em
+coluna única com valores numa linha. Não reportou problemas.
+
+**3b — `PageHeader` com `actionClassName`** (detalhada em 09/11/2026, antes da implementação).
+Commit separado, depois da 3a validada. Muda `components/dashboard/PageHeader.tsx`,
+`routes/index.tsx` e `routes/transacoes.tsx`.
+
+* **`PageHeader`:** prop opcional `actionClassName`, aplicada com
+  `cn("flex items-center gap-3", actionClassName)` no `<div>` da ação, que continua condicional a
+  `action` (Relatórios não tem ação). Sem a prop, o `cn` devolve `"flex items-center gap-3"`, a
+  string de hoje; Categorias, Parcelamentos e Relatórios não a passam e não mudam.
+* **Dashboard:** troca o `Header` local pelo `PageHeader` (`eyebrow="Mês corrente"`, mesmo título
+  e descrição). `<header>`, eyebrow e `h1` têm classes idênticas nos dois.
+* **A visibilidade passa para o contêiner.** Transações e Dashboard passam
+  `actionClassName="hidden lg:flex"`, e o botão volta a `flex items-center …`, sem `hidden` nem
+  `lg:flex` (substitui o que a M-12 e a 3a puseram no botão). O `tailwind-merge` tira o `flex` sem
+  prefixo: o `cn` resolve para `"items-center gap-3 hidden lg:flex"` (verificado no Node).
+  **Descartado:** o `hidden` nos dois lugares, duas fontes para a mesma regra.
+* **O que muda na tela:** abaixo de 768 px o cabeçalho das duas telas fica 16 px mais baixo (some
+  o `<div>` vazio e o `gap-4`, M-12). De 768 a 1023 px, em linha, o `<div>` vazio não tem largura e
+  nada muda. A partir de `lg`, só o `max-w-xl` da descrição do Dashboard, que a ~440 px
+  (estimativa) não quebra, e o contêiner condicional, que muda só o código: o Dashboard sempre
+  passa `action`.
+* **"Tentar novamente" do banner de erro do Dashboard:** `min-h-11 lg:min-h-0`, paridade com
+  Transações (M-12); veio do code-review da 3b.
+* **Prova:** teste sobre arquivo mais o `cn` real, em `lib/page-header-mobile.test.ts`. Prova as
+  strings de classe, não a renderização; a conferência visual fica com o usuário.
 
 **Fora da 3, registrado em `docs/backlog.md`:**
 

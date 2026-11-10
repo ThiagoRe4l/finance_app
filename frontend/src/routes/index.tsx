@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, AlertCircle, RotateCw } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { PageHeader } from "@/components/dashboard/PageHeader";
 import { CategoryBars } from "@/components/dashboard/CategoryBars";
 import { Transactions } from "@/components/dashboard/Transactions";
 import { CashFlow, type MonthlyFlow } from "@/components/dashboard/CashFlow";
@@ -40,23 +41,6 @@ interface DashboardSummary {
   balance_change_pct: number | null;
   expenses_change_pct: number | null;
   savings_pct_of_revenue: number | null;
-}
-
-function Header({ action }: { action: React.ReactNode }) {
-  return (
-    <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-          Mês corrente
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Visão Geral</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Acompanhe seu fluxo, categorias e parcelamentos em um só lugar.
-        </p>
-      </div>
-      <div className="flex items-center gap-3">{action}</div>
-    </header>
-  );
 }
 
 function LoadingState() {
@@ -108,7 +92,7 @@ function ErrorBanner({
       <button
         onClick={onRetry}
         disabled={isRetrying}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
+        className="flex items-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
       >
         <RotateCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
         {isRetrying ? "Tentando..." : "Tentar novamente"}
@@ -220,7 +204,11 @@ function Index() {
 
   return (
     <AppShell>
-      <Header
+      <PageHeader
+        eyebrow="Mês corrente"
+        title="Visão Geral"
+        description="Acompanhe seu fluxo, categorias e parcelamentos em um só lugar."
+        actionClassName="hidden lg:flex"
         action={
           /*
               "Buscar" removido: era botão sem campo e sem estado, e o Dashboard
@@ -230,7 +218,7 @@ function Index() {
             */
           <button
             onClick={() => setIsCreating(true)}
-            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <Plus className="h-4 w-4" />
             Nova transação

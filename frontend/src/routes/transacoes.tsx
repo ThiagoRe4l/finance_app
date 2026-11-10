@@ -326,10 +326,11 @@ function TransacoesPage() {
         eyebrow="Histórico"
         title="Transações"
         description="Histórico completo de entradas e saídas."
+        actionClassName="hidden lg:flex"
         action={
           <button
             onClick={() => setIsCreating(true)}
-            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
           >
             <Plus className="h-4 w-4" /> Nova
           </button>

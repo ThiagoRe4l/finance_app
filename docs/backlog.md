@@ -15,7 +15,8 @@ decisão registrada, teste vermelho, implementação.
 | Ações da tabela de Transações só no hover: invisíveis em tablet na horizontal sem mouse; avaliar `hover: hover` | "📱 Mobile-first → M-12" (decisões da 2b) |
 | Dashboard de 1024 a 1535 px: cartões de métrica com ~100 a ~164 px úteis, o pior caso estoura (numa linha só, com o `whitespace-nowrap` da 3a); candidato `lg:grid-cols-2 2xl:grid-cols-4`; medir antes de decidir | "📱 Mobile-first → M-13" |
 | ⚠️ Defeito: cor do valor nos cartões de métrica com percentual `null` cai em verde | aqui, "Cor do valor nos cartões de métrica" |
-| Auxiliares de leitura de JSX copiados em 4 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos (code-review da 3a, 27/10/2026; fora da reforma) | — |
+| Auxiliares de leitura de JSX copiados em 5 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos; o bloco que confere o botão dentro do `<PageHeader>` está copiado em `dashboard-mobile.test.ts` e `transactions-list-mobile.test.ts`, e o `header.includes` procura na tag inteira, inclusive dentro da prop `action` (code-review da 3a, 27/10/2026, e da 3b, 09/11/2026; fora da reforma) | — |
+| ⚠️ Defeito anterior à fatia 3: `refetch` que falha troca o Dashboard já carregado pelo banner de erro | aqui, "Banner de erro sobre o Dashboard já carregado" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -271,9 +272,20 @@ dele).
 runner atual, com `null` → `"neutral"`, e ligar o JSX a ela. A ligação em si continua sem teste
 (ver "Testes do frontend: runner nativo do Node").
 
-## 🧭 Cabeçalho do Dashboard: `Header` local × `PageHeader` (registrado em 11/10/2026)
+## 🧭 Banner de erro sobre o Dashboard já carregado — defeito, não corrigido (registrado em 09/11/2026)
 
-**Não decidido; tratar na fatia 3.** `routes/index.tsx` tem uma função `Header` local; as outras
+**Defeito anterior à fatia 3, não corrigido.** `routes/index.tsx` testa `isError` antes de `data`.
+Apontado pelo code-review da 3b; texto copiado da saída do review:
+
+> `isError` is checked before cached data, so a failed background refetch replaces an already loaded Dashboard with the error banner. The summary has loaded, then the user saves a transaction or returns to the route and the refetch fails twice (`retry: 1`), for example on a mobile network drop. TanStack keeps `data` but sets `isError`, so all cards and charts disappear behind the banner even though valid data is in memory. Render the banner only when `data` is undefined, or show it alongside the stale `Summary`.
+
+## 🧭 Cabeçalho do Dashboard: `Header` local × `PageHeader` (registrado em 11/10/2026; decidido em 09/11/2026)
+
+**Decidido: a unificação acontece na fatia 3b (M-13).** O Dashboard troca o `Header` local pelo
+`PageHeader`, e só mudam o `max-w-xl` da descrição e o contêiner condicional da ação. O registro
+original fica abaixo.
+
+`routes/index.tsx` tem uma função `Header` local; as outras
 4 telas usam `components/dashboard/PageHeader.tsx`. As classes do `<header>`, do eyebrow, do `h1`
 e do invólucro da ação são as mesmas. A diferença visual é uma: o parágrafo de descrição do
 `PageHeader` tem `max-w-xl`, o do `Header` local não — no desktop a descrição do Dashboard pode

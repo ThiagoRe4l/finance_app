@@ -330,9 +330,22 @@ test('"Nova" do cabeçalho só a partir de lg (o flutuante a substitui no celula
   const at = src.search(/\/>\s*Nova\s*</);
   assert.ok(at >= 0, "sem o botão Nova");
   const button = tagAt(src, src.lastIndexOf("<button", at));
-  assertTokens(button, ["hidden", "lg:flex"]);
-  // `flex` sem prefixo vence o `hidden` e o botão voltaria no celular.
-  assertNoTokens(button, ["flex"]);
+  // A visibilidade mora no contêiner da ação (M-13, 3b): o botão não repete o
+  // `hidden`, e o `actionClassName` é quem o esconde no celular.
+  const cls = classesIn(button);
+  const headerAt = src.lastIndexOf("<PageHeader", at);
+  const header = headerAt < 0 ? "" : tagAt(src, headerAt);
+  const problems: string[] = [];
+  if (!cls.includes("flex")) problems.push("botão sem flex");
+  for (const token of ["hidden", "lg:flex"]) {
+    if (cls.includes(token)) problems.push(`botão com ${token}`);
+  }
+  if (headerAt < 0 || headerAt + header.length <= at) {
+    problems.push("botão fora de um <PageHeader>");
+  } else if (!header.includes('actionClassName="hidden lg:flex"')) {
+    problems.push('<PageHeader> sem actionClassName="hidden lg:flex"');
+  }
+  assert.deepEqual(problems, []);
 });
 
 test('"Tentar novamente" com 44 px abaixo de lg', () => {
