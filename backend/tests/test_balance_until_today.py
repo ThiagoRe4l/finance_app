@@ -171,3 +171,28 @@ def test_legacy_installment_keeps_the_stored_current_and_can_advance(client, ses
     assert response.status_code == 200, response.text
     assert response.json()["current_installment"] == 3
     assert response.json()["anchor_due_date"] is None
+
+
+# --- Revisão de 12/11/2026 (escritos antes da correção) ----------------------
+
+
+def test_anchor_in_a_future_month_never_goes_below_the_first_generated_parcel(client, default_account, default_category):
+    """3 de 10 com a parcela 3 vencendo mês que vem: só existem as parcelas 3 a
+    10 (800). Antes, a parcela atual derivada era a 2 e o restante dava 900."""
+    inst = create(client, default_account, default_category["id"],
+                  current_installment=3, total_installments=10,
+                  current_due_date=iso(1))
+    assert inst["current_installment"] == 3
+    assert money(inst["remaining_amount"]) == Decimal("800.00")
+    summary = client.get("/api/installments/summary").json()
+    assert money(summary["remaining_total_amount"]) == Decimal("800.00")
+    assert summary["active_count"] == 1
+
+
+def test_migration_backfills_the_anchor_of_installments_created_before_it():
+    """Parcelamentos criados entre a P-1 e a S-3 têm `first_due_date` e parcelas
+    geradas, mas âncora nula: ficariam no modo antigo para sempre."""
+    from app.installment_schedule import anchor_from_first_due_date
+
+    assert anchor_from_first_due_date(datetime.date(2026, 1, 15), 3) == datetime.date(2026, 3, 15)
+    assert anchor_from_first_due_date(datetime.date(2026, 2, 28), 2) == datetime.date(2026, 3, 28)

@@ -92,3 +92,25 @@ def test_nubank_sample_block():
     ]
     assert items[1].installment_hint == (2, 6)
     assert items[3].is_payment is True
+
+
+# --- Revisão de 12/11/2026 (escritos antes da correção) ----------------------
+
+
+def test_bank_comes_from_the_header_not_from_a_merchant_line():
+    header = ["Itaú Unibanco", "Cartão Itaucard", "Fatura de novembro"] + [f"linha {i}" for i in range(30)]
+    assert detect_bank("\n".join(header + ["12/11 MERCADO PAGO*LOJA 10,00"])) == "itau"
+
+
+def test_other_issuers_that_mention_itau_in_a_merchant_stay_generic():
+    text = "Banco Santander\nFatura\n" + "\n".join(f"linha {i}" for i in range(30)) + "\n05/11 ITAU SEGUROS 80,00"
+    assert detect_bank(text) == "generic"
+    assert detect_bank("Fatura do cartão\n05/11 ITAUNA POSTO 80,00") == "generic"
+
+
+def test_de_form_needs_the_word_parcela():
+    assert parse_invoice_text("05/11 TERMINAL 1 de 2 45,00", DUE)[0].installment_hint is None
+    assert parse_invoice_text("05/11 VOO 2 de 3 450,00", DUE)[0].installment_hint is None
+    assert parse_invoice_text("05/11 LOJA Parcela 2 de 3 45,00", DUE)[0].installment_hint == (2, 3)
+    assert parse_invoice_text("05/11 LOJA PARC 02/03 45,00", DUE)[0].installment_hint == (2, 3)
+    assert parse_invoice_text("05/11 LOJA 2/3 45,00", DUE)[0].installment_hint == (2, 3)

@@ -119,6 +119,12 @@ def build_schedule(
     )
 
 
+def anchor_from_first_due_date(first_due_date: datetime.date, current_installment: int) -> datetime.date:
+    """Âncora (S-3) de um parcelamento criado antes dela: a data da parcela
+    `current_installment`, a partir da primeira. Usada pelo backfill da migration."""
+    return add_months(first_due_date, current_installment - 1)
+
+
 def current_installment_on(
     today: datetime.date,
     *,
@@ -134,7 +140,10 @@ def current_installment_on(
     """
     months = (today.year * 12 + today.month) - (anchor_due_date.year * 12 + anchor_due_date.month)
     current = anchor_installment + months
-    return min(max(current, 1), total_installments + 1)
+    # Piso na parcela da âncora: antes dela nada foi gerado (P-2). Com a âncora
+    # num mês futuro, o calendário dava k − 1 e o restante contava uma parcela
+    # que não existe (revisão de 12/11/2026).
+    return min(max(current, anchor_installment), total_installments + 1)
 
 
 def remaining_from_schedule(

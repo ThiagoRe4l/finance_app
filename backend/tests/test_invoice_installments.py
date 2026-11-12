@@ -193,3 +193,43 @@ def test_installment_total_that_overflows_the_money_column_is_422(client, defaul
         "current_installment": 1, "current_due_date": TODAY.isoformat(),
     })
     assert response.status_code == 422
+
+
+# --- Revisão de 12/11/2026 (escritos antes da correção) ----------------------
+
+
+def test_double_submit_of_create_installment_does_not_create_two(client, default_account, default_category):
+    body = {"account_id": default_account, "items": [{
+        "date": TODAY.isoformat(), "title": "LOJA X PARC 03/10", "amount": "150.00", "type": "SAÍDA",
+        "category_id": default_category["id"], "create_installment": True,
+        "installment_current": 3, "installment_total": 10,
+    }]}
+    assert client.post(CONFIRM, json=body).json() == {"created": 1, "skipped_duplicates": 0}
+    assert client.post(CONFIRM, json=body).json() == {"created": 0, "skipped_duplicates": 1}
+    assert len(client.get("/api/installments").json()) == 1
+
+
+def test_linking_to_a_legacy_installment_is_rejected(client, session, default_account, default_category):
+    from tests.conftest import create_legacy_installment
+
+    legacy = create_legacy_installment(client, session, default_account, default_category["id"],
+                                       current_installment=3, total_installments=10)
+    response = _confirm(client, default_account, default_category["id"],
+                        installment_id=legacy["id"], installment_number=3)
+    assert response.status_code == 409
+    assert "sem cronograma" in response.json()["detail"]
+    assert client.get("/api/transactions").json() == []
+
+
+def test_match_prefers_the_exact_title(client, default_account, default_category):
+    existing_installment(client, default_account, default_category["id"], title="Loja")
+    sofa = existing_installment(client, default_account, default_category["id"], title="Loja Sofa")
+    item = preview(client, default_account, [line(3, "LOJA SOFA")])["items"][0]
+    assert item["installment_match"]["installment_id"] == sofa["id"]
+
+
+def test_match_does_not_use_a_tiny_or_partial_word_title(client, default_account, default_category):
+    existing_installment(client, default_account, default_category["id"], title="TV")
+    existing_installment(client, default_account, default_category["id"], title="Magazine")
+    assert preview(client, default_account, [line(3, "TV BOX LOJA")])["items"][0]["installment_match"] is None
+    assert preview(client, default_account, [line(3, "MAGAZINELUIZA")])["items"][0]["installment_match"] is None

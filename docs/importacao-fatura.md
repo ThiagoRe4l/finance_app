@@ -156,6 +156,19 @@ Luiza Sofa").
 opcionais `installment_id`/`installment_number` (vincular) e `create_installment` com
 `installment_current`/`installment_total` (criar). Vincular a parcelamento de outro dono → 404.
 
+### Revisão da Fase 2, segunda rodada (12/11/2026) — o que mudou
+
+* **Reenviar o `confirm` com `create_installment` é idempotente:** a chave de duplicidade usa o
+  título com que a parcela é gravada (sem o sufixo "PARC 03/10"); antes criava um segundo
+  parcelamento.
+* **Vincular a parcelamento antigo (sem cronograma) é 409.** A linha viraria "parcela gerada"
+  (o PATCH a renomearia, o DELETE a apagaria) e contaria duas vezes no saldo comprometido.
+* **Banco pelo cabeçalho** (15 primeiras linhas, palavra inteira): "MERCADO PAGO*LOJA" ou "ITAU
+  SEGUROS" num lançamento não trocam o leitor.
+* **"N de M" só com a palavra "parcela"** ("TERMINAL 1 de 2" e "VOO 2 de 3" não são parcelas).
+* **Casamento da parcela:** título igual vence; senão, um contido no outro **por palavras
+  inteiras** e com 4+ letras ("TV" e "MAGAZINE" × "MAGAZINELUIZA" não casam mais).
+
 ### Revisão de segurança da Fase 2 (12/11/2026) — o que mudou
 
 * **Data da linha entre 1900 e 2200** no `confirm`, a mesma regra do cadastro de parcelamento:

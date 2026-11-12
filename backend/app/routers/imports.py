@@ -77,21 +77,37 @@ def _installment_match(db: Session, scheduled, entry) -> "schemas.InstallmentMat
     line_title = normalize_title(installment_base_title(entry.title))
     if not line_title:
         return None
-    for installment in scheduled:
-        title = normalize_title(installment_base_title(installment.title))
-        if installment.total_installments != total or not title:
-            continue
-        if title in line_title or line_title in title:
-            parcel = db.query(models.Transaction.id).filter(
-                models.Transaction.installment_id == installment.id,
-                models.Transaction.installment_number == number,
-            ).first()
-            return schemas.InstallmentMatch(
-                installment_id=installment.id,
-                installment_title=installment.title,
-                transaction_id=parcel.id if parcel else None,
-            )
+    candidates = [
+        (installment, normalize_title(installment_base_title(installment.title)))
+        for installment in scheduled
+        if installment.total_installments == total
+    ]
+    # Título igual vence; só então um contido no outro **por palavras inteiras**
+    # e com 4+ letras ("TV" casava toda linha com "TV"; "MAGAZINE" casava
+    # "MAGAZINELUIZA" — revisão de 12/11/2026).
+    exact = [c for c in candidates if c[1] == line_title]
+    partial = [c for c in candidates if c[1] != line_title and _words_contained(c[1], line_title)]
+    for installment, _ in (exact or partial)[:1]:
+        parcel = db.query(models.Transaction.id).filter(
+            models.Transaction.installment_id == installment.id,
+            models.Transaction.installment_number == number,
+        ).first()
+        return schemas.InstallmentMatch(
+            installment_id=installment.id,
+            installment_title=installment.title,
+            transaction_id=parcel.id if parcel else None,
+        )
     return None
+
+
+MIN_MATCH_CHARS = 4
+
+
+def _words_contained(a: str, b: str) -> bool:
+    """`a` dentro de `b` ou `b` dentro de `a`, por palavras inteiras, e o menor
+    com pelo menos `MIN_MATCH_CHARS` letras."""
+    small, big = sorted((a, b), key=len)
+    return len(small) >= MIN_MATCH_CHARS and f" {small} " in f" {big} "
 
 
 def _category_by_title(db: Session) -> dict[str, int]:
@@ -232,6 +248,14 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
     } if linked_ids else {}
     if set(linked) != linked_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parcelamento não encontrado.")
+    if any(row.first_due_date is None for row in linked.values()):
+        # Parcelamento antigo não tem cronograma: vincular marcaria a linha como
+        # parcela gerada (o PATCH a renomearia, o DELETE a apagaria) e o restante
+        # dele contaria a parcela duas vezes no saldo comprometido.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Parcelamento antigo, sem cronograma, não aceita parcelas vinculadas pela importação.",
+        )
     claimed: set[tuple[int, int]] = set()
     for item in payload.items:
         if item.installment_id is None:
@@ -260,7 +284,15 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
     owner = owner_id(db)
     created = skipped = 0
     for item in payload.items:
-        key = _key(item.date, item.type, item.amount, item.title)
+        # O parcelamento criado grava a parcela com o título **sem** o sufixo
+        # ("LOJA X"), então a chave tem que usar esse mesmo título; com o da
+        # linha ("LOJA X PARC 03/10") o reenvio nunca casava e criava outro
+        # parcelamento (revisão de 12/11/2026).
+        stored_title = (
+            installment_base_title(item.title) or item.title
+            if item.create_installment else item.title
+        )
+        key = _key(item.date, item.type, item.amount, stored_title)
         # Cada transação existente "consome" uma linha igual da fatura; a
         # escolha explícita do usuário (`allow_duplicate`) vence a checagem.
         if existing[key] > 0 and not item.allow_duplicate:

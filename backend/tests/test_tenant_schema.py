@@ -585,3 +585,25 @@ def test_the_allowlist_is_not_consulted_without_an_owner(migration_engine, monke
     _alembic(migration_engine, "upgrade", "head")
 
     _assert_migrated(migration_engine)
+
+
+def test_anchor_migration_backfills_scheduled_installments_and_leaves_legacy_alone(migration_engine):
+    """Revisão de 12/11/2026: o parcelamento com `first_due_date` (criado entre a
+    P-1 e a S-3) ganha a âncora; o antigo, sem cronograma, continua sem."""
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+    _alembic(migration_engine, "upgrade", "e5c1a9b47d20", owner_email="dono@example.com")
+    with migration_engine.begin() as db:
+        db.execute(text(
+            "INSERT INTO installments (id, title, category_id, total_amount, installment_amount, "
+            "current_installment, total_installments, end_date, account_id, owner_id, first_due_date) "
+            "SELECT 2, 'Agendado', category_id, 500, 100, 3, 5, 'Mai/2026', account_id, owner_id, '2026-01-15' "
+            "FROM installments WHERE id = 1"
+        ))
+
+    _alembic(migration_engine, "upgrade", "head")
+
+    with migration_engine.connect() as db:
+        rows = {r.id: r.anchor_due_date for r in db.execute(text("SELECT id, anchor_due_date FROM installments"))}
+    assert str(rows[2]) == "2026-03-15"
+    assert rows[1] is None

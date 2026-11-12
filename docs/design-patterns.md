@@ -600,9 +600,18 @@ sem cronograma (`first_due_date` nulo), parcela atual gravada, "Avançar" e edi�
 o botão Excluir para recriar. **Nenhuma migração apaga dado**: zerar o banco de produção é
 irreversível e daqui não há acesso a ele; a migração só acrescenta a coluna nula.
 
-**Migration** `f2b6d0c9e1a4`: `installments.anchor_due_date` (date, nulo). Os parcelamentos com
-cronograma criados antes dela (só em ambiente local, nada foi publicado) ficam com âncora nula e
-caem no modo antigo.
+**Migration** `f2b6d0c9e1a4`: `installments.anchor_due_date` (date, nulo). ⚠️ **Corrigido em
+12/11/2026 (revisão):** o texto original dizia que os parcelamentos com cronograma anteriores
+ficariam no modo antigo. Não ficam: a migration **preenche a âncora** de todo parcelamento com
+`first_due_date` (= data da parcela `current_installment`, a partir da primeira); sem
+`first_due_date` (o modo antigo de verdade) nada muda. Também em 12/11: a parcela atual
+derivada tem **piso na parcela da âncora** (com a âncora num mês futuro, o calendário dava k − 1
+e o restante contava uma parcela que não foi gerada).
+
+**Dashboard — cortes diferentes, de propósito (revisão de 12/11/2026).** O saldo total e o
+saldo do fim do mês anterior param em hoje (S-1); receitas, despesas e economia **do mês**
+incluem lançamentos futuros deste mês. Por isso `balance_change_pct` compara "saldo até hoje"
+com "saldo do fim do mês passado", enquanto os outros cartões cobrem o mês inteiro.
 
 **Impacto no contrato com o frontend:** `InstallmentSummary.committed_balance` (novo);
 `InstallmentResponse.current_installment` passa a ser derivado; `PATCH current_installment` → 400

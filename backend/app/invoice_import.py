@@ -40,27 +40,42 @@ _LINE = re.compile(
 )
 # Separador solto que sobra no fim da descrição ("UBER -").
 _TRAILING_SEPARATOR = re.compile(r"\s*[-\u2212–—:]+\s*$")
-# "PARC 03/10", "PARCELA 3/10" ou "3/10" no fim da descrição.
-# "PARC 03/10", "Parcela 3/10", "3/10" ou "Parcela 3 de 10" no fim da descrição.
+# No fim da descrição: "PARC 03/10", "Parcela 3/10", "3/10" ou "Parcela 3 de 10".
+# A forma "N de M" só vale com a palavra "parcela": "TERMINAL 1 de 2" e "VOO 2 de 3"
+# são descrições comuns (revisão de 12/11/2026).
 _INSTALLMENT = re.compile(
-    r"(?:\bparc(?:ela)?\.?\s*)?\b(\d{1,2})(?:\s*/\s*|\s+de\s+)(\d{1,2})\s*$", re.IGNORECASE
+    r"(?:\bparc(?:ela)?\.?\s*(\d{1,2})\s*(?:/|\bde\b)\s*(\d{1,2})|\b(\d{1,2})\s*/\s*(\d{1,2}))\s*$",
+    re.IGNORECASE,
 )
+
+
+def _installment_numbers(match: "re.Match[str]") -> tuple[int, int]:
+    groups = match.groups()
+    return int(groups[0] or groups[2]), int(groups[1] or groups[3])
 # Onde uma segunda coluna do Itaú pode começar: " DD/MM " no meio da linha.
 _COLUMN_START = re.compile(r"(?<=\s)\d{2}/\d{2}(?=\s)")
 
 BANKS = ("itau", "nubank", "mercado_pago")
 
 
+#: O emissor aparece no cabeçalho; um estabelecimento ("MERCADO PAGO*LOJA",
+#: "ITAU SEGUROS") aparece nos lançamentos, bem depois (revisão de 12/11/2026).
+HEADER_LINES = 15
+_BANK_PATTERNS = (
+    ("nubank", re.compile(r"\bnubank\b|\bnu pagamentos\b")),
+    ("mercado_pago", re.compile(r"\bmercado pago\b")),
+    ("itau", re.compile(r"\bitau(?:card| unibanco)?\b")),  # "itaú" sem acento
+)
+
+
 def detect_bank(text: str) -> str:
-    """D-Import-7: o banco pelo texto da fatura. `generic` se nenhum."""
-    plain = normalize_title(text)
-    if "nubank" in plain or "nu pagamentos" in plain:
-        return "nubank"
-    if "mercado pago" in plain:
-        return "mercado_pago"
-    if "itau" in plain:  # "itaú", "itau unibanco", "itaucard"
-        return "itau"
-    return "generic"
+    """D-Import-7: o banco pelo cabeçalho da fatura (as primeiras linhas com
+    texto), pela palavra inteira. Se mais de um aparece, o que vem primeiro.
+    `generic` se nenhum."""
+    lines = [line for line in text.splitlines() if line.strip()][:HEADER_LINES]
+    header = normalize_title("\n".join(lines))
+    found = [(m.start(), bank) for bank, pattern in _BANK_PATTERNS if (m := pattern.search(header))]
+    return min(found)[1] if found else "generic"
 
 
 def installment_base_title(title: str) -> str:
@@ -167,7 +182,7 @@ def _parse_line(line: str, due_date: datetime.date, bank: str) -> Optional[Parse
     hint = None
     installment = _INSTALLMENT.search(title)
     if installment:
-        current, total = int(installment.group(1)), int(installment.group(2))
+        current, total = _installment_numbers(installment)
         if 1 <= current <= total:
             hint = (current, total)
 
