@@ -34,6 +34,7 @@ D-Tenant-7.
 | `docs/variaveis-de-ambiente.md` | 🔐 Variáveis de Ambiente | ao criar ou ler variável de ambiente, ou ao lidar com `.env.local` |
 | `docs/common-hurdles.md` | 🧯 Common Hurdles (Problemas Recorrentes) | antes de depurar erro de ambiente, deploy, CI ou barra final |
 | `docs/backlog.md` | 🧭 Itens futuros + 🧭 Candidatos ao dia 5 | antes de propor trabalho novo ou escolher o próximo |
+| `docs/produto.md` | 🎯 Produto — princípios e requisitos originais (ex-`GEMINI.md`) | ao propor feature nova, para checar contra os requisitos de origem |
 | `docs/seguranca-dependencias.md` | 🔒 Correções de segurança em dependências | ao atualizar dependência ou responder a CVE / `npm audit` |
 | `docs/historico/deploy-railway.md` | 🗃️ Deploy — Railway (superado) | só como histórico das alternativas descartadas |
 
@@ -288,7 +289,7 @@ caso, não uma hipótese.
 **O que é de fato isolado.** O processo roda em container Docker — verificado por
 `/.dockerenv`, raiz em `overlay` (containerd) e `/sys` + `/proc/sys` montados read-only.
 Dependências (`.venv`, `node_modules`) ficam confinadas e não poluem o sistema hospedeiro.
-Nessa parte, o princípio "Ambiente Confinado (AI Jail)" do `GEMINI.md` está atendido.
+Nessa parte, o princípio "Ambiente Confinado (AI Jail)" (ver `docs/produto.md`) está atendido.
 
 ### ⚠️ Debt conhecida: o filesystem do projeto **não** é isolado
 
@@ -392,7 +393,8 @@ Assunto que não cabe em nenhum: arquivo novo em `docs/` e uma linha no índice 
 
 Porque até aqui o projeto fez o contrário, e isso é verificável no git:
 
-* `GEMINI.md` — a "constitution" com o plano técnico — entrou no commit `ab2e67e`, **o mesmo
+* `GEMINI.md` (removido em 11/11/2026, conteúdo em `docs/produto.md`) — a "constitution" com o
+  plano técnico — entrou no commit `ab2e67e`, **o mesmo
   commit** que já trazia `models.py`, `schemas.py`, 3 routers e 3 arquivos de teste. O plano
   não precedeu o código; nasceu junto.
 * `CLAUDE.md` só apareceu no commit `c827f21`, **8 dias depois do backend** e 3 dias depois
@@ -400,8 +402,9 @@ Porque até aqui o projeto fez o contrário, e isso é verificável no git:
 * A seção "🧯 Common Hurdles" descreve problemas **já resolvidos** ("Como foi resolvido:
   adicionados a `Transaction`..."). É documentação forense — útil, mas não é decisão prévia.
 
-O `GEMINI.md` já declarava o princípio "Anti-Vibe Coding" (*"nenhuma linha de código deve ser
-escrita sem plano técnico aprovado"*). Ele nunca teve mecanismo. Esta seção é o mecanismo.
+O `GEMINI.md` (hoje `docs/produto.md`) já declarava o princípio "Anti-Vibe Coding"
+(*"nenhuma linha de código deve ser escrita sem plano técnico aprovado"*). Ele nunca teve
+mecanismo. Esta seção é o mecanismo.
 
 **Quando a regra não for seguida** — e vai acontecer —, escreva isso explicitamente no
 registro ("documentado retroativamente em DD/MM") em vez de redigir a doc como se fosse
