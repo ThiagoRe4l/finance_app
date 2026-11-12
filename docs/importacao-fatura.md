@@ -46,6 +46,28 @@ Uma linha vira lançamento quando casa `DATA DESCRIÇÃO VALOR`:
 externo e não é determinístico, o que vai contra a D-Import-2. *Adiado:* parser por banco, que
 precisa de uma fatura de exemplo (pergunta 1).
 
+### Revisão de 12/11/2026 (três agentes revisores) — o que mudou
+
+* **Duplicidade por contagem** (D-Import-4): cada transação existente cobre **uma** linha igual
+  da fatura; com um CAFE lançado e dois na fatura, só o primeiro vem como duplicada. E a linha
+  que o usuário **marca de novo** vai com `allow_duplicate: true`, que o servidor respeita —
+  antes, uma segunda compra igual não tinha como entrar.
+* **Sinais de crédito** (D-Import-3): também `50,00-` (menos depois), `−` Unicode, `R$ -50,00`
+  e valor sem separador de milhar (`1500,00`). Um ` - ` **solto** antes do número
+  (`UBER - 25,00`) é separador da descrição, não sinal (antes virava crédito).
+* **Parcela com data de compra impossível** (29/02 num ano comum) não derruba mais a linha: a
+  data da compra nem é validada quando vira o vencimento.
+* **Limites de trabalho:** linha acima de 300 caracteres é ignorada e os espaços são colapsados
+  antes da regex — uma linha forjada de espaços travava o parser por minutos (backtracking
+  ~cúbico, medido). PDF com mais de 50 páginas ou mais de 500 mil caracteres de texto → 422.
+  Qualquer exceção do `pypdf` vira 422, nunca 500.
+* **Teto de 4 MB antes de ler o corpo:** `Content-Length` acima → 413 sem bufferizar; sem o
+  cabeçalho, a leitura do stream para no primeiro byte a mais. A rota passou a ser `async` só
+  para isso; banco e PDF continuam síncronos, no threadpool.
+
+**Fica registrado, sem correção:** a sugestão de categoria lê todo o histórico do usuário a
+cada leitura de fatura (O(histórico); correto e só do dono, mas cresce com o tempo).
+
 ### D-Import-4: duplicidade — mesma conta, data, tipo, valor e descrição normalizada
 
 A descrição é normalizada (sem acento, minúscula, espaços colapsados). Na pré-visualização, a

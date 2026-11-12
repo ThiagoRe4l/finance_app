@@ -91,7 +91,14 @@ function SchedulePreviewBox({
 }: {
   payload: SchedulePreviewPayload | null;
 }) {
-  const debounced = useDebounced(payload);
+  // Comparado por valor: o pai monta um objeto novo a cada render, e sem isso
+  // o debounce reiniciava em renders que não mudam nada.
+  const key = JSON.stringify(payload);
+  const debouncedKey = useDebounced(key);
+  const debounced = JSON.parse(debouncedKey) as SchedulePreviewPayload | null;
+  // Enquanto o debounce não alcança o que está na tela, o cronograma mostrado
+  // seria o da digitação anterior: melhor dizer que está calculando.
+  const isStale = key !== debouncedKey;
   const preview = useQuery({
     queryKey: ["installments", "preview", debounced],
     queryFn: () =>
@@ -115,7 +122,7 @@ function SchedulePreviewBox({
       </p>
     );
   }
-  if (!preview.data) {
+  if (isStale || !preview.data) {
     return (
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" /> Calculando...
@@ -231,6 +238,15 @@ export function InstallmentFormDialog({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+
+    if (!isEditing && accounts.data?.[0] === undefined) {
+      toast.error(
+        accounts.isPending
+          ? "Carregando as contas, tente de novo em instantes."
+          : "Nenhuma conta encontrada para lançar o parcelamento.",
+      );
+      return;
+    }
 
     const result = isEditing
       ? installmentEditSchema.safeParse(values)

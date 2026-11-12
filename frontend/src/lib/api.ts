@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from "./config.ts";
+import { errorMessage } from "./api-error.ts";
 
 // Resolvida em build (ver config.ts). `import.meta.env` é substituído pelo
 // Vite em tempo de compilação; em dev, sem a variável, cai no localhost:8000.
@@ -19,10 +20,11 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    const errorData = await response
-      .json()
-      .catch(() => ({ detail: "Unknown error" }));
-    throw new Error(errorData.detail || response.statusText);
+    const errorData = await response.json().catch(() => null);
+    // `detail` vem como texto ou, no 422 do Pydantic, como lista de erros.
+    throw new Error(
+      errorMessage(errorData, response.statusText || "Erro desconhecido."),
+    );
   }
 
   // Os DELETE do backend respondem 204 sem corpo. Chamar .json() num corpo

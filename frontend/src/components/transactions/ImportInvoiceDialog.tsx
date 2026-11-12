@@ -133,13 +133,21 @@ export function ImportInvoiceDialog({
       return;
     }
     if (accountId === undefined) {
-      toast.error("Nenhuma conta encontrada para lançar a fatura.");
+      toast.error(
+        accounts.isPending
+          ? "Carregando as contas, tente de novo em instantes."
+          : "Nenhuma conta encontrada para lançar a fatura.",
+      );
       return;
     }
     read.mutate();
   }
 
   function handleConfirm() {
+    if (accountId === undefined) {
+      toast.error("Nenhuma conta encontrada para lançar a fatura.");
+      return;
+    }
     const result = buildConfirmPayload(accountId, rows);
     if (!result.ok) {
       setMissing(new Set(result.missingCategory));
@@ -303,7 +311,12 @@ export function ImportInvoiceDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setPreview(null)}
+              onClick={() => {
+                // O campo de arquivo volta vazio; o estado tem que acompanhar,
+                // senão "Ler fatura" relê o PDF anterior sem avisar.
+                setPreview(null);
+                setFile(null);
+              }}
               disabled={busy}
               className="h-11 sm:h-9"
             >

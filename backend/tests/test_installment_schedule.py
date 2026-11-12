@@ -450,3 +450,39 @@ def test_unlinking_a_generated_installment_clears_its_number(
     assert response.status_code == 200, response.text
     assert response.json()["installment_id"] is None
     assert response.json()["installment_number"] is None
+
+
+# --- Revisão do backend, 12/11/2026 (escrito antes da correção) --------------
+
+
+@pytest.mark.parametrize("route", ["/api/installments", "/api/installments/preview"])
+def test_total_too_small_for_one_cent_per_installment_is_rejected(
+    client, default_account, default_category, route
+):
+    """R$ 0,02 em 3 daria uma parcela de R$ 0,00 — uma SAÍDA de zero, que o
+    próprio `TransactionCreate` recusaria."""
+    body = payload(
+        default_account, default_category["id"],
+        installment_amount=None, total_amount="0.02",
+        total_installments=3, current_installment=1,
+    )
+    if route.endswith("preview"):
+        body = {k: v for k, v in body.items() if k not in ("title", "category_id", "account_id")}
+    response = client.post(route, json=body)
+    assert response.status_code == 422, response.text
+    assert client.get("/api/transactions").json() == []
+
+
+@pytest.mark.parametrize(
+    "due,current,total",
+    [("0001-01-15", 5, 5), ("9999-12-15", 1, 10)],
+    ids=["antes-do-ano-1", "depois-de-9999"],
+)
+def test_schedule_out_of_calendar_range_is_422_not_500(client, due, current, total):
+    """Revisão de segurança, 12/11/2026: `add_months` estourava o calendário e
+    o router devolvia 500."""
+    response = client.post("/api/installments/preview", json={
+        "installment_amount": "10.00", "total_installments": total,
+        "current_installment": current, "current_due_date": due,
+    })
+    assert response.status_code == 422, response.text

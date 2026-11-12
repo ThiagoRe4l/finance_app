@@ -251,3 +251,47 @@ def test_another_users_category_inside_items_is_404(client_as):
     assert response.status_code == 404
     assert response.json()["detail"] == "Categoria não encontrada."
     assert bia.get("/api/transactions").json() == []
+
+
+# --- Revisão do backend, 12/11/2026 (escritos antes da correção) -------------
+
+
+def _cafe(client, account_id, category_id):
+    client.post("/api/transactions", json={
+        "title": "CAFE", "type": "SAÍDA", "amount": "5.00", "date": "2026-11-05",
+        "category_id": category_id, "account_id": account_id,
+    })
+
+
+def test_preview_counts_duplicates_instead_of_flagging_every_copy(client, default_account, default_category):
+    """Um CAFE já lançado e dois na fatura: só um deles é a duplicada."""
+    _cafe(client, default_account, default_category["id"])
+    items = preview(client, default_account, lines=["05/11 CAFE 5,00", "05/11 CAFE 5,00"]).json()["items"]
+    assert [i["duplicate"] for i in items] == [True, False]
+
+
+def test_confirm_skips_only_as_many_copies_as_already_exist(client, default_account, default_category):
+    _cafe(client, default_account, default_category["id"])
+    item = {"date": "2026-11-05", "title": "CAFE", "amount": "5.00", "type": "SAÍDA",
+            "category_id": default_category["id"]}
+    response = client.post(CONFIRM, json={"account_id": default_account, "items": [item, item]})
+    assert response.json() == {"created": 1, "skipped_duplicates": 1}
+
+
+def test_confirm_honours_an_explicit_choice_to_import_a_duplicate(client, default_account, default_category):
+    """O usuário marcou de novo a linha que a tela apontou como duplicada."""
+    _cafe(client, default_account, default_category["id"])
+    item = {"date": "2026-11-05", "title": "CAFE", "amount": "5.00", "type": "SAÍDA",
+            "category_id": default_category["id"], "allow_duplicate": True}
+    response = client.post(CONFIRM, json={"account_id": default_account, "items": [item]})
+    assert response.json() == {"created": 1, "skipped_duplicates": 0}
+
+
+def test_preview_rejects_a_declared_oversized_body_before_reading_it(client, default_account):
+    """`Content-Length` acima de 4 MB é recusado sem bufferizar o corpo."""
+    response = client.post(
+        PREVIEW, params={"due_date": DUE, "account_id": default_account},
+        content=make_pdf(INVOICE),
+        headers={"Content-Type": "application/pdf", "Content-Length": str(5 * 1024 * 1024)},
+    )
+    assert response.status_code == 413

@@ -50,6 +50,8 @@ export interface ConfirmPayload {
     amount: string;
     type: "SAÍDA" | "ENTRADA";
     category_id: number;
+    /** Marcada de novo depois de apontada como duplicada (D-Import-4). */
+    allow_duplicate?: true;
   }[];
 }
 
@@ -105,6 +107,9 @@ export function buildConfirmPayload(
         amount: item.amount,
         type: item.type,
         category_id: Number(category_id),
+        // A duplicada vem desmarcada; se o usuário a marcou, é escolha dele, e
+        // o servidor não pode pulá-la de novo.
+        ...(item.duplicate ? { allow_duplicate: true as const } : {}),
       })),
     },
   };

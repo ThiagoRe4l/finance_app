@@ -133,3 +133,21 @@ test("caminho do preview leva vencimento e conta na query", () => {
     "/imports/invoice/preview?due_date=2026-11-20&account_id=9",
   );
 });
+
+test("linha duplicada que o usuário marcou de novo vai com allow_duplicate", () => {
+  const rows = initialRows([
+    item({
+      title: "CAFE",
+      duplicate: true,
+      selected: false,
+      suggested_category_id: 2,
+    }),
+    item({ title: "PAO", suggested_category_id: 2 }),
+  ]);
+  rows[0].selected = true;
+  const result = buildConfirmPayload(9, rows);
+  assert.equal(result.ok, true);
+  const items = (result.ok && result.payload.items) || [];
+  assert.equal(items[0].allow_duplicate, true);
+  assert.equal("allow_duplicate" in items[1], false);
+});

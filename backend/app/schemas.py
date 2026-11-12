@@ -203,12 +203,28 @@ class InstallmentScheduleInput(BaseModel):
         ..., description="Data de vencimento da parcela atual; ancora o cronograma"
     )
 
+    @field_validator("current_due_date")
+    @classmethod
+    def check_due_date_range(cls, value: datetime.date) -> datetime.date:
+        # O cronograma soma até 120 meses: perto do ano 1 ou do 9999 o
+        # calendário estourava no router, como 500 (revisão de 12/11/2026).
+        if not 1900 <= value.year <= 2200:
+            raise ValueError("Data fora do intervalo aceito (1900 a 2200).")
+        return value
+
     @model_validator(mode="after")
     def check_schedule(self):
         if (self.total_amount is None) == (self.installment_amount is None):
             raise ValueError("Informe o valor total ou o valor da parcela — exatamente um dos dois.")
         if self.current_installment > self.total_installments:
             raise ValueError("A parcela atual não pode ser maior que a quantidade de parcelas.")
+        # R$ 0,02 em 3 daria uma parcela de R$ 0,00: uma SAÍDA de zero, que o
+        # `TransactionCreate` recusaria (revisão de 12/11/2026).
+        if (
+            self.total_amount is not None
+            and self.total_amount < Decimal("0.01") * self.total_installments
+        ):
+            raise ValueError("O valor total precisa dar pelo menos R$ 0,01 por parcela.")
         return self
 
 
@@ -456,6 +472,10 @@ class InvoiceConfirmItem(BaseModel):
     amount: Decimal = Field(..., gt=0, decimal_places=2)
     type: str = Field(..., pattern="^(ENTRADA|SAÍDA)$")
     category_id: int
+    allow_duplicate: bool = Field(
+        False,
+        description="O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
+    )
 
 
 class InvoiceConfirm(BaseModel):

@@ -475,8 +475,12 @@ usuário lançá-la à mão com `installment_id`. Dashboard, categorias e relat�
 **P-1: as parcelas são materializadas na criação.** O `POST /installments` grava, na mesma
 transação de banco, uma `Transaction` de SAÍDA para cada parcela **de `current_installment` até
 `total_installments`**. Cada uma tem o `installment_id`, o novo `installment_number` (k), o
-título e a categoria do parcelamento, e a data `add_months(first_due_date, k − 1)`, com o dia
-limitado ao fim do mês.
+título e a categoria do parcelamento, e a data `add_months(current_due_date, k − current)`, com
+o dia limitado ao fim do mês. ⚠️ **Corrigido em 12/11/2026 (revisão):** este texto dizia
+`add_months(first_due_date, k − 1)`, mas o código ancora na data da parcela atual. É o certo: o
+`first_due_date` gravado já pode ter o dia limitado (31/03 na parcela 2 → 28/02), e ancorar nele
+levaria a parcela 3 para 28/04 em vez de 30/04. Consequência: o `first_due_date` é
+informativo e **não** reproduz o cronograma sozinho.
 *Descartado:* **derivar as parcelas na leitura.** Exigiria somar parcelas virtuais em cada
 agregação (dashboard, `_aggregated_rows`, relatórios, saldo) e na listagem de transações:
 quatro consumidores com a mesma regra duplicada, o que `installment_metrics.py` existe para
@@ -509,7 +513,9 @@ passa a ser **calculado** a partir dele e deixa de ser aceito no `POST` e no `PA
 **P-5: validação do cadastro.** `1 ≤ current_installment ≤ total_installments` (a issue pede
 recusar `current > total`; no `PATCH`, `current > total` continua sendo "quitado", D13).
 `total_installments ≤ 120`, um teto contra gerar milhares de linhas por engano. Valores com no
-máximo 2 casas e `> 0`.
+máximo 2 casas e `> 0`. **Acrescentado em 12/11/2026, na revisão:** o total precisa dar pelo
+menos R$ 0,01 por parcela (R$ 0,02 em 3 gerava uma SAÍDA de zero), e a data da parcela atual
+fica entre 1900 e 2200 (perto dos limites do calendário, somar 120 meses dava 500).
 
 **P-6: edição e exclusão mantêm as parcelas consistentes.**
 * `PATCH` de `title` ou `category_id` propaga para as parcelas geradas

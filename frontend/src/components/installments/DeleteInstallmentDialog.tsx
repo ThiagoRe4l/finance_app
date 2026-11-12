@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -31,9 +32,15 @@ export function DeleteInstallmentDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  // O último parcelamento aberto fica guardado: durante a animação de fechar,
+  // `installment` já é undefined e o título piscaria `Excluir ""?`.
+  const [shown, setShown] = useState(installment);
+  useEffect(() => {
+    if (installment) setShown(installment);
+  }, [installment]);
 
   const mutation = useMutation({
-    mutationFn: () => api.delete(`/installments/${installment!.id}`),
+    mutationFn: () => api.delete(`/installments/${shown!.id}`),
     onSuccess: () => {
       for (const key of INSTALLMENT_QUERY_KEYS) {
         queryClient.invalidateQueries({ queryKey: key });
@@ -49,7 +56,7 @@ export function DeleteInstallmentDialog({
       {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir "{installment?.title}"?</AlertDialogTitle>
+          <AlertDialogTitle>Excluir "{shown?.title}"?</AlertDialogTitle>
           <AlertDialogDescription>
             Esta ação não pode ser desfeita. As parcelas geradas por este
             parcelamento saem das transações e dos totais, e o saldo da conta é

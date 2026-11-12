@@ -6,10 +6,12 @@ Duas etapas (D-Import-1): `preview` lê e devolve as linhas, sem gravar;
 """
 
 import datetime
+from collections import Counter
 from decimal import Decimal
-from typing import Iterable, Optional
+from typing import Iterable
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -41,12 +43,15 @@ def _account_or_404(db: Session, account_id: int) -> models.Account:
     return account
 
 
-def _existing_keys(db: Session, account_id: int, dates: Iterable[datetime.date]) -> set[DedupKey]:
-    """Chaves das transações da conta no intervalo de datas da fatura. Pela
-    sessão escopada: só o que é do dono (D-Import-6)."""
+def _existing_keys(db: Session, account_id: int, dates: Iterable[datetime.date]) -> Counter:
+    """Quantas transações da conta existem por chave, no intervalo de datas da
+    fatura. Pela sessão escopada: só o que é do dono (D-Import-6).
+
+    **Contagem, não conjunto** (revisão de 12/11/2026): com um CAFE já lançado
+    e dois na fatura, só um é a duplicada — o segundo é outra compra."""
     dates = list(dates)
     if not dates:
-        return set()
+        return Counter()
     rows = db.query(
         models.Transaction.date,
         models.Transaction.type,
@@ -57,7 +62,7 @@ def _existing_keys(db: Session, account_id: int, dates: Iterable[datetime.date])
         models.Transaction.date >= min(dates),
         models.Transaction.date <= max(dates),
     ).all()
-    return {_key(*row) for row in rows}
+    return Counter(_key(*row) for row in rows)
 
 
 def _category_by_title(db: Session) -> dict[str, int]:
@@ -72,26 +77,52 @@ def _category_by_title(db: Session) -> dict[str, int]:
     return suggestions
 
 
-@router.post("/invoice/preview", response_model=schemas.InvoicePreview)
-def preview_invoice(
+async def _read_pdf_body(request: Request) -> bytes:
+    """O corpo, lido em pedaços até o teto de 4 MB (revisão de segurança,
+    12/11/2026). `Content-Length` declarado acima do teto é recusado sem ler
+    nada; sem o cabeçalho (chunked), a leitura para no primeiro byte a mais."""
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="O PDF passa de 4 MB.")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_PDF_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="O PDF passa de 4 MB.")
+    return bytes(body)
+
+
+@router.post(
+    "/invoice/preview",
+    response_model=schemas.InvoicePreview,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}},
+        }
+    },
+)
+async def preview_invoice(
+    request: Request,
     due_date: datetime.date = Query(..., description="Vencimento da fatura: dá o ano das linhas"),
     account_id: int = Query(..., description="Conta (cartão) onde as linhas serão lançadas"),
-    pdf: bytes = Body(..., media_type="application/pdf"),
-    content_type: Optional[str] = Header(None),
     db: Session = Depends(owned_db),
 ):
-    """Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**."""
-    if (content_type or "").split(";")[0].strip().lower() != "application/pdf":
+    """Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**.
+
+    `async` só para ler o corpo com teto; o trabalho de banco e de PDF é
+    síncrono e vai para o threadpool, como nas rotas `def`."""
+    content_type = request.headers.get("content-type") or ""
+    if content_type.split(";")[0].strip().lower() != "application/pdf":
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Envie a fatura em PDF (Content-Type: application/pdf).",
         )
-    if len(pdf) > MAX_PDF_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="O PDF passa de 4 MB.",
-        )
+    pdf = await _read_pdf_body(request)
+    return await run_in_threadpool(_preview, pdf, due_date, account_id, db)
 
+
+def _preview(pdf: bytes, due_date: datetime.date, account_id: int, db: Session) -> schemas.InvoicePreview:
     _account_or_404(db, account_id)
 
     try:
@@ -105,7 +136,10 @@ def preview_invoice(
 
     items = []
     for entry in entries:
-        duplicate = _key(entry.date, entry.type, entry.amount, entry.title) in existing
+        key = _key(entry.date, entry.type, entry.amount, entry.title)
+        duplicate = existing[key] > 0
+        if duplicate:
+            existing[key] -= 1
         items.append(schemas.InvoicePreviewItem(
             date=entry.date,
             title=entry.title,
@@ -149,7 +183,10 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
     created = skipped = 0
     for item in payload.items:
         key = _key(item.date, item.type, item.amount, item.title)
-        if key in existing:
+        # Cada transação existente "consome" uma linha igual da fatura; a
+        # escolha explícita do usuário (`allow_duplicate`) vence a checagem.
+        if existing[key] > 0 and not item.allow_duplicate:
+            existing[key] -= 1
             skipped += 1
             continue
         db.add(models.Transaction(

@@ -1094,7 +1094,7 @@
           "Imports"
         ],
         "summary": "Preview Invoice",
-        "description": "Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**.",
+        "description": "Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**.\n\n`async` só para ler o corpo com teto; o trabalho de banco e de PDF é\nsíncrono e vai para o threadpool, como nas rotas `def`.",
         "operationId": "preview_invoice_api_imports_invoice_preview_post",
         "parameters": [
           {
@@ -1119,36 +1119,8 @@
               "title": "Account Id"
             },
             "description": "Conta (cartão) onde as linhas serão lançadas"
-          },
-          {
-            "name": "content-type",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Content-Type"
-            }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/pdf": {
-              "schema": {
-                "type": "string",
-                "contentMediaType": "application/octet-stream",
-                "title": "Pdf"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1167,6 +1139,17 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
               }
             }
           }
@@ -2255,6 +2238,12 @@
           "category_id": {
             "type": "integer",
             "title": "Category Id"
+          },
+          "allow_duplicate": {
+            "type": "boolean",
+            "title": "Allow Duplicate",
+            "description": "O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
+            "default": false
           }
         },
         "additionalProperties": false,
