@@ -28,3 +28,9 @@ alembic==1.19.1
 # e pesa no cold start — mitigado por construção: RS256 só roda no login, e
 # toda requisição seguinte valida um HMAC local.
 pyjwt[crypto]==2.15.1
+
+# Texto da fatura em PDF (docs/importacao-fatura.md → D-Import-2). Pura Python,
+# sem binário nativo e sem dependência transitiva — não pesa no cold start além
+# do próprio import, que só acontece na rota de importação. Pinada na 6.21.4
+# (28/10/2026): a 7.0 tinha menos de duas semanas quando entrou.
+pypdf==6.21.4

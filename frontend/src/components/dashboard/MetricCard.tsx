@@ -1,8 +1,6 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
-import type { Trend } from "@/lib/dashboard";
-
-type Tone = "neutral" | "positive" | "negative";
+import type { Tone, Trend } from "@/lib/dashboard";
 
 interface MetricCardProps {
   label: string;
@@ -47,7 +45,9 @@ export function MetricCard({
       <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">
         {label}
       </p>
-      <p className={`text-2xl font-semibold tabular-nums ${toneClasses[tone]}`}>
+      <p
+        className={`text-2xl font-semibold tabular-nums whitespace-nowrap ${toneClasses[tone]}`}
+      >
         {value}
       </p>
       {delta && (

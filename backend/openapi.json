@@ -634,6 +634,48 @@
         }
       }
     },
+    "/api/installments/preview": {
+      "post": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Preview Installment",
+        "description": "Cronograma calculado, **sem gravar nada** — o que o formulário mostra\nantes de salvar (#4). Mesma função do cadastro: o que se vê é o que se grava.\n\nNão lê nem escreve dado de ninguém, mas declara `owned_db` mesmo assim:\n`test_every_data_route_uses_the_owner_scoped_session` não tem lista de\nexceções, de propósito, e abrir uma para esta rota enfraqueceria a\nvarredura (D-Tenant-7) por nada.",
+        "operationId": "preview_installment_api_installments_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallmentScheduleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/installments": {
       "get": {
         "tags": [
@@ -663,6 +705,7 @@
           "Installments"
         ],
         "summary": "Create Installment",
+        "description": "Cria o parcelamento **e** uma SAÍDA por parcela de `current` a `total`\n(P-1, P-2), numa transação de banco só: ou tudo, ou nada.",
         "operationId": "create_installment_api_installments_post",
         "requestBody": {
           "content": {
@@ -737,6 +780,40 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Delete Installment",
+        "description": "P-6: apaga as parcelas geradas, desvincula as ligadas à mão e apaga o\nparcelamento — numa transação de banco só.\n\nTudo carregado antes e alterado objeto por objeto: o filtro de dono da\nD-Tenant-3 só age em SELECT, e um DELETE em massa não passaria por ele.",
+        "operationId": "delete_installment_api_installments__installment_id__delete",
+        "parameters": [
+          {
+            "name": "installment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Installment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -997,6 +1074,116 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports/invoice/preview": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "summary": "Preview Invoice",
+        "description": "Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**.\n\n`async` só para ler o corpo com teto; o trabalho de banco e de PDF é\nsíncrono e vai para o threadpool, como nas rotas `def`.",
+        "operationId": "preview_invoice_api_imports_invoice_preview_post",
+        "parameters": [
+          {
+            "name": "due_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Vencimento da fatura: dá o ano das linhas",
+              "title": "Due Date"
+            },
+            "description": "Vencimento da fatura: dá o ano das linhas"
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Conta (cartão) onde as linhas serão lançadas",
+              "title": "Account Id"
+            },
+            "description": "Conta (cartão) onde as linhas serão lançadas"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports/invoice/confirm": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "summary": "Confirm Invoice",
+        "description": "Grava as linhas escolhidas, numa transação de banco só. Confere a\nduplicidade de novo no servidor e pula a repetida (D-Import-4).",
+        "operationId": "confirm_invoice_api_imports_invoice_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceConfirmResult"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1441,6 +1628,59 @@
       },
       "InstallmentCreate": {
         "properties": {
+          "total_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount",
+            "description": "Valor total. Informe este ou installment_amount."
+          },
+          "installment_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Amount",
+            "description": "Valor da parcela. Informe este ou total_amount."
+          },
+          "total_installments": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Total Installments"
+          },
+          "current_installment": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Current Installment",
+            "description": "Parcela ainda a pagar (D13); no cadastro, não passa do total",
+            "default": 1
+          },
+          "current_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Current Due Date",
+            "description": "Data de vencimento da parcela atual; ancora o cronograma"
+          },
           "title": {
             "type": "string",
             "maxLength": 100,
@@ -1451,59 +1691,141 @@
             "title": "Category Id",
             "description": "ID da categoria cadastrada"
           },
-          "total_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Total Amount"
-          },
-          "installment_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Installment Amount"
-          },
-          "current_installment": {
-            "type": "integer",
-            "title": "Current Installment"
-          },
-          "total_installments": {
-            "type": "integer",
-            "title": "Total Installments"
-          },
-          "end_date": {
-            "type": "string",
-            "title": "End Date"
-          },
           "account_id": {
             "type": "integer",
             "title": "Account Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
+          "total_installments",
+          "current_due_date",
           "title",
           "category_id",
-          "total_amount",
-          "installment_amount",
-          "current_installment",
-          "total_installments",
-          "end_date",
           "account_id"
         ],
         "title": "InstallmentCreate"
+      },
+      "InstallmentHint": {
+        "properties": {
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "total"
+        ],
+        "title": "InstallmentHint"
+      },
+      "InstallmentMatch": {
+        "properties": {
+          "installment_id": {
+            "type": "integer",
+            "title": "Installment Id"
+          },
+          "installment_title": {
+            "type": "string",
+            "title": "Installment Title"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id",
+            "description": "A parcela já gerada; nula se foi apagada"
+          }
+        },
+        "type": "object",
+        "required": [
+          "installment_id",
+          "installment_title"
+        ],
+        "title": "InstallmentMatch",
+        "description": "A linha é a parcela de um parcelamento que já existe (D-Import-8)."
+      },
+      "InstallmentPreview": {
+        "properties": {
+          "total_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Amount"
+          },
+          "installment_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Installment Amount"
+          },
+          "remaining_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Amount"
+          },
+          "first_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Due Date"
+          },
+          "end_date": {
+            "type": "string",
+            "title": "End Date"
+          },
+          "installments": {
+            "items": {
+              "$ref": "#/components/schemas/InstallmentPreviewParcel"
+            },
+            "type": "array",
+            "title": "Installments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_amount",
+          "installment_amount",
+          "remaining_amount",
+          "first_due_date",
+          "end_date",
+          "installments"
+        ],
+        "title": "InstallmentPreview",
+        "description": "Resposta de `POST /installments/preview`: o cronograma, sem gravar."
+      },
+      "InstallmentPreviewParcel": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "date",
+          "amount"
+        ],
+        "title": "InstallmentPreviewParcel"
       },
       "InstallmentProgress": {
         "properties": {
@@ -1525,15 +1847,17 @@
       },
       "InstallmentResponse": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
           "title": {
             "type": "string",
-            "maxLength": 100,
             "title": "Title"
           },
           "category_id": {
             "type": "integer",
-            "title": "Category Id",
-            "description": "ID da categoria cadastrada"
+            "title": "Category Id"
           },
           "total_amount": {
             "type": "string",
@@ -1561,9 +1885,31 @@
             "type": "integer",
             "title": "Account Id"
           },
-          "id": {
-            "type": "integer",
-            "title": "Id"
+          "first_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Due Date",
+            "description": "Data da parcela 1; nula nos parcelamentos sem cronograma"
+          },
+          "anchor_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Due Date",
+            "description": "Com ela, current_installment vem do calendário (S-3); nula = modo antigo"
           },
           "category": {
             "$ref": "#/components/schemas/CategoryRef"
@@ -1577,6 +1923,7 @@
         },
         "type": "object",
         "required": [
+          "id",
           "title",
           "category_id",
           "total_amount",
@@ -1585,11 +1932,75 @@
           "total_installments",
           "end_date",
           "account_id",
-          "id",
           "category",
           "remaining_amount"
         ],
         "title": "InstallmentResponse"
+      },
+      "InstallmentScheduleInput": {
+        "properties": {
+          "total_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount",
+            "description": "Valor total. Informe este ou installment_amount."
+          },
+          "installment_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Amount",
+            "description": "Valor da parcela. Informe este ou total_amount."
+          },
+          "total_installments": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Total Installments"
+          },
+          "current_installment": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Current Installment",
+            "description": "Parcela ainda a pagar (D13); no cadastro, não passa do total",
+            "default": 1
+          },
+          "current_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Current Due Date",
+            "description": "Data de vencimento da parcela atual; ancora o cronograma"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total_installments",
+          "current_due_date"
+        ],
+        "title": "InstallmentScheduleInput",
+        "description": "O que define o cronograma (P-3 a P-5). Usado pelo cadastro e pela\npré-visualização, que por isso validam igual.\n\n`extra=\"forbid\"`: `end_date` deixou de ser aceito e tem que falhar\nbarulhento (422), não ser descartado em silêncio."
       },
       "InstallmentSummary": {
         "properties": {
@@ -1606,13 +2017,20 @@
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Total Amount"
+          },
+          "committed_balance": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Committed Balance",
+            "description": "Saldo total até hoje menos as parcelas geradas que ainda vão vencer e o restante dos parcelamentos antigos (S-2)"
           }
         },
         "type": "object",
         "required": [
           "active_count",
           "monthly_committed_amount",
-          "remaining_total_amount"
+          "remaining_total_amount",
+          "committed_balance"
         ],
         "title": "InstallmentSummary",
         "description": "Totais do cabeçalho da tela de parcelamentos.\n\nEndpoint próprio em vez de campos novos em `DashboardSummary`: a tela\nprecisa dos três números e faria duas requisições — uma delas ao resumo do\ndashboard, que não é o assunto dela. Ver a decisão no CLAUDE.md.\n\n`active_count` e `monthly_committed_amount` repetem valores que\n`DashboardSummary` também expõe, mas vêm da **mesma função**\n(`app/installment_metrics.py`), não de uma segunda implementação."
@@ -1694,18 +2112,6 @@
               }
             ],
             "title": "Total Installments"
-          },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
           }
         },
         "additionalProperties": false,
@@ -1824,6 +2230,263 @@
           "current_balance"
         ],
         "title": "InvestmentResponse"
+      },
+      "InvoiceConfirm": {
+        "properties": {
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceConfirmItem"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "items"
+        ],
+        "title": "InvoiceConfirm"
+      },
+      "InvoiceConfirmItem": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Amount"
+          },
+          "type": {
+            "type": "string",
+            "pattern": "^(ENTRADA|SAÍDA)$",
+            "title": "Type"
+          },
+          "category_id": {
+            "type": "integer",
+            "title": "Category Id"
+          },
+          "allow_duplicate": {
+            "type": "boolean",
+            "title": "Allow Duplicate",
+            "description": "O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
+            "default": false
+          },
+          "installment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Id"
+          },
+          "installment_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Number"
+          },
+          "create_installment": {
+            "type": "boolean",
+            "title": "Create Installment",
+            "default": false
+          },
+          "installment_current": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Current"
+          },
+          "installment_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Total"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "amount",
+          "type",
+          "category_id"
+        ],
+        "title": "InvoiceConfirmItem"
+      },
+      "InvoiceConfirmResult": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "skipped_duplicates": {
+            "type": "integer",
+            "title": "Skipped Duplicates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "skipped_duplicates"
+        ],
+        "title": "InvoiceConfirmResult"
+      },
+      "InvoicePreview": {
+        "properties": {
+          "bank": {
+            "type": "string",
+            "title": "Bank",
+            "description": "itau, nubank, mercado_pago ou generic (D-Import-7)"
+          },
+          "lines_read": {
+            "type": "integer",
+            "title": "Lines Read",
+            "description": "Linhas de texto lidas no PDF"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoicePreviewItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bank",
+          "lines_read",
+          "items"
+        ],
+        "title": "InvoicePreview"
+      },
+      "InvoicePreviewItem": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "installment_hint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallmentHint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_payment": {
+            "type": "boolean",
+            "title": "Is Payment"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate",
+            "description": "Já existe na conta (D-Import-4)"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "description": "Sugestão da tela: falso para pagamento e duplicada"
+          },
+          "suggested_category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Category Id"
+          },
+          "installment_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallmentMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "amount",
+          "type",
+          "is_payment",
+          "duplicate",
+          "selected"
+        ],
+        "title": "InvoicePreviewItem",
+        "description": "Uma linha reconhecida na fatura. Nada foi gravado (D-Import-1)."
       },
       "MonthlyFlow": {
         "properties": {
@@ -2217,6 +2880,17 @@
               }
             ],
             "title": "Installment Id"
+          },
+          "installment_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Number"
           },
           "installment": {
             "anyOf": [

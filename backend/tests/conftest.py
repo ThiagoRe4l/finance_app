@@ -27,6 +27,52 @@ from app.tenancy import current_owner, resolve_user
 from app.database import Base, get_db
 from app.main import app
 
+
+# ---------------------------------------------------------------------------
+# Relógio controlável (backlog 0.1, item L)
+# ---------------------------------------------------------------------------
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--today",
+        metavar="AAAA-MM-DD",
+        default=None,
+        help="Roda a suíte como se hoje fosse esta data (time-machine). "
+             "O CI roda também em 31/12, 01/01 e 29/02.",
+    )
+
+
+_TRAVEL = None
+
+
+def pytest_configure(config):
+    """Com `--today`, o relógio do Python vai para o meio-dia daquela data
+    (UTC) antes de qualquer teste, e anda normalmente a partir dali.
+
+    O relógio do banco não é trocado: nenhuma consulta usa `now()` do SQL
+    (backlog 0.1, "Limite")."""
+    global _TRAVEL
+    raw = config.getoption("--today")
+    if raw:
+        import time_machine
+
+        day = datetime.date.fromisoformat(raw)
+        _TRAVEL = time_machine.travel(
+            datetime.datetime(day.year, day.month, day.day, 12, tzinfo=datetime.timezone.utc),
+            tick=True,
+        )
+        _TRAVEL.start()
+
+
+def pytest_unconfigure(config):
+    if _TRAVEL is not None:
+        _TRAVEL.stop()
+
+
+def pytest_report_header(config):
+    raw = config.getoption("--today")
+    return f"relógio dos testes: {raw}" if raw else None
+
 # E-mail da sessão usada pela fixture `client`. Qualquer valor serve — o que
 # importa é ele ser diferente do `intruso@` dos testes de allowlist.
 TEST_USER_EMAIL = "pessoa@example.com"
@@ -450,18 +496,32 @@ def create_transaction(client, account_id, category_id, tx_type="SAÍDA",
 
 
 def installment_payload(account_id, category_id, **overrides):
+    """Cadastro de parcelamento no contrato do cronograma (issues #3 e #4).
+
+    Parcela 2 de 12 **vencendo hoje** (`current_due_date` relativo a hoje, não
+    literal — backlog 0.1). Desde a S-3 (12/11/2026) a parcela atual vem do
+    calendário: com o vencimento no mês corrente, ela é a 2 que o teste pede.
+    (Até 11/11 as datas eram de 2019, para nenhuma parcela cair no mês; com o
+    calendário isso viraria "quitado".)
+
+    Consequências que os testes já contam: a parcela 2 (R$ 500, hoje) entra nas
+    despesas do mês e no saldo; as 3 a 12 são futuras e só contam no mês delas
+    (S-1).
+
+    `total_amount` não vai junto: é um **ou** outro (P-4). Passe
+    `installment_amount=None, total_amount=...` para cadastrar pelo total.
+    """
     payload = {
         "title": "Notebook Dell",
         "category_id": category_id,
-        "total_amount": 6000.0,
-        "installment_amount": 500.0,
+        "installment_amount": "500.00",
         "current_installment": 2,
         "total_installments": 12,
-        "end_date": "Ago/2026",
+        "current_due_date": datetime.date.today().isoformat(),
         "account_id": account_id,
     }
     payload.update(overrides)
-    return payload
+    return {key: value for key, value in payload.items() if value is not None}
 
 
 @pytest.fixture(name="default_category")
@@ -472,3 +532,32 @@ def default_category_fixture(client):
 @pytest.fixture(name="default_account")
 def default_account_fixture(client):
     return create_account(client)
+
+
+def create_legacy_installment(client, session, account_id, category_id, *,
+                              current_installment=2, total_installments=12,
+                              installment_amount="500.00", title="Notebook Dell",
+                              end_date="Ago/2027"):
+    """Parcelamento do **modo antigo** (S-4): sem cronograma nem âncora, parcela
+    atual gravada e avançável pelo `PATCH`, nenhuma parcela no extrato.
+
+    Inserido direto no banco porque a API não cria mais esse tipo: é o estado
+    dos parcelamentos cadastrados antes de 11/11/2026, que continuam em
+    produção. Os testes da D12, da D13 e das fronteiras de "ativo" usam este
+    helper — eles são sobre o modo antigo; o calendário tem testes próprios em
+    `test_balance_until_today.py`.
+
+    Devolve o parcelamento como a API o lista.
+    """
+    from app import models
+
+    amount = Decimal(str(installment_amount))
+    row = models.Installment(
+        owner_id=owner_id_of(session), title=title, category_id=category_id,
+        total_amount=amount * total_installments, installment_amount=amount,
+        current_installment=current_installment, total_installments=total_installments,
+        end_date=end_date, account_id=account_id,
+    )
+    session.add(row)
+    session.commit()
+    return next(i for i in client.get("/api/installments").json() if i["id"] == row.id)

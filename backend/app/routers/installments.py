@@ -4,7 +4,13 @@ from typing import List
 
 from app.tenancy import owned_db, owner_id
 from app import models, schemas
-from app import installment_metrics
+import datetime
+
+from sqlalchemy import func
+
+from app import account_balance, installment_metrics, installment_service
+from app.installment_metrics import ZERO
+from app.installment_schedule import Schedule, build_schedule
 
 router = APIRouter(
     prefix="/installments",
@@ -25,10 +31,13 @@ def _to_response(installment: models.Installment) -> schemas.InstallmentResponse
         category_id=installment.category_id,
         total_amount=installment.total_amount,
         installment_amount=installment.installment_amount,
-        current_installment=installment.current_installment,
+        # Derivada do calendário nos parcelamentos com âncora (S-3).
+        current_installment=installment_metrics.effective_current(installment),
         total_installments=installment.total_installments,
         end_date=installment.end_date,
         account_id=installment.account_id,
+        first_due_date=installment.first_due_date,
+        anchor_due_date=installment.anchor_due_date,
         category=installment.category,
         remaining_amount=installment_metrics.remaining_amount(installment),
     )
@@ -47,15 +56,71 @@ def get_installments_summary(db: Session = Depends(owned_db)):
     """
     active = installment_metrics.active_installments(db)
 
+    # S-2: o saldo "se todas as parcelas já tivessem saído". Parcela gerada com
+    # data depois de hoje ainda não está no saldo (S-1); parcelamento antigo não
+    # tem parcela nenhuma no extrato, então entra pelo restante dele.
+    today = datetime.date.today()
+    future_parcels = db.query(
+        func.coalesce(func.sum(models.Transaction.amount), ZERO)
+    ).filter(
+        models.Transaction.installment_number.isnot(None),
+        models.Transaction.type == "SAÍDA",
+        models.Transaction.date > today,
+    ).scalar() or ZERO
+    legacy_remaining = sum(
+        (installment_metrics.remaining_amount(it) for it in active if it.first_due_date is None),
+        ZERO,
+    )
+
     return schemas.InstallmentSummary(
         active_count=len(active),
         monthly_committed_amount=installment_metrics.monthly_committed(active),
         remaining_total_amount=installment_metrics.remaining_total(active),
+        committed_balance=account_balance.total_balance(db) - future_parcels - legacy_remaining,
+    )
+
+
+def _schedule_of(payload: schemas.InstallmentScheduleInput) -> Schedule:
+    return build_schedule(
+        total_installments=payload.total_installments,
+        current_installment=payload.current_installment,
+        current_due_date=payload.current_due_date,
+        total_amount=payload.total_amount,
+        installment_amount=payload.installment_amount,
+    )
+
+
+@router.post("/preview", response_model=schemas.InstallmentPreview)
+def preview_installment(
+    payload: schemas.InstallmentScheduleInput,
+    db: Session = Depends(owned_db),  # noqa: ARG001 — ver docstring
+):
+    """Cronograma calculado, **sem gravar nada** — o que o formulário mostra
+    antes de salvar (#4). Mesma função do cadastro: o que se vê é o que se grava.
+
+    Não lê nem escreve dado de ninguém, mas declara `owned_db` mesmo assim:
+    `test_every_data_route_uses_the_owner_scoped_session` não tem lista de
+    exceções, de propósito, e abrir uma para esta rota enfraqueceria a
+    varredura (D-Tenant-7) por nada.
+    """
+    schedule = _schedule_of(payload)
+    return schemas.InstallmentPreview(
+        total_amount=schedule.total_amount,
+        installment_amount=schedule.installment_amount,
+        remaining_amount=schedule.remaining_amount,
+        first_due_date=schedule.first_due_date,
+        end_date=schedule.end_date,
+        installments=[
+            schemas.InstallmentPreviewParcel(number=p.number, date=p.date, amount=p.amount)
+            for p in schedule.parcels
+        ],
     )
 
 
 @router.post("", response_model=schemas.InstallmentResponse, status_code=status.HTTP_201_CREATED)
 def create_installment(installment: schemas.InstallmentCreate, db: Session = Depends(owned_db)):
+    """Cria o parcelamento **e** uma SAÍDA por parcela de `current` a `total`
+    (P-1, P-2), numa transação de banco só: ou tudo, ou nada."""
     account = db.query(models.Account).filter(models.Account.id == installment.account_id).first()
     if not account:
         raise HTTPException(
@@ -72,18 +137,19 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
             detail="Categoria não encontrada."
         )
 
-    new_installment = models.Installment(
-        owner_id=owner_id(db),
+    new_installment = installment_service.create_with_parcels(
+        db,
+        owner_id(db),
         title=installment.title,
         category_id=installment.category_id,
+        account_id=installment.account_id,
+        total_installments=installment.total_installments,
+        current_installment=installment.current_installment,
+        current_due_date=installment.current_due_date,
         total_amount=installment.total_amount,
         installment_amount=installment.installment_amount,
-        current_installment=installment.current_installment,
-        total_installments=installment.total_installments,
-        end_date=installment.end_date,
-        account_id=installment.account_id
     )
-    db.add(new_installment)
+
     db.commit()
     db.refresh(new_installment)
     return _to_response(new_installment)
@@ -124,6 +190,19 @@ def update_installment(
 
     data = payload.model_dump(exclude_unset=True)
 
+    # S-3: com âncora, a parcela atual vem do calendário. Reenviar o valor que
+    # a API mostrou passa (formulário que manda o objeto inteiro); mudar é 400.
+    if installment.anchor_due_date is not None and "current_installment" in data:
+        if data["current_installment"] != installment_metrics.effective_current(installment):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "A parcela atual deste parcelamento é calculada pela data "
+                    "de vencimento e não pode ser alterada."
+                ),
+            )
+        del data["current_installment"]
+
     if "category_id" in data:
         category = db.query(models.Category).filter(
             models.Category.id == data["category_id"]
@@ -158,7 +237,50 @@ def update_installment(
     for field, value in data.items():
         setattr(installment, field, value)
 
+    # P-6: título e categoria acompanham nas parcelas **geradas**. As ligadas à
+    # mão (`installment_number` nulo) são do usuário e não mudam. Objeto por
+    # objeto: o filtro de dono não age em UPDATE em massa (D-Tenant-3).
+    propagated = {k: data[k] for k in ("title", "category_id") if k in data}
+    if propagated:
+        generated = db.query(models.Transaction).filter(
+            models.Transaction.installment_id == installment_id,
+            models.Transaction.installment_number.isnot(None),
+        ).all()
+        for transaction in generated:
+            for field, value in propagated.items():
+                setattr(transaction, field, value)
+
     db.commit()
     db.refresh(installment)
 
     return _to_response(installment)
+
+
+@router.delete("/{installment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_installment(installment_id: int, db: Session = Depends(owned_db)):
+    """P-6: apaga as parcelas geradas, desvincula as ligadas à mão e apaga o
+    parcelamento — numa transação de banco só.
+
+    Tudo carregado antes e alterado objeto por objeto: o filtro de dono da
+    D-Tenant-3 só age em SELECT, e um DELETE em massa não passaria por ele.
+    """
+    installment = db.query(models.Installment).filter(
+        models.Installment.id == installment_id
+    ).first()
+    if not installment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parcelamento não encontrado."
+        )
+
+    linked = db.query(models.Transaction).filter(
+        models.Transaction.installment_id == installment_id
+    ).all()
+    for transaction in linked:
+        if transaction.installment_number is not None:
+            db.delete(transaction)
+        else:
+            transaction.installment_id = None
+
+    db.delete(installment)
+    db.commit()

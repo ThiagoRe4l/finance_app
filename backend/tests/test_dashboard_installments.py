@@ -37,21 +37,31 @@ import datetime
 
 import pytest
 
-from tests.conftest import money, create_transaction, installment_payload
+from tests.conftest import money, create_transaction, create_legacy_installment
+
+
+@pytest.fixture(autouse=True)
+def _session(session):
+    """O helper abaixo insere direto no banco e precisa da sessão do teste."""
+    global SESSION
+    SESSION = session
 
 
 def _create_installment(client, account_id, category_id, current, total,
                         installment_amount=500.0, title="Parcelamento"):
-    response = client.post("/api/installments/", json=installment_payload(
-        account_id, category_id,
-        title=title,
-        current_installment=current,
-        total_installments=total,
-        installment_amount=installment_amount,
-    ))
-    assert response.status_code == 201, response.text
-    return response.json()
+    """Parcelamento do **modo antigo** (S-4), com a parcela atual gravada.
 
+    Estes testes são sobre a fronteira "ativo × quitado" (D13), que exige
+    `current` arbitrário. Desde 12/11/2026 os parcelamentos novos têm a parcela
+    atual pelo calendário (S-3, testado em `test_balance_until_today.py`); o
+    modo antigo continua em produção e é ele que estes testes exercitam. Sem
+    parcelas geradas no extrato, como antes de 11/11.
+    """
+    return create_legacy_installment(
+        client, SESSION, account_id, category_id,
+        current_installment=current, total_installments=total,
+        installment_amount=f"{installment_amount:.2f}", title=title,
+    )
 
 def _summary(client):
     response = client.get("/api/dashboard/summary")
@@ -247,7 +257,9 @@ def test_the_filter_does_not_touch_the_transactions_of_a_paid_off_installment(cl
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
+    # Parcelamento do modo antigo (S-4): sem parcelas geradas, só a lançada.
     assert len(summary["recent_transactions"]) == 1
+    # Só a lançada hoje cai no mês corrente; a gerada é de 2020.
     assert money(summary["category_distribution"][0]["spent"]) == Decimal("500.00")
 
 

@@ -104,12 +104,14 @@ def test_account_without_transactions_keeps_the_initial_balance(client):
     assert _balance(client) == Decimal("1500.00")
 
 
-def test_balance_has_no_date_cutoff(client, default_account, default_category):
-    """Saldo é acumulado por definição, ao contrário de `spent`.
+def test_balance_counts_the_past_but_not_the_future(client, default_account, default_category):
+    """⚠️ **Invertido em 12/11/2026** (S-1, `docs/design-patterns.md`). Era
+    `test_balance_has_no_date_cutoff` e fixava que um lançamento futuro já
+    contava. Com as parcelas geradas, isso baixava o saldo pelo parcelamento
+    inteiro no dia do cadastro; o usuário escolheu o saldo até hoje.
 
-    Um gasto de mês passado continua descontado; um lançamento futuro também
-    conta. Se alguém aplicar aqui o recorte mensal de `_aggregated_rows` por
-    engano, este teste denuncia.
+    O gasto de mês passado continua descontado: o recorte é "até hoje", não o
+    mensal de `_aggregated_rows`.
     """
     today = datetime.date.today()
     last_month = (today.replace(day=1) - datetime.timedelta(days=1)).isoformat()
@@ -119,7 +121,7 @@ def test_balance_has_no_date_cutoff(client, default_account, default_category):
     create_transaction(client, default_account, cat, "SAÍDA", 100.0, date=last_month)
     create_transaction(client, default_account, cat, "SAÍDA", 200.0, date=next_month)
 
-    assert _balance(client) == Decimal("9700.00")
+    assert _balance(client) == Decimal("9900.00")
 
 
 # ---------------------------------------------------------------------------

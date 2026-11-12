@@ -24,7 +24,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { installmentProgress } from "./installments.ts";
+import { canAdvance, installmentProgress } from "./installments.ts";
 
 // ---------------------------------------------------------------------------
 // Percentual pago
@@ -134,4 +134,38 @@ test("percentual nunca sai do intervalo 0–100", () => {
       `${current}/${total} devolveu ${percent}, fora do intervalo`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// canAdvance — S-3/S-4 (12/11/2026), escrito antes da implementação
+// ---------------------------------------------------------------------------
+
+test("com calendário a parcela atual não se avança à mão", () => {
+  assert.equal(
+    canAdvance({
+      anchor_due_date: "2026-11-10",
+      current_installment: 2,
+      total_installments: 10,
+    }),
+    false,
+  );
+});
+
+test("modo antigo avança enquanto não quitou", () => {
+  assert.equal(
+    canAdvance({
+      anchor_due_date: null,
+      current_installment: 2,
+      total_installments: 10,
+    }),
+    true,
+  );
+  assert.equal(
+    canAdvance({
+      anchor_due_date: null,
+      current_installment: 11,
+      total_installments: 10,
+    }),
+    false,
+  );
 });

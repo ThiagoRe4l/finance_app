@@ -25,11 +25,14 @@ export function CategorySelect({
   value,
   onValueChange,
   disabled,
+  triggerClassName,
 }: {
   id?: string;
   value: string;
   onValueChange: (value: string) => void;
   disabled?: boolean;
+  /** Classe extra do gatilho; sem ela, o gatilho é o do shadcn (Parcelamentos). */
+  triggerClassName?: string;
 }) {
   const categories = useQuery({
     queryKey: ["categories"],
@@ -42,7 +45,7 @@ export function CategorySelect({
       onValueChange={onValueChange}
       disabled={disabled || categories.isPending}
     >
-      <SelectTrigger id={id}>
+      <SelectTrigger id={id} className={triggerClassName}>
         <SelectValue
           placeholder={categories.isPending ? "Carregando..." : "Selecione"}
         />

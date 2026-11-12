@@ -26,7 +26,7 @@ export function Transactions({
         <h2 className="text-sm font-medium">Transações Recentes</h2>
         <a
           href="/transacoes"
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex min-h-11 items-center lg:min-h-0 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           Ver todas
         </a>
@@ -45,19 +45,19 @@ export function Transactions({
             return (
               <div
                 key={transaction.id}
-                className="flex justify-between items-center py-3 first:pt-0 last:pb-0"
+                className="flex justify-between items-center gap-3 py-3 first:pt-0 last:pb-0"
               >
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm font-medium">
                     {transaction.title}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="truncate text-xs text-muted-foreground">
                     {transaction.category.name}
                   </span>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <span
-                    className={`text-sm tabular-nums block font-medium ${
+                    className={`text-sm tabular-nums block whitespace-nowrap font-medium ${
                       isIncome
                         ? "text-[oklch(0.55_0.15_155)]"
                         : "text-foreground"

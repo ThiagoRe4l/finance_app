@@ -57,7 +57,8 @@ export function DeleteTransactionDialog({
 
   return (
     <AlertDialog open={transaction !== undefined} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
+      <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
           <AlertDialogTitle>Excluir "{transaction?.title}"?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -71,7 +72,10 @@ export function DeleteTransactionDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={mutation.isPending}>
+          <AlertDialogCancel
+            disabled={mutation.isPending}
+            className="h-11 sm:h-9"
+          >
             Cancelar
           </AlertDialogCancel>
           <AlertDialogAction
@@ -80,7 +84,7 @@ export function DeleteTransactionDialog({
               mutation.mutate();
             }}
             disabled={mutation.isPending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className="h-11 sm:h-9 bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Excluir

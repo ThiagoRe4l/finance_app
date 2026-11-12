@@ -150,9 +150,9 @@ def _build_dataset(client, share_with=None):
     }))
     installment = _created(client.post("/api/installments", json={
         "title": f"{SENTINEL} parcelamento", "category_id": category,
-        "total_amount": "3999.96", "installment_amount": "333.33",
+        "installment_amount": "333.33",
         "current_installment": 1, "total_installments": 12,
-        "end_date": "Ago/2027", "account_id": account,
+        "current_due_date": "2019-10-15", "account_id": account,
     }))
     transaction = _created(client.post("/api/transactions", json={
         "title": f"{SENTINEL} saída", "type": "SAÍDA", "amount": "777777.77",
@@ -336,9 +336,9 @@ def _bia_resources(bia):
         "name": "Categoria B", "icon_name": "Home", "budget": "0", "color": "oklch(0.5 0 0)",
     }))
     installment = _created(bia.post("/api/installments", json={
-        "title": "Parcelamento B", "category_id": category, "total_amount": "120.00",
+        "title": "Parcelamento B", "category_id": category,
         "installment_amount": "10.00", "current_installment": 1,
-        "total_installments": 12, "end_date": "Ago/2027", "account_id": account,
+        "total_installments": 12, "current_due_date": "2019-10-15", "account_id": account,
     }))
     transaction = _created(bia.post("/api/transactions", json={
         "title": "Saída B", "type": "SAÍDA", "amount": "10.00", "date": today,
@@ -362,14 +362,24 @@ def _body_cases(own, today):
     }
     installment_body = {
         "title": "Tentativa", "category_id": own["category_id"],
-        "total_amount": "120.00", "installment_amount": "10.00",
+        "installment_amount": "10.00",
         "current_installment": 1, "total_installments": 12,
-        "end_date": "Ago/2027", "account_id": own["account_id"],
+        "current_due_date": "2019-10-15", "account_id": own["account_id"],
     }
     shared_body = {
         "title": "Tentativa", "amount": "10.00", "date": today,
         "account_id": own["account_id"], "category_id": own["category_id"],
         "participants": [CAIO],
+    }
+    # Importação de fatura: o `category_id` mora **dentro** de `items` e a
+    # descoberta de `_body_id_fields` só vê o nível de cima — o caso aninhado
+    # tem teste próprio em `test_invoice_import.py`.
+    invoice_body = {
+        "account_id": own["account_id"],
+        "items": [{
+            "date": today, "title": "Tentativa", "amount": "1.00",
+            "type": "SAÍDA", "category_id": own["category_id"],
+        }],
     }
     tx_path = f"/api/transactions/{own['transaction_id']}"
     inst_path = f"/api/installments/{own['installment_id']}"
@@ -387,6 +397,9 @@ def _body_cases(own, today):
         ("PATCH", "/api/installments/{installment_id}", "category_id"): (inst_path, {}, 404),
         ("POST", "/api/shared-expenses", "account_id"): ("/api/shared-expenses", shared_body, 404),
         ("POST", "/api/shared-expenses", "category_id"): ("/api/shared-expenses", shared_body, 404),
+        ("POST", "/api/imports/invoice/confirm", "account_id"): (
+            "/api/imports/invoice/confirm", invoice_body, 404,
+        ),
     }
 
 

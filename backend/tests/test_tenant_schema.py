@@ -438,6 +438,42 @@ def test_migration_refuses_populated_tables_without_an_owner(migration_engine):
     assert _counts(migration_engine) == before
 
 
+def test_refusal_message_puts_x_before_the_subcommand(migration_engine):
+    """A recusa ensina o comando a rodar, e ele tem que ser aceito pelo Alembic.
+
+    `-x` é opção do `alembic`, não do `upgrade`: `alembic upgrade head -x ...`
+    morre com `unrecognized arguments`. Achado na execução em produção
+    (06/10/2026), com o runbook escrito na ordem errada.
+    """
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+
+    with pytest.raises(Exception) as refusal:
+        _alembic(migration_engine, "upgrade", "head")
+
+    message = str(refusal.value)
+    assert "alembic -x owner_email=" in message
+    assert "upgrade head -x" not in message
+
+
+def test_owner_migration_source_never_puts_x_after_the_subcommand():
+    """Contrato sobre o arquivo: a docstring também ensina o comando.
+
+    O teste acima só alcança a mensagem do erro; a docstring é lida por quem
+    abre a migration para saber como rodá-la.
+    """
+    source = (
+        BACKEND_DIR / "alembic" / "versions" / "b7d41c2e9a05_owner_per_row.py"
+    ).read_text(encoding="utf-8")
+
+    offending = [
+        number
+        for number, line in enumerate(source.splitlines(), start=1)
+        if "upgrade head -x" in line
+    ]
+    assert offending == [], f"`-x` depois do subcomando nas linhas {offending}"
+
+
 def test_migration_on_an_empty_database_needs_no_owner(migration_engine):
     """A suíte e um dev novo sobem o schema sem argumento nenhum."""
     _alembic(migration_engine, "upgrade", "head")
@@ -549,3 +585,25 @@ def test_the_allowlist_is_not_consulted_without_an_owner(migration_engine, monke
     _alembic(migration_engine, "upgrade", "head")
 
     _assert_migrated(migration_engine)
+
+
+def test_anchor_migration_backfills_scheduled_installments_and_leaves_legacy_alone(migration_engine):
+    """Revisão de 12/11/2026: o parcelamento com `first_due_date` (criado entre a
+    P-1 e a S-3) ganha a âncora; o antigo, sem cronograma, continua sem."""
+    _alembic(migration_engine, "upgrade", INITIAL_REVISION)
+    _populate_initial_schema(migration_engine)
+    _alembic(migration_engine, "upgrade", "e5c1a9b47d20", owner_email="dono@example.com")
+    with migration_engine.begin() as db:
+        db.execute(text(
+            "INSERT INTO installments (id, title, category_id, total_amount, installment_amount, "
+            "current_installment, total_installments, end_date, account_id, owner_id, first_due_date) "
+            "SELECT 2, 'Agendado', category_id, 500, 100, 3, 5, 'Mai/2026', account_id, owner_id, '2026-01-15' "
+            "FROM installments WHERE id = 1"
+        ))
+
+    _alembic(migration_engine, "upgrade", "head")
+
+    with migration_engine.connect() as db:
+        rows = {r.id: r.anchor_due_date for r in db.execute(text("SELECT id, anchor_due_date FROM installments"))}
+    assert str(rows[2]) == "2026-03-15"
+    assert rows[1] is None

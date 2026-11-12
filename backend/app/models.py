@@ -135,6 +135,10 @@ class Transaction(Base):
     installment_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("installments.id", ondelete="SET NULL"), nullable=True
     )
+    # Número da parcela (k de N) quando a transação foi **gerada** pelo
+    # parcelamento (P-1). Nulo nas ligadas à mão, legadas: é o que separa as
+    # duas no PATCH e no DELETE do parcelamento.
+    installment_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Parte de uma despesa compartilhada (D-Shared-2). CASCADE: excluir o grupo
     # é excluir as partes — no ledger de cada participante.
     shared_expense_id: Mapped[Optional[int]] = mapped_column(
@@ -217,7 +221,15 @@ class Installment(Base):
     installment_amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     current_installment: Mapped[int] = mapped_column(Integer, nullable=False)
     total_installments: Mapped[int] = mapped_column(Integer, nullable=False)
-    end_date: Mapped[str] = mapped_column(String(20), nullable=False)  # Ex: "Ago/2026"
+    # Rótulo "Ago/2026". Calculado do cronograma desde a P-3; nos antigos, era
+    # texto livre.
+    end_date: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Data da parcela 1 (P-3). Nula nos parcelamentos anteriores ao cronograma.
+    first_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Data da parcela `current_installment` informada no cadastro (S-3). Com ela
+    # a parcela atual é derivada do calendário; nula = modo antigo (S-4), em que
+    # `current_installment` é o valor gravado e avança pelo PATCH.
+    anchor_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     account_id: Mapped[int] = mapped_column(Integer, nullable=False)
     owner_id: Mapped[int] = _owner_column("installments")
 

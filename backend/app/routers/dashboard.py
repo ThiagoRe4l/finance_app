@@ -38,11 +38,7 @@ def get_dashboard_summary(db: Session = Depends(owned_db)):
     # ENTRADA/SAÍDA não inverte de um lado só. A igualdade entre os dois
     # endpoints é travada por
     # `test_total_balance_matches_the_sum_of_the_accounts`.
-    total_initial = db.query(func.sum(models.Account.initial_balance)).scalar() or ZERO
-    total_ledger = db.query(
-        func.coalesce(func.sum(account_balance.ledger_delta()), ZERO)
-    ).scalar() or ZERO
-    total_balance = total_initial + total_ledger
+    total_balance = account_balance.total_balance(db)
 
 
     # 2. Receitas e Despesas do mês atual
@@ -109,8 +105,12 @@ def get_dashboard_summary(db: Session = Depends(owned_db)):
     if previous_month.outcome:
         expenses_change_pct = float((total_expenses - previous_month.outcome) / previous_month.outcome * 100)
 
-    # Saldo ao fim do mês anterior = saldo atual menos a movimentação líquida deste mês
-    balance_prev_month_end = total_balance - total_savings
+    # Saldo ao fim do mês anterior, calculado direto (S-1). Era `saldo − economia
+    # do mês`, o que deixou de bater: o saldo agora para em hoje, e a economia do
+    # mês inclui os lançamentos futuros deste mês.
+    balance_prev_month_end = account_balance.total_balance(
+        db, until=first_day - datetime.timedelta(days=1)
+    )
     balance_change_pct = None
     if balance_prev_month_end:
         # abs() no denominador: com saldo anterior negativo, a divisão direta inverteria

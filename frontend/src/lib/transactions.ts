@@ -41,6 +41,8 @@ export interface Transaction {
   is_fixed: boolean;
   account_id: number;
   installment_id: number | null;
+  /** k de N quando a parcela foi gerada pelo parcelamento (P-1). */
+  installment_number?: number | null;
   installment: InstallmentProgress | null;
 }
 
@@ -66,6 +68,9 @@ export interface DerivedLabel {
  * 3. Quem manda é o objeto `installment`, não `installment_id`: sem o progresso
  *    não há `2/12` para exibir, e "Parcelada" sem meta seria pior que
  *    "Variável".
+ * 4. Parcela **gerada** mostra o próprio número (`installment_number`): o
+ *    `current_installment` do parcelamento é o mesmo em todas as parcelas
+ *    (11/11/2026, issue #3). A ligada à mão segue com o progresso.
  */
 export function deriveTransactionLabel(transaction: Transaction): DerivedLabel {
   if (transaction.type === "ENTRADA") {
@@ -74,9 +79,10 @@ export function deriveTransactionLabel(transaction: Transaction): DerivedLabel {
 
   if (transaction.installment) {
     const { current_installment, total_installments } = transaction.installment;
+    const number = transaction.installment_number ?? current_installment;
     return {
       label: "Parcelada",
-      meta: `${current_installment}/${total_installments}`,
+      meta: `${number}/${total_installments}`,
     };
   }
 

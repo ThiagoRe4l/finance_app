@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, AlertCircle, RotateCw } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { PageHeader } from "@/components/dashboard/PageHeader";
 import { CategoryBars } from "@/components/dashboard/CategoryBars";
 import { Transactions } from "@/components/dashboard/Transactions";
 import { CashFlow, type MonthlyFlow } from "@/components/dashboard/CashFlow";
@@ -11,12 +12,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import {
+  dashboardView,
   formatDelta,
+  toneFromDelta,
   trendFromDelta,
   type CategorySummary,
 } from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
+import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -41,27 +45,10 @@ interface DashboardSummary {
   savings_pct_of_revenue: number | null;
 }
 
-function Header({ action }: { action: React.ReactNode }) {
-  return (
-    <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-          Mês corrente
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Visão Geral</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Acompanhe seu fluxo, categorias e parcelamentos em um só lugar.
-        </p>
-      </div>
-      <div className="flex items-center gap-3">{action}</div>
-    </header>
-  );
-}
-
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
@@ -77,7 +64,7 @@ function LoadingState() {
         <Skeleton className="lg:col-span-2 h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
       </section>
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
         <Skeleton className="lg:col-span-2 h-72 rounded-2xl" />
       </section>
     </>
@@ -85,10 +72,12 @@ function LoadingState() {
 }
 
 function ErrorBanner({
+  title = "Não foi possível carregar o resumo",
   message,
   onRetry,
   isRetrying,
 }: {
+  title?: string;
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -98,16 +87,14 @@ function ErrorBanner({
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">
-            Não foi possível carregar o resumo
-          </p>
+          <p className="text-sm font-medium text-foreground">{title}</p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
       <button
         onClick={onRetry}
         disabled={isRetrying}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
+        className="flex items-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors disabled:opacity-60 shrink-0"
       >
         <RotateCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
         {isRetrying ? "Tentando..." : "Tentar novamente"}
@@ -135,7 +122,7 @@ function Summary({ data }: { data: DashboardSummary }) {
 
   return (
     <>
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {/*
           `tone` = julgamento (cor), `trend` = direção real (seta). São passados
           de forma independente: acoplar os dois foi o que fez "+325,8%" em
@@ -145,7 +132,7 @@ function Summary({ data }: { data: DashboardSummary }) {
           label="Saldo Total"
           value={formatBRL(data.total_balance)}
           delta={balanceDelta ?? undefined}
-          tone={(data.balance_change_pct ?? 0) < 0 ? "negative" : "positive"}
+          tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
           trend={trendFromDelta(data.balance_change_pct)}
         />
         <MetricCard
@@ -159,16 +146,14 @@ function Summary({ data }: { data: DashboardSummary }) {
           delta={expensesDelta ?? undefined}
           // Único card em que julgamento e direção divergem: gasto subindo é
           // ruim, então o tom inverte — mas a seta continua acompanhando o sinal.
-          tone={(data.expenses_change_pct ?? 0) > 0 ? "negative" : "positive"}
+          tone={toneFromDelta(data.expenses_change_pct, "lower-is-better")}
           trend={trendFromDelta(data.expenses_change_pct)}
         />
         <MetricCard
           label="Economia"
           value={formatBRL(data.total_savings)}
           delta={savingsDelta ?? undefined}
-          tone={
-            (data.savings_pct_of_revenue ?? 0) < 0 ? "negative" : "positive"
-          }
+          tone={toneFromDelta(data.savings_pct_of_revenue, "higher-is-better")}
           trend={trendFromDelta(data.savings_pct_of_revenue)}
         />
       </section>
@@ -180,7 +165,7 @@ function Summary({ data }: { data: DashboardSummary }) {
         <Transactions transactions={data.recent_transactions} />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
         <div className="lg:col-span-2">
           <CategoryBars
             categories={data.category_distribution}
@@ -209,53 +194,102 @@ function Summary({ data }: { data: DashboardSummary }) {
   );
 }
 
+/**
+ * Dado em memória vence o erro: um `refetch` que falha não esconde o resumo já
+ * carregado (`dashboardView`; docs/backlog.md, "Banner de erro sobre o
+ * Dashboard já carregado").
+ */
+function DashboardBody({
+  data,
+  isError,
+  error,
+  onRetry,
+  isRetrying,
+}: {
+  data: DashboardSummary | undefined;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  const message = error instanceof Error ? error.message : "Erro desconhecido.";
+  const view = dashboardView({ hasData: data !== undefined, isError });
+
+  if (view === "loading") return <LoadingState />;
+  if (data === undefined) {
+    return (
+      <ErrorBanner
+        message={message}
+        onRetry={onRetry}
+        isRetrying={isRetrying}
+      />
+    );
+  }
+  if (view === "stale-summary") {
+    return (
+      <>
+        <div className="mb-6">
+          <ErrorBanner
+            title="Não foi possível atualizar — exibindo os últimos dados"
+            message={message}
+            onRetry={onRetry}
+            isRetrying={isRetrying}
+          />
+        </div>
+        <Summary data={data} />
+      </>
+    );
+  }
+  return <Summary data={data} />;
+}
+
 function Index() {
   const [isCreating, setIsCreating] = useState(false);
 
-  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
+  const { data, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => api.get<DashboardSummary>(SUMMARY_ENDPOINT),
   });
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-12 max-w-[1400px] mx-auto">
-        <Header
-          action={
-            /*
+    <AppShell>
+      <PageHeader
+        eyebrow="Mês corrente"
+        title="Visão Geral"
+        description="Acompanhe seu fluxo, categorias e parcelamentos em um só lugar."
+        actionClassName="hidden lg:flex"
+        action={
+          /*
               "Buscar" removido: era botão sem campo e sem estado, e o Dashboard
               não tem lista para filtrar — são agregados e 7 transações
               recentes. Mesma lógica do "Filtrar" de Transações: inerte ao lado
               de ações que funcionam é pior que ausente.
             */
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" />
-              Nova transação
-            </button>
-          }
-        />
+          <button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            Nova transação
+          </button>
+        }
+      />
 
-        {isError ? (
-          <ErrorBanner
-            message={
-              error instanceof Error ? error.message : "Erro desconhecido."
-            }
-            onRetry={() => refetch()}
-            isRetrying={isFetching}
-          />
-        ) : isPending ? (
-          <LoadingState />
-        ) : (
-          <Summary data={data} />
-        )}
+      <DashboardBody
+        data={data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        isRetrying={isFetching}
+      />
 
-        {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
-        <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
-      </main>
-    </div>
+      <FloatingActionButton
+        label="Nova transação"
+        onClick={() => setIsCreating(true)}
+      />
+
+      {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
+      <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+    </AppShell>
   );
 }

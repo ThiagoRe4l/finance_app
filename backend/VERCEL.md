@@ -32,7 +32,7 @@ segue existindo para o desenvolvimento local.
 3. ~~`init_db.py --yes`~~ — **removido em 03/10/2026** (D-Tenant-5). Não há
    mais seed global: cada usuário recebe conta e categorias próprias no primeiro
    acesso. Em banco **com dado**, a migration de dono exige
-   `alembic upgrade head -x owner_email=<e-mail>` — ver D-Tenant-6 e o roteiro
+   `alembic -x owner_email=<e-mail> upgrade head` — ver D-Tenant-6 e o roteiro
    de backup antes de aplicar.
 4. Deployar o backend, gerar o domínio público.
 5. Preencher o `destination` do rewrite em `frontend/vercel.json` e deployar o
@@ -85,8 +85,9 @@ CLAUDE.md, em especial a D-Tenant-6 e o gate de deploy.
 esperado é **PARE**, não improviso.
 
 **Ensaio de 06/10/2026**, no Windows, num checkout limpo feito pelo Git do
-Windows em `8209c9f`, com Python 3.12, contra um branch do Neon com cópia de
-produção: `upgrade`, `downgrade` e novo `upgrade` deram `diff` vazio contra os
+Windows em `8209c9f` ("Recusa -x owner_email fora da allowlist e roda a
+migration com dado em Postgres no CI"), com Python 3.12, contra um branch do
+Neon com cópia de produção: `upgrade`, `downgrade` e novo `upgrade` deram `diff` vazio contra os
 retratos do `verify_db`, e o login simulado do passo 3.5 deu `200` em tudo, com
 `total_balance` igual à soma dos saldos. Ressalvas do mesmo ensaio:
 
@@ -96,13 +97,32 @@ retratos do `verify_db`, e o login simulado do passo 3.5 deu `200` em tudo, com
   vinculada ao parcelamento). O retrato "antes" teve `installments: 1`,
   `transactions: 4` e saldo `3166.67`, então o preenchimento de `owner_id` e as
   FKs compostas **foram** exercitados. O passo 3.1 agora automatiza a semente;
-  o SQL dele (com `U&'SA\00CDDA'`) só foi rodado em SQLite — **a validar** em
-  Postgres;
+  o escape `U&'SA\00CDDA'` foi validado no Postgres do Neon em 06/10/2026
+  (`length = 5`); o `INSERT` completo continua rodado só em SQLite;
 * a **restauração do dump foi pulada** (passo 2), por não haver dado real — o
   dump foi gerado e a listagem conferida, mas não restaurado;
 * o `alembic upgrade` só rodou depois do `alembic.ini` em ASCII (nota abaixo),
   editado à mão na checkout do ensaio; a correção no repositório é o commit
-  `d055b9a`.
+  `d055b9a` ("Keep alembic.ini ASCII-only so Alembic runs on Windows").
+
+**Produção migrada em 06/10/2026**, do Windows, numa checkout limpa feita pelo
+Git do Windows em `4624502` ("Update migration runbook with findings from the
+Windows rehearsal"), com Python 3.12, no endpoint direto do Neon. Os hashes
+são os da branch; o merge pode tê-los reescrito, por isso o assunto ao lado:
+
+* `alembic -x owner_email=<email> upgrade head` passou nas duas revisões
+  (`96fdc067f386 -> b7d41c2e9a05 -> d3a8f1e6c720`);
+* `verify_db --expect-owner` deu `exit=0`, `dono_esperado: OK` e
+  `linhas_sem_dono: 0`;
+* produção tinha 1 conta, 10 categorias e 1 transação de teste (4500,00).
+  Contagens e saldo (`4500.00`) ficaram idênticos no `diff`; só mudaram a
+  revisão, as tabelas novas (`users: 1`, `shared_expenses: 0`,
+  `shared_expense_participants: 0`) e as FKs;
+* backup: branch `pre-multitenant` no Neon e `pg_dump` local (20,9 KB, listagem
+  conferida). **A restauração não foi exercitada**;
+* validação: login do dono, uma escrita e login com a conta da esposa, que abriu
+  **vazia** (isolamento confirmado). A janela entre a migration e o deploy não
+  teve incidente.
 
 ### 0. Pré-requisitos
 
@@ -156,9 +176,12 @@ As URLs ficam em variáveis do shell, lidas **sem eco e sem histórico**:
 
 ```bash
 cd backend
-read -rs PROD_DIRECT_URL   # cola a string direta do branch main do Neon, Enter
-read -r  OWNER_EMAIL       # o e-mail copiado no passo 0.4
-read -rs AUTH_ALLOWED_EMAILS && export AUTH_ALLOWED_EMAILS  # o valor da Vercel (passo 0.5)
+# a string direta do branch main do Neon, colada uma vez, Enter:
+read -rs PROD_DIRECT_URL
+# o e-mail copiado no passo 0.4:
+read -r OWNER_EMAIL
+# o valor da Vercel (passo 0.5):
+read -rs AUTH_ALLOWED_EMAILS && export AUTH_ALLOWED_EMAILS
 ```
 
 🔴 **O que o Alembic enxerga no ambiente.** O `alembic/env.py` importa
@@ -175,6 +198,39 @@ arquivo. O `.env.local` deste projeto tem `DATABASE_URL` (a de **produção**) e
   existir em lugar nenhum, a migration **não** bloqueia — emite um
   `UserWarning` dizendo que o e-mail não foi conferido. Esse aviso no log é
   **PARE**: exporte a variável e rode de novo.
+
+**Lições da execução em produção (06/10/2026)**, cada uma com o sintoma que a
+ensinou:
+
+* **Cole a URL uma vez só, e confira.** Colar duas vezes duplica a string
+  (~280 caracteres, contra ~140) e o psycopg falha com
+  `invalid channel_binding value`. Use `read -rs VAR` sem nada depois, cole uma
+  vez, Enter, e confira tamanho e contagem de `://` sem imprimir a URL:
+  ```bash
+  echo "${#PROD_DIRECT_URL} $(grep -o '://' <<<"$PROD_DIRECT_URL" | wc -l)"
+  ```
+  Esperado: por volta de `140` e exatamente `1`.
+* **`read -p` com a URL dentro do aviso imprime a URL** em vez de lê-la. O aviso
+  do `-p` é texto exibido, não entrada. Nada de `-p`; o comentário do passo
+  explica o que colar.
+* **`PROD_DIRECT_URL` nunca é exportada.** Ela entra só no comando, como
+  `DATABASE_URL="$PROD_DIRECT_URL" <comando>`, e não vaza para processos filhos
+  que não a pediram.
+* **Rode da checkout limpa, com o venv ativo — nunca da pasta principal.** Na
+  pasta principal, em `main`, existe o `backend/.env.local` apontando para
+  produção e **não** existe `scripts/` (o `verify_db` só vem com esta branch).
+* **Confira o `OWNER_EMAIL` contra a allowlist antes da migration**, sem exibir
+  e-mail nenhum:
+  ```bash
+  OWNER_EMAIL="$OWNER_EMAIL" python -c 'import os; a = {e.strip().lower() for e in os.environ.get("AUTH_ALLOWED_EMAILS", "").split(",") if e.strip()}; print("NA" if os.environ["OWNER_EMAIL"].strip().lower() in a else "FORA")'
+  ```
+  Esperado: `NA`. `FORA` é **PARE**: confira o e-mail (0.4) e o export da
+  allowlist (0.5).
+* **`-x` vem antes do subcomando: `alembic -x owner_email=... upgrade head`.**
+  O runbook foi escrito com a ordem errada (`upgrade head -x ...`), e isso só
+  apareceu na execução: o Alembic recusa com `alembic: error: unrecognized
+  arguments: -x ...`, antes de abrir conexão, então nada é alterado. Os
+  comandos deste runbook foram corrigidos depois.
 
 Nenhum passo abaixo imprime essas variáveis. `verify_db` mostra só host/banco,
 no stderr, e e-mails mascarados.
@@ -249,9 +305,10 @@ valer e é obrigatória.
    Editor do Neon; este passo a automatiza. A semente põe 1 parcelamento e 4
    transações: uma ENTRADA, uma SAÍDA comum, uma SAÍDA fixa e uma SAÍDA vinculada
    ao parcelamento, todas com centavos. As colunas são as da migration inicial
-   (`96fdc067f386`), que é o schema da cópia neste ponto. ⚠️ Este SQL só foi
-   rodado em SQLite, com o escape trocado pelo literal — **a validar** em
-   Postgres na próxima execução; o `ENTRADA|7|1` / `SAÍDA|5|3` abaixo é a
+   (`96fdc067f386`), que é o schema da cópia neste ponto. O escape
+   `U&'SA\00CDDA'` foi validado no Postgres do Neon em 06/10/2026
+   (`length = 5`). ⚠️ O `INSERT` completo continua rodado só em SQLite, com o
+   escape trocado pelo literal; o `ENTRADA|7|1` / `SAÍDA|5|3` abaixo é a
    conferência.
 
    Salve como `ensaio-seed.sql`. O arquivo é **todo ASCII** de propósito: o tipo
@@ -331,7 +388,7 @@ valer e é obrigatória.
 3. **Migrar** — as duas revisões em sequência, numa transação só (no Postgres,
    se a segunda falhar, a primeira é desfeita junto):
    ```bash
-   DATABASE_URL="$ENSAIO_DIRECT_URL" alembic upgrade head -x owner_email="$OWNER_EMAIL"
+   DATABASE_URL="$ENSAIO_DIRECT_URL" alembic -x owner_email="$OWNER_EMAIL" upgrade head
    ```
    Esperado no log: `96fdc067f386 -> b7d41c2e9a05` e `b7d41c2e9a05 -> d3a8f1e6c720`,
    e **nenhum** `UserWarning` sobre `AUTH_ALLOWED_EMAILS`. Um `RuntimeError`
@@ -403,8 +460,8 @@ PY
    diff ensaio-antes.txt ensaio-rollback.txt   # esperado: vazio
    ```
    O downgrade recria as FKs simples com os nomes `<tabela>_<coluna>_fkey`, então
-   até `[fks]` volta idêntico. **É a única vez que o downgrade roda em Postgres
-   antes de produção** — o CI não o exercita.
+   até `[fks]` volta idêntico. O CI exercita o downgrade com dado de teste; o
+   ensaio é a única vez com cópia do dado real.
 8. Apagar `ensaio-tenant` (o `restore_check` vai junto). Manter `pre-tenant-*`.
 
 ### 4. Produção
@@ -417,7 +474,7 @@ Na ordem — a janela de 500 da D-Tenant-6 começa no passo 4 e termina no 6.
 3. `DATABASE_URL="$PROD_DIRECT_URL" python -m scripts.verify_db > prod-antes.txt`
    e a consulta de FKs do passo 3.2 contra `$PROD_DIRECT_URL`. Mesmo esperado.
 4. **Migrar:**
-   `DATABASE_URL="$PROD_DIRECT_URL" alembic upgrade head -x owner_email="$OWNER_EMAIL"`
+   `DATABASE_URL="$PROD_DIRECT_URL" alembic -x owner_email="$OWNER_EMAIL" upgrade head`
 5. `verify_db --expect-owner` contra produção e `diff` com `prod-antes.txt`:
    mesmo esperado do passo 3.4. Divergência é **rollback** (seção 5), não ajuste.
 6. **Merge do PR.** A Vercel deploya o backend; esperar o deploy ficar *Ready*.

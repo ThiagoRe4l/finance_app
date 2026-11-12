@@ -7,10 +7,12 @@ inexistente e a categoria aninhada na response são testados em
 Fixtures vêm do `conftest.py`.
 """
 
+import datetime
 from decimal import Decimal
 
 import pytest
 
+from app.installment_schedule import add_months, month_label
 from tests.conftest import money, create_account, create_category, installment_payload
 
 
@@ -37,17 +39,24 @@ def test_create_installment(client, default_account, category_id):
     assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["current_installment"] == 2
     assert data["total_installments"] == 12
-    assert data["end_date"] == "Ago/2026"
+    # Calculado do cronograma (P-3): parcela 2 hoje → a 1 há um mês, a 12
+    # daqui a dez meses (datas relativas, backlog 0.1).
+    today = datetime.date.today()
+    assert data["end_date"] == month_label(add_months(today, 10))
+    assert data["first_due_date"] == add_months(today, -1).isoformat()
     assert data["account_id"] == default_account
 
 
-def test_create_installment_does_not_touch_account_balance(client, default_account, category_id):
-    """Criar o parcelamento é só um registro de acompanhamento — o débito
-    acontece quando uma transação é vinculada a ele, não aqui."""
+def test_create_installment_debits_only_the_parcel_already_due(client, default_account, category_id):
+    """⚠️ **Mudou duas vezes.** Até 10/11 era `..._does_not_touch_account_balance`
+    (criar não mexia no saldo). Em 11/11 (P-1) as parcelas 2 a 12 passaram a ser
+    SAÍDAs e, sem recorte de data, o saldo caía 11 × 500. Desde 12/11 (S-1,
+    resposta 1b do usuário) o saldo para em hoje: só a parcela 2, que vence
+    hoje, sai — 10.000 − 500."""
     client.post("/api/installments/", json=installment_payload(default_account, category_id))
 
     account = client.get("/api/accounts").json()[0]
-    assert money(account["current_balance"]) == Decimal("10000.00")
+    assert money(account["current_balance"]) == Decimal("9500.00")
 
 
 def test_create_installment_account_not_found(client, category_id):
@@ -68,22 +77,29 @@ def test_create_installment_with_invalid_account_persists_nothing(client, catego
 @pytest.mark.parametrize("missing_field", [
     "title",
     "category_id",
-    "total_amount",
     "installment_amount",
-    "current_installment",
     "total_installments",
-    "end_date",
+    "current_due_date",
     "account_id",
 ])
 def test_create_installment_missing_required_fields(client, default_account, category_id, missing_field):
-    """Nenhum campo do InstallmentBase tem default — todos são obrigatórios."""
+    """Campos obrigatórios do cadastro (P-3 a P-5).
+
+    Saíram da lista em 11/11/2026: `end_date` (calculado, agora proibido),
+    `total_amount` (é um **ou** outro com `installment_amount`) e
+    `current_installment` (default 1). Sem `installment_amount` o payload fica
+    sem valor nenhum, e o erro vem do validador do modelo, não do campo."""
     payload = installment_payload(default_account, category_id)
     del payload[missing_field]
 
     response = client.post("/api/installments/", json=payload)
 
     assert response.status_code == 422
-    assert any(missing_field in err["loc"] for err in response.json()["detail"])
+    errors = response.json()["detail"]
+    if missing_field == "installment_amount":
+        assert any("exatamente um" in err["msg"] for err in errors)
+    else:
+        assert any(missing_field in err["loc"] for err in errors)
 
 
 def test_create_installment_title_exceeds_max_length(client, default_account, category_id):
@@ -96,8 +112,8 @@ def test_create_installment_title_exceeds_max_length(client, default_account, ca
 
 
 @pytest.mark.parametrize("field,bad_value", [
-    ("total_amount", "seis mil"),
     ("installment_amount", "quinhentos"),
+    ("current_due_date", "ontem"),
     ("current_installment", "duas"),
     ("total_installments", 12.5),
     ("account_id", "abc"),
@@ -131,11 +147,10 @@ def test_list_installments_returns_all_records(client, default_account, category
         default_account,
         casa["id"],
         title="Geladeira",
-        total_amount=3000.0,
-        installment_amount=250.0,
+        installment_amount="250.00",
         current_installment=5,
         total_installments=12,
-        end_date="Dez/2026",
+        current_due_date="2020-05-10",
     ))
 
     response = client.get("/api/installments/")
@@ -147,7 +162,7 @@ def test_list_installments_returns_all_records(client, default_account, category
     by_title = {i["title"]: i for i in data}
     assert by_title["Notebook Dell"]["current_installment"] == 2
     assert money(by_title["Geladeira"]["installment_amount"]) == Decimal("250.00")
-    assert by_title["Geladeira"]["end_date"] == "Dez/2026"
+    assert by_title["Geladeira"]["end_date"] == "Dez/2020"
     assert by_title["Geladeira"]["category"]["name"] == "Casa"
 
 

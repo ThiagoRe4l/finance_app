@@ -5,6 +5,17 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Hover de verdade (mouse ou trackpad), não toque — M-15. As ações que somem
+ * até o hover (`lg:hover-capable:opacity-0`) ficam visíveis num tablet na
+ * horizontal sem mouse. O `group-hover` do Tailwind v4 já só age com hover.
+ */
+@custom-variant hover-capable {
+  @media (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
+/*
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility
@@ -102,6 +113,23 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+}
+
+/*
+ * Alturas das barras de celular (docs/mobile-first.md → M-10). A área segura
+ * fica de fora: a barra soma env(safe-area-inset-*) no próprio padding, e quem
+ * compensa (o <main>, o toast) soma também. A partir de lg não há barra.
+ */
+:root {
+  --app-topbar-height: 3rem;
+  --app-bottombar-height: 3.5rem;
+}
+
+@media (width >= 64rem) {
+  :root {
+    --app-topbar-height: 0px;
+    --app-bottombar-height: 0px;
+  }
 }
 
 .dark {

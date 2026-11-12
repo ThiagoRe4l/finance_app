@@ -13,3 +13,7 @@ httpx==0.28.1
 # trata a ausência desta biblioteca como no-op silencioso — há teste cobrindo
 # esse caminho, que é justamente o que nunca roda localmente.
 python-dotenv==1.2.4
+
+# Relógio controlável nos testes (backlog 0.1, item L): `pytest --today=...` e a
+# fixture `time_machine`. Só de desenvolvimento — a aplicação usa o relógio real.
+time-machine==3.6.0

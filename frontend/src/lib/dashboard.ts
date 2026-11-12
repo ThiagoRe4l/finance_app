@@ -128,3 +128,48 @@ export function toDistribution(
       }))
   );
 }
+
+export type Tone = "neutral" | "positive" | "negative";
+
+/**
+ * Julgamento (cor) de um percentual do `MetricCard`.
+ *
+ * `polarity` diz se subir é bom (Saldo, Economia) ou ruim (Despesas). Sem
+ * percentual — `null`, `undefined` ou não finito — o tom é **neutro**: antes o
+ * JSX fazia `(pct ?? 0) < 0`, e o 0 inventado pintava o valor de verde sem
+ * seta nem número que o justificasse (`docs/backlog.md`, "Cor do valor nos
+ * cartões de métrica"). Zero real continua positivo, como era.
+ */
+export function toneFromDelta(
+  percentage: number | null | undefined,
+  polarity: "higher-is-better" | "lower-is-better",
+): Tone {
+  if (
+    percentage === null ||
+    percentage === undefined ||
+    !Number.isFinite(percentage)
+  ) {
+    return "neutral";
+  }
+  const worse =
+    polarity === "higher-is-better" ? percentage < 0 : percentage > 0;
+  return worse ? "negative" : "positive";
+}
+
+export type DashboardView = "loading" | "error" | "summary" | "stale-summary";
+
+/**
+ * O que a Visão Geral mostra, a partir do estado da query.
+ *
+ * Dado em memória vence o erro: um `refetch` que falha (o TanStack mantém
+ * `data` e liga `isError`) não pode trocar o Dashboard já carregado pelo
+ * banner — vira `"stale-summary"`, o resumo com o aviso em cima
+ * (`docs/backlog.md`, "Banner de erro sobre o Dashboard já carregado").
+ */
+export function dashboardView(state: {
+  hasData: boolean;
+  isError: boolean;
+}): DashboardView {
+  if (state.hasData) return state.isError ? "stale-summary" : "summary";
+  return state.isError ? "error" : "loading";
+}

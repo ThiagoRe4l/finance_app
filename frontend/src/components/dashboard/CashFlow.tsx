@@ -1,3 +1,4 @@
+import { MonthScroller } from "@/components/shared/MonthScroller";
 import { parseMoney } from "@/lib/money";
 
 export interface MonthlyFlow {
@@ -25,7 +26,7 @@ export function CashFlow({ months }: { months: MonthlyFlow[] }) {
 
   return (
     <section className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-8">
         <div>
           <h2 className="text-sm font-medium">Fluxo Mensal</h2>
           <p className="text-xs text-muted-foreground mt-1">Últimos 6 meses</p>
@@ -39,11 +40,16 @@ export function CashFlow({ months }: { months: MonthlyFlow[] }) {
           </span>
         </div>
       </div>
-      <div className="flex items-end gap-6 h-48">
+      {/*
+        Rolagem dentro do gráfico no celular (M-11). A coluna tem largura fixa
+        (`w-10` ≥ as duas barras `w-3` + `gap-1`) e só cresce a partir de `md`.
+        A altura que a trilha tinha (`h-48`) passou para a coluna.
+      */}
+      <MonthScroller label="Fluxo mensal" count={months.length}>
         {bars.map((bar, i) => (
           <div
             key={`${bar.month}-${i}`}
-            className="flex-1 flex flex-col items-center gap-2"
+            className="flex w-10 flex-none md:flex-1 flex-col items-center justify-end gap-2 h-48"
           >
             <div className="flex items-end gap-1 h-40 w-full justify-center">
               <div
@@ -62,7 +68,7 @@ export function CashFlow({ months }: { months: MonthlyFlow[] }) {
             <span className="text-xs text-muted-foreground">{bar.month}</span>
           </div>
         ))}
-      </div>
+      </MonthScroller>
     </section>
   );
 }

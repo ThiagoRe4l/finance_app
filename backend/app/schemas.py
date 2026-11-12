@@ -110,6 +110,8 @@ class TransactionResponse(BaseModel):
     is_fixed: bool
     account_id: int
     installment_id: Optional[int] = None
+    # k de N quando a transação foi gerada pelo parcelamento (P-1).
+    installment_number: Optional[int] = None
     installment: Optional[InstallmentProgress] = None
     # Nulo para transação comum. É por ele que o front distingue a parte de
     # uma despesa compartilhada, que só muda de categoria por aqui (D-Shared-6).
@@ -178,18 +180,87 @@ class CategoryResponse(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class InstallmentBase(BaseModel):
+#: Maior valor de `Numeric(12, 2)` (`models.MONEY`): passar disso estoura a
+#: coluna no Postgres, como 500 (revisão de segurança, 12/11/2026).
+MAX_MONEY = Decimal("9999999999.99")
+
+
+def _check_calendar_year(value: datetime.date) -> datetime.date:
+    """O cronograma soma até 120 meses: perto do ano 1 ou do 9999 o calendário
+    estourava como 500. Uma regra só para o cadastro e para a importação."""
+    if not 1900 <= value.year <= 2200:
+        raise ValueError("Data fora do intervalo aceito (1900 a 2200).")
+    return value
+
+
+class InstallmentScheduleInput(BaseModel):
+    """O que define o cronograma (P-3 a P-5). Usado pelo cadastro e pela
+    pré-visualização, que por isso validam igual.
+
+    `extra="forbid"`: `end_date` deixou de ser aceito e tem que falhar
+    barulhento (422), não ser descartado em silêncio.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    total_amount: Optional[Decimal] = Field(
+        None, gt=0, decimal_places=2, description="Valor total. Informe este ou installment_amount."
+    )
+    installment_amount: Optional[Decimal] = Field(
+        None, gt=0, decimal_places=2, description="Valor da parcela. Informe este ou total_amount."
+    )
+    total_installments: int = Field(..., ge=1, le=120)
+    current_installment: int = Field(
+        1, ge=1, description="Parcela ainda a pagar (D13); no cadastro, não passa do total"
+    )
+    current_due_date: datetime.date = Field(
+        ..., description="Data de vencimento da parcela atual; ancora o cronograma"
+    )
+
+    @field_validator("current_due_date")
+    @classmethod
+    def check_due_date_range(cls, value: datetime.date) -> datetime.date:
+        return _check_calendar_year(value)
+
+    @model_validator(mode="after")
+    def check_schedule(self):
+        if (self.total_amount is None) == (self.installment_amount is None):
+            raise ValueError("Informe o valor total ou o valor da parcela — exatamente um dos dois.")
+        if self.current_installment > self.total_installments:
+            raise ValueError("A parcela atual não pode ser maior que a quantidade de parcelas.")
+        # R$ 0,02 em 3 daria uma parcela de R$ 0,00: uma SAÍDA de zero, que o
+        # `TransactionCreate` recusaria (revisão de 12/11/2026).
+        if (
+            self.total_amount is not None
+            and self.total_amount < Decimal("0.01") * self.total_installments
+        ):
+            raise ValueError("O valor total precisa dar pelo menos R$ 0,01 por parcela.")
+        total = self.total_amount or self.installment_amount * self.total_installments
+        if total > MAX_MONEY:
+            raise ValueError("O valor total passa do maior valor aceito.")
+        return self
+
+
+class InstallmentCreate(InstallmentScheduleInput):
     title: str = Field(..., max_length=100)
     category_id: int = Field(..., description="ID da categoria cadastrada")
-    total_amount: Decimal
-    installment_amount: Decimal
-    current_installment: int
-    total_installments: int
-    end_date: str
     account_id: int
 
-class InstallmentCreate(InstallmentBase):
-    pass
+
+class InstallmentPreviewParcel(BaseModel):
+    number: int
+    date: datetime.date
+    amount: Decimal
+
+
+class InstallmentPreview(BaseModel):
+    """Resposta de `POST /installments/preview`: o cronograma, sem gravar."""
+    total_amount: Decimal
+    installment_amount: Decimal
+    remaining_amount: Decimal
+    first_due_date: datetime.date
+    end_date: str
+    installments: List[InstallmentPreviewParcel]
+
 
 class InstallmentUpdate(BaseModel):
     """Payload parcial do `PATCH /installments/{id}`.
@@ -213,11 +284,27 @@ class InstallmentUpdate(BaseModel):
         None, description="Pode exceder total_installments — significa quitado"
     )
     total_installments: Optional[int] = None
-    end_date: Optional[str] = Field(None, max_length=20)
+    # `end_date` saiu: é calculado do cronograma (P-3). Com `extra="forbid"`,
+    # enviá-lo é 422.
 
 
-class InstallmentResponse(InstallmentBase):
+class InstallmentResponse(BaseModel):
     id: int
+    title: str
+    category_id: int
+    total_amount: Decimal
+    installment_amount: Decimal
+    current_installment: int
+    total_installments: int
+    end_date: str
+    account_id: int
+    first_due_date: Optional[datetime.date] = Field(
+        None, description="Data da parcela 1; nula nos parcelamentos sem cronograma"
+    )
+    anchor_due_date: Optional[datetime.date] = Field(
+        None,
+        description="Com ela, current_installment vem do calendário (S-3); nula = modo antigo",
+    )
     category: CategoryRef
     remaining_amount: Decimal = Field(
         ..., description="Quanto ainda falta pagar: parcela × parcelas restantes"
@@ -240,6 +327,13 @@ class InstallmentSummary(BaseModel):
     active_count: int
     monthly_committed_amount: Decimal
     remaining_total_amount: Decimal
+    committed_balance: Decimal = Field(
+        ...,
+        description=(
+            "Saldo total até hoje menos as parcelas geradas que ainda vão vencer e o "
+            "restante dos parcelamentos antigos (S-2)"
+        ),
+    )
 
 
 # Schemas para Agregações (Dashboard e Relatórios)
@@ -365,3 +459,117 @@ class SharedExpenseResponse(BaseModel):
 
 class Participant(BaseModel):
     email: str
+
+
+# --- Importação de fatura (`docs/importacao-fatura.md`) ---------------------
+
+
+class InstallmentHint(BaseModel):
+    current: int
+    total: int
+
+
+class InstallmentMatch(BaseModel):
+    """A linha é a parcela de um parcelamento que já existe (D-Import-8)."""
+    installment_id: int
+    installment_title: str
+    transaction_id: Optional[int] = Field(
+        None, description="A parcela já gerada; nula se foi apagada"
+    )
+
+
+class InvoicePreviewItem(BaseModel):
+    """Uma linha reconhecida na fatura. Nada foi gravado (D-Import-1)."""
+    date: datetime.date
+    title: str
+    amount: Decimal
+    type: str
+    installment_hint: Optional[InstallmentHint] = None
+    is_payment: bool
+    duplicate: bool = Field(..., description="Já existe na conta (D-Import-4)")
+    selected: bool = Field(..., description="Sugestão da tela: falso para pagamento e duplicada")
+    suggested_category_id: Optional[int] = None
+    installment_match: Optional[InstallmentMatch] = None
+
+
+class InvoicePreview(BaseModel):
+    bank: str = Field(..., description="itau, nubank, mercado_pago ou generic (D-Import-7)")
+    lines_read: int = Field(..., description="Linhas de texto lidas no PDF")
+    items: List[InvoicePreviewItem]
+
+
+#: Teto de linhas gravadas por confirmação, contando as parcelas geradas.
+MAX_CONFIRM_ROWS = 500
+
+
+class InvoiceConfirmItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: datetime.date
+    title: str = Field(..., min_length=1, max_length=150)
+    amount: Decimal = Field(..., gt=0, decimal_places=2)
+    type: str = Field(..., pattern="^(ENTRADA|SAÍDA)$")
+    category_id: int
+    allow_duplicate: bool = Field(
+        False,
+        description="O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
+    )
+    # D-Import-8: vincular a um parcelamento existente...
+    installment_id: Optional[int] = None
+    installment_number: Optional[int] = Field(None, ge=1, le=120)
+    # ...ou criar o parcelamento a partir desta linha.
+    create_installment: bool = False
+    installment_current: Optional[int] = Field(None, ge=1, le=120)
+    installment_total: Optional[int] = Field(None, ge=1, le=120)
+
+    @field_validator("date")
+    @classmethod
+    def check_date_range(cls, value: datetime.date) -> datetime.date:
+        return _check_calendar_year(value)
+
+    @property
+    def rows_written(self) -> int:
+        """Linhas que este item grava: as parcelas de `current` a `total` ao
+        criar parcelamento, senão uma."""
+        if self.create_installment:
+            return self.installment_total - self.installment_current + 1
+        return 1
+
+    @model_validator(mode="after")
+    def check_installment_fields(self):
+        if self.create_installment:
+            if self.installment_id is not None:
+                raise ValueError("Vincular e criar parcelamento são excludentes.")
+            if self.installment_current is None or self.installment_total is None:
+                raise ValueError("Criar parcelamento exige a parcela atual e o total.")
+            if self.installment_current > self.installment_total:
+                raise ValueError("A parcela atual não pode ser maior que o total.")
+            if self.type != "SAÍDA":
+                raise ValueError("Só uma saída vira parcelamento.")
+            if self.amount * self.installment_total > MAX_MONEY:
+                raise ValueError("O valor total do parcelamento passa do maior valor aceito.")
+        if (self.installment_id is None) != (self.installment_number is None):
+            raise ValueError("Vincular exige o parcelamento e o número da parcela.")
+        return self
+
+
+class InvoiceConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: int
+    items: List[InvoiceConfirmItem] = Field(..., min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def check_rows_written(self):
+        # 500 itens × 120 parcelas eram 60 mil linhas numa requisição — o
+        # timeout da função serverless (revisão de segurança, 12/11/2026).
+        if sum(item.rows_written for item in self.items) > MAX_CONFIRM_ROWS:
+            raise ValueError(
+                f"A importação gravaria mais de {MAX_CONFIRM_ROWS} lançamentos; divida a fatura."
+            )
+        return self
+
+
+class InvoiceConfirmResult(BaseModel):
+    created: int
+    skipped_duplicates: int
