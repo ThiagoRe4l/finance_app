@@ -1867,6 +1867,19 @@
             "title": "First Due Date",
             "description": "Data da parcela 1; nula nos parcelamentos sem cronograma"
           },
+          "anchor_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Due Date",
+            "description": "Com ela, current_installment vem do calendário (S-3); nula = modo antigo"
+          },
           "category": {
             "$ref": "#/components/schemas/CategoryRef"
           },
@@ -1973,13 +1986,20 @@
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Total Amount"
+          },
+          "committed_balance": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Committed Balance",
+            "description": "Saldo total até hoje menos as parcelas geradas que ainda vão vencer e o restante dos parcelamentos antigos (S-2)"
           }
         },
         "type": "object",
         "required": [
           "active_count",
           "monthly_committed_amount",
-          "remaining_total_amount"
+          "remaining_total_amount",
+          "committed_balance"
         ],
         "title": "InstallmentSummary",
         "description": "Totais do cabeçalho da tela de parcelamentos.\n\nEndpoint próprio em vez de campos novos em `DashboardSummary`: a tela\nprecisa dos três números e faria duas requisições — uma delas ao resumo do\ndashboard, que não é o assunto dela. Ver a decisão no CLAUDE.md.\n\n`active_count` e `monthly_committed_amount` repetem valores que\n`DashboardSummary` também expõe, mas vêm da **mesma função**\n(`app/installment_metrics.py`), não de uma segunda implementação."

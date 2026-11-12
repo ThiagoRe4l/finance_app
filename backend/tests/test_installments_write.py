@@ -1,5 +1,12 @@
 """PATCH de parcelamento — dia 4.2.
 
+⚠️ **Desde 12/11/2026 estes testes usam parcelamentos do modo antigo** (S-4 em
+`docs/design-patterns.md`): parcela atual gravada e avançável pelo PATCH, sem
+parcelas no extrato. É o modo que a D12, a D13 e a D15 descreviam, e ele
+continua em produção. Os parcelamentos novos (parcela atual pelo calendário,
+parcelas geradas) têm o PATCH coberto em `test_installment_schedule.py` e
+`test_balance_until_today.py`.
+
 Escrito **antes** da implementação, mesmo fluxo do 4.1. Hoje
 `/api/installments/{id}` não existe em verbo nenhum: o arquivo é vermelho e a
 maioria falha com o 404 `"Not Found"` do FastAPI (a rota não casa).
@@ -40,6 +47,7 @@ import pytest
 from tests.conftest import (
     money,
     create_transaction,
+    create_legacy_installment,
     installment_payload,
 )
 
@@ -47,22 +55,23 @@ CATEGORIA_INEXISTENTE = 9999
 PARCELAMENTO_INEXISTENTE = 9999
 
 
+@pytest.fixture(autouse=True)
+def _session(session):
+    """O helper abaixo insere direto no banco e precisa da sessão do teste."""
+    global SESSION
+    SESSION = session
+
+
 def _create_installment(client, account_id, category_id, **overrides):
-    response = client.post(
-        "/api/installments/",
-        json=installment_payload(account_id, category_id, **overrides),
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
+    """Parcelamento do modo antigo (S-4): 2 de 12 de R$ 500, sem parcelas."""
+    return create_legacy_installment(client, SESSION, account_id, category_id, **overrides)
 
 
 def _create_installment_without_parcels(client, account_id, category_id, **overrides):
     """Parcelamento **sem transação vinculada** — o estado em que a D15 não trava.
 
-    Desde a P-1 (11/11/2026) o cadastro gera as parcelas como transações, então
-    todo parcelamento novo nasce vinculado. Os testes que exercitam o lado
-    "sem vínculo" da D15 apagam as parcelas geradas antes, pela API, e
-    continuam provando a mesma coisa: a trava olha `installment_id`, e só ele.
+    O do modo antigo já nasce sem parcelas; o laço fica para o caso de o helper
+    voltar a criar pelo cadastro, que gera parcelas (P-1).
     """
     installment = _create_installment(client, account_id, category_id, **overrides)
     for transaction in client.get("/api/transactions").json():
@@ -132,15 +141,22 @@ def test_patch_is_partial_and_preserves_untouched_fields(client, default_account
     assert money(data["total_amount"]) == Decimal("6000.00")
     assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["total_installments"] == 12
-    assert data["end_date"] == "Ago/2020"
+    assert data["end_date"] == "Ago/2027"
     assert data["account_id"] == default_account
 
 
 def test_patch_title_keeps_the_computed_end_date(client, default_account, default_category):
     """Era `test_patch_title_and_end_date`. Desde a P-3 (11/11/2026) o
     `end_date` é calculado do cronograma e o `PATCH` o recusa com 422
-    (`test_installment_schedule.py::test_patch_end_date_is_rejected`)."""
-    installment = _create_installment(client, default_account, default_category["id"])
+    (`test_installment_schedule.py::test_patch_end_date_is_rejected`).
+
+    Com cronograma, pelo cadastro — o único teste deste arquivo que não é do
+    modo antigo."""
+    created = client.post(
+        "/api/installments", json=installment_payload(default_account, default_category["id"])
+    )
+    assert created.status_code == 201, created.text
+    installment = created.json()
 
     response = client.patch(
         f"/api/installments/{installment['id']}",
@@ -150,7 +166,7 @@ def test_patch_title_keeps_the_computed_end_date(client, default_account, defaul
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["title"] == "Notebook Dell XPS"
-    assert data["end_date"] == "Ago/2020"
+    assert data["end_date"] == installment["end_date"]
 
 
 def test_patch_category_updates_the_nested_ref(client, default_account, default_category):

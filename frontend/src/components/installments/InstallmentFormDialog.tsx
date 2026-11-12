@@ -462,7 +462,11 @@ export function InstallmentFormDialog({
               </>
             )}
 
-            {isEditing && (
+            {/*
+              Com calendário (S-3) a parcela atual não se edita: o valor
+              prefixado vai no PATCH igual ao da API e o backend o aceita.
+            */}
+            {isEditing && installment.anchor_due_date === null && (
               <div className="grid gap-2">
                 <Label htmlFor="inst-current">Parcela atual</Label>
                 <Input

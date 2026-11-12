@@ -5,9 +5,10 @@ precisava lembrar de ajustá-la. A regra passa a ser calculada na leitura:
 
     saldo = initial_balance + SUM(ENTRADA) − SUM(SAÍDA)
 
-**Sem recorte de data.** Saldo é acumulado por definição, ao contrário de
-`spent` em `categories.py`, que é do mês corrente. Um gasto de meses atrás
-continua descontado e um lançamento futuro já conta.
+**Recorte em hoje** (S-1, 12/11/2026): só transações com `date <= hoje` movem
+o saldo. Um gasto de meses atrás continua descontado; um lançamento futuro —
+parcela gerada, boleto agendado — só conta quando chega a data. Antes não havia
+recorte, e cadastrar um parcelamento baixava o saldo pelo total no mesmo dia.
 
 Este módulo existe pelo mesmo motivo de `installment_metrics.py`: a regra tem
 dois consumidores (`GET /accounts` e o `total_balance` do dashboard) e duplicar
@@ -18,7 +19,9 @@ métrica passando a ter dois valores no mesmo app.
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import case, func
+import datetime
+
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
 from app import models
@@ -28,17 +31,34 @@ from app import models
 ZERO = Decimal("0.00")
 
 
-def ledger_delta():
-    """Efeito de uma transação no saldo: `+amount` na entrada, `−amount` na saída.
+def ledger_delta(until: Optional[datetime.date] = None):
+    """Efeito de uma transação no saldo: `+amount` na entrada, `−amount` na saída,
+    **zero se a data é depois de `until`** (default: hoje, S-1).
 
     Expressão SQL, não valor — serve tanto ao agrupamento por conta quanto ao
-    total do dashboard.
+    total do dashboard. O recorte mora aqui, e não num `WHERE` de cada
+    consumidor, para os dois não divergirem: é o motivo deste módulo existir.
     """
+    cutoff = until or datetime.date.today()
+    counts = models.Transaction.date <= cutoff
     return case(
-        (models.Transaction.type == "ENTRADA", models.Transaction.amount),
-        (models.Transaction.type == "SAÍDA", -models.Transaction.amount),
+        (and_(counts, models.Transaction.type == "ENTRADA"), models.Transaction.amount),
+        (and_(counts, models.Transaction.type == "SAÍDA"), -models.Transaction.amount),
         else_=ZERO,
     )
+
+
+def total_balance(db: Session, until: Optional[datetime.date] = None) -> Decimal:
+    """Saldo de todas as contas do dono até `until` (default: hoje).
+
+    Usado pelo dashboard e pelo saldo comprometido de `/installments/summary`
+    (S-2): a mesma conta nos dois, pela mesma expressão.
+    """
+    initial = db.query(func.sum(models.Account.initial_balance)).scalar() or ZERO
+    ledger = db.query(
+        func.coalesce(func.sum(ledger_delta(until)), ZERO)
+    ).scalar() or ZERO
+    return initial + ledger
 
 
 def accounts_with_balance(db: Session, account_id: Optional[int] = None):

@@ -4,7 +4,12 @@ from typing import List
 
 from app.tenancy import owned_db, owner_id
 from app import models, schemas
-from app import installment_metrics
+import datetime
+
+from sqlalchemy import func
+
+from app import account_balance, installment_metrics
+from app.installment_metrics import ZERO
 from app.installment_schedule import Schedule, build_schedule
 
 router = APIRouter(
@@ -26,11 +31,13 @@ def _to_response(installment: models.Installment) -> schemas.InstallmentResponse
         category_id=installment.category_id,
         total_amount=installment.total_amount,
         installment_amount=installment.installment_amount,
-        current_installment=installment.current_installment,
+        # Derivada do calendário nos parcelamentos com âncora (S-3).
+        current_installment=installment_metrics.effective_current(installment),
         total_installments=installment.total_installments,
         end_date=installment.end_date,
         account_id=installment.account_id,
         first_due_date=installment.first_due_date,
+        anchor_due_date=installment.anchor_due_date,
         category=installment.category,
         remaining_amount=installment_metrics.remaining_amount(installment),
     )
@@ -49,10 +56,27 @@ def get_installments_summary(db: Session = Depends(owned_db)):
     """
     active = installment_metrics.active_installments(db)
 
+    # S-2: o saldo "se todas as parcelas já tivessem saído". Parcela gerada com
+    # data depois de hoje ainda não está no saldo (S-1); parcelamento antigo não
+    # tem parcela nenhuma no extrato, então entra pelo restante dele.
+    today = datetime.date.today()
+    future_parcels = db.query(
+        func.coalesce(func.sum(models.Transaction.amount), ZERO)
+    ).filter(
+        models.Transaction.installment_number.isnot(None),
+        models.Transaction.type == "SAÍDA",
+        models.Transaction.date > today,
+    ).scalar() or ZERO
+    legacy_remaining = sum(
+        (installment_metrics.remaining_amount(it) for it in active if it.first_due_date is None),
+        ZERO,
+    )
+
     return schemas.InstallmentSummary(
         active_count=len(active),
         monthly_committed_amount=installment_metrics.monthly_committed(active),
         remaining_total_amount=installment_metrics.remaining_total(active),
+        committed_balance=account_balance.total_balance(db) - future_parcels - legacy_remaining,
     )
 
 
@@ -126,6 +150,7 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
         total_installments=installment.total_installments,
         end_date=schedule.end_date,
         first_due_date=schedule.first_due_date,
+        anchor_due_date=installment.current_due_date,
         account_id=installment.account_id,
     )
     db.add(new_installment)
@@ -185,6 +210,19 @@ def update_installment(
         )
 
     data = payload.model_dump(exclude_unset=True)
+
+    # S-3: com âncora, a parcela atual vem do calendário. Reenviar o valor que
+    # a API mostrou passa (formulário que manda o objeto inteiro); mudar é 400.
+    if installment.anchor_due_date is not None and "current_installment" in data:
+        if data["current_installment"] != installment_metrics.effective_current(installment):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "A parcela atual deste parcelamento é calculada pela data "
+                    "de vencimento e não pode ser alterada."
+                ),
+            )
+        del data["current_installment"]
 
     if "category_id" in data:
         category = db.query(models.Category).filter(

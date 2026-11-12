@@ -25,41 +25,31 @@ from decimal import Decimal
 
 import pytest
 
-from tests.conftest import money
+from tests.conftest import create_legacy_installment, money
+
+
+@pytest.fixture(autouse=True)
+def _session(session):
+    """O helper abaixo insere direto no banco e precisa da sessão do teste."""
+    global SESSION
+    SESSION = session
 
 
 def _installment(client, account_id, category_id, *, current, total,
                  amount="450.00", title="Notebook Pro"):
-    """Parcelamento no contrato do cronograma (11/11/2026).
+    """Parcelamento do **modo antigo** (S-4), com a parcela atual gravada.
 
-    Antes enviava `total_amount` junto; agora é um **ou** outro (P-4), e o
-    total sai de `amount × total`, que é o que todos estes testes já usavam.
-
-    O cadastro só aceita `1 ≤ current ≤ total` (P-5). `current = 0` e o quitado
-    (`current > total`, D13) continuam alcançáveis pelo `PATCH`, que é por onde
-    chegam na vida real; o helper cria na faixa e ajusta pelo `PATCH`.
+    Desde 12/11/2026 (S-3) os parcelamentos novos têm a parcela atual pelo
+    calendário. Estes testes são sobre as fronteiras da fórmula (`current = 0`,
+    a última, o quitado), que o calendário não alcança livremente — e o modo
+    antigo continua em produção. O calendário tem testes em
+    `test_balance_until_today.py`.
     """
-    valid_current = min(max(current, 1), total)
-    response = client.post("/api/installments/", json={
-        "title": title,
-        "category_id": category_id,
-        "installment_amount": amount,
-        "current_installment": valid_current,
-        "total_installments": total,
-        # Passado distante: as parcelas geradas não caem no mês corrente.
-        "current_due_date": "2019-10-15",
-        "account_id": account_id,
-    })
-    assert response.status_code == 201, response.text
-    created = response.json()
-    if valid_current != current:
-        response = client.patch(
-            f"/api/installments/{created['id']}", json={"current_installment": current}
-        )
-        assert response.status_code == 200, response.text
-        created = response.json()
-    return created
-
+    return create_legacy_installment(
+        client, SESSION, account_id, category_id,
+        current_installment=current, total_installments=total,
+        installment_amount=amount, title=title,
+    )
 
 def _summary(client):
     response = client.get("/api/installments/summary")

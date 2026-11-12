@@ -226,6 +226,10 @@ class Installment(Base):
     end_date: Mapped[str] = mapped_column(String(20), nullable=False)
     # Data da parcela 1 (P-3). Nula nos parcelamentos anteriores ao cronograma.
     first_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Data da parcela `current_installment` informada no cadastro (S-3). Com ela
+    # a parcela atual é derivada do calendário; nula = modo antigo (S-4), em que
+    # `current_installment` é o valor gravado e avança pelo PATCH.
+    anchor_due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     account_id: Mapped[int] = mapped_column(Integer, nullable=False)
     owner_id: Mapped[int] = _owner_column("installments")
 

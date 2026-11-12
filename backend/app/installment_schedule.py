@@ -119,6 +119,24 @@ def build_schedule(
     )
 
 
+def current_installment_on(
+    today: datetime.date,
+    *,
+    anchor_due_date: datetime.date,
+    anchor_installment: int,
+    total_installments: int,
+) -> int:
+    """Parcela atual pelo calendário (S-3): a primeira que vence no mês de
+    `today` ou depois. Nenhuma → `total + 1` (quitado, D13).
+
+    Por mês, não por dia: o vencimento da parcela k cai no mês da âncora mais
+    `k − âncora`, então basta a distância em meses.
+    """
+    months = (today.year * 12 + today.month) - (anchor_due_date.year * 12 + anchor_due_date.month)
+    current = anchor_installment + months
+    return min(max(current, 1), total_installments + 1)
+
+
 def remaining_from_schedule(
     *,
     total_amount: Decimal,

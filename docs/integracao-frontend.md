@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | `categorias.tsx` | ✅ | ✅ | ✅ (409 em uso) | — |
 | `transacoes.tsx` | ✅ | ✅ | ✅ (estorna saldo) | busca client-side |
-| `parcelamentos.tsx` | ✅ (gera as parcelas, com pré-visualização) | ✅ (descrição, categoria, parcela atual) | ✅ (apaga as parcelas geradas) | avançar parcela |
+| `parcelamentos.tsx` | ✅ (gera as parcelas, com pré-visualização) | ✅ (descrição e categoria; parcela atual só no modo antigo) | ✅ (apaga as parcelas geradas) | avançar parcela só no modo antigo (S-4); cartão "Saldo comprometido" (S-2) |
 
 **Não sobrou botão inerte.** Os três que existiam foram **removidos**: "Filtrar" em
 Transações, "Buscar" no Dashboard e "Exportar" em Relatórios. Nenhum dos três tinha

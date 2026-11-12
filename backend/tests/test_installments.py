@@ -7,10 +7,12 @@ inexistente e a categoria aninhada na response são testados em
 Fixtures vêm do `conftest.py`.
 """
 
+import datetime
 from decimal import Decimal
 
 import pytest
 
+from app.installment_schedule import add_months, month_label
 from tests.conftest import money, create_account, create_category, installment_payload
 
 
@@ -37,22 +39,24 @@ def test_create_installment(client, default_account, category_id):
     assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["current_installment"] == 2
     assert data["total_installments"] == 12
-    # Calculado do cronograma (P-3): parcela 2 em out/2019 → a 12 em ago/2020.
-    assert data["end_date"] == "Ago/2020"
-    assert data["first_due_date"] == "2019-09-15"
+    # Calculado do cronograma (P-3): parcela 2 hoje → a 1 há um mês, a 12
+    # daqui a dez meses (datas relativas, backlog 0.1).
+    today = datetime.date.today()
+    assert data["end_date"] == month_label(add_months(today, 10))
+    assert data["first_due_date"] == add_months(today, -1).isoformat()
     assert data["account_id"] == default_account
 
 
-def test_create_installment_debits_the_generated_installments(client, default_account, category_id):
-    """⚠️ **Invertido em 11/11/2026** (issue #3, P-1). Este teste se chamava
-    `..._does_not_touch_account_balance` e fixava que criar o parcelamento não
-    mexia no saldo. Agora o cadastro gera as parcelas 2 a 12 como SAÍDAs, e o
-    saldo é a soma do ledger sem recorte de data: 10.000 − 11 × 500.
-    Consequência aceita da decisão, a confirmar com o usuário."""
+def test_create_installment_debits_only_the_parcel_already_due(client, default_account, category_id):
+    """⚠️ **Mudou duas vezes.** Até 10/11 era `..._does_not_touch_account_balance`
+    (criar não mexia no saldo). Em 11/11 (P-1) as parcelas 2 a 12 passaram a ser
+    SAÍDAs e, sem recorte de data, o saldo caía 11 × 500. Desde 12/11 (S-1,
+    resposta 1b do usuário) o saldo para em hoje: só a parcela 2, que vence
+    hoje, sai — 10.000 − 500."""
     client.post("/api/installments/", json=installment_payload(default_account, category_id))
 
     account = client.get("/api/accounts").json()[0]
-    assert money(account["current_balance"]) == Decimal("4500.00")
+    assert money(account["current_balance"]) == Decimal("9500.00")
 
 
 def test_create_installment_account_not_found(client, category_id):

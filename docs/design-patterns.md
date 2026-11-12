@@ -555,3 +555,55 @@ o limite comprometido, e está certo. Para conta corrente, não. Mudar o saldo p
 botão "Avançar parcela", que edita `current_installment` à mão, deve dar lugar a uma "parcela
 atual" derivada da data; (3) se os parcelamentos antigos devem ganhar parcelas por um script de
 migração, em vez de excluir e recriar.
+
+---
+
+### Saldo até hoje, saldo comprometido e parcela atual pela data (Fase 1, decidido em 12/11/2026)
+
+**Decidido antes da implementação**, com as respostas do usuário às perguntas da Fase 1 (1b, 2b
+e 3). Revê duas decisões anteriores, citadas abaixo.
+
+**S-1: o saldo conta só o que tem data até hoje** (resposta 1b). `initial_balance + ENTRADA −
+SAÍDA` passa a somar apenas transações com `date <= hoje`, em `GET /accounts` e no
+`total_balance` do dashboard, pela mesma expressão (`account_balance.py`). **Substitui** o "sem
+recorte de data" de "Saldo é derivado do ledger": com as parcelas geradas (P-1), o recorte antigo
+baixava o saldo pelo parcelamento inteiro no dia do cadastro. Lançamento futuro continua
+existindo e entra no mês dele (fluxo mensal, despesas do mês); só não move o saldo antes da
+data. `test_balance_has_no_date_cutoff` é **invertido** e rotulado.
+* **Variação do saldo no dashboard:** o saldo do fim do mês anterior passa a ser calculado direto
+  (`date < primeiro dia do mês`), e não mais por `saldo − economia do mês`: com o recorte em
+  hoje, a economia do mês inclui lançamentos futuros deste mês e a subtração deixaria de bater.
+
+**S-2: saldo comprometido** (pedido junto da 1b). `GET /installments/summary` ganha
+`committed_balance` = saldo total (S-1) − parcelas geradas **com data depois de hoje** − o
+restante dos parcelamentos antigos ativos, que não têm parcelas no extrato. É o saldo "se todas
+as parcelas já tivessem saído". A tela de Parcelamentos mostra o quarto cartão "Saldo
+comprometido". *Descartado:* `saldo − remaining_total_amount`, que contaria duas vezes a
+parcela do mês já debitada.
+
+**S-3: parcela atual pela data** (resposta 2b). Em parcelamento com cronograma, a parcela atual
+é a **primeira com vencimento no mês corrente ou depois**; nenhuma → `total + 1` (quitado, D13).
+Para recalcular as datas, o cadastro grava `anchor_due_date` (a data da parcela atual informada
+no cadastro) e mantém o `current_installment` gravado como o número dessa âncora — a resposta da
+API traz o valor **derivado**. Mês, e não dia: "Parcela 3 de 10" vale o mês inteiro em que a 3
+vence, mesmo depois do dia do débito.
+* `PATCH current_installment` em parcelamento com cronograma → **400** ("a parcela atual é
+  calculada pela data"). O botão "Avançar" some para eles.
+* "Ativo", "comprometido/mês" e "restante" usam a parcela derivada (`installment_metrics`).
+  "Ativo" deixa de ser filtro em SQL e passa a ser calculado em Python sobre a lista do dono —
+  são dezenas de linhas por usuário.
+* *Descartado:* derivar das transações geradas (o usuário pode apagar uma parcela, e a contagem
+  pularia) e gravar o dia separado (`anchor_due_date` já reproduz o cronograma, P-1).
+
+**S-4: parcelamentos antigos** (resposta 3: "decida a melhor aplicação"). Ficam no modo antigo:
+sem cronograma (`first_due_date` nulo), parcela atual gravada, "Avançar" e edição como antes, e
+o botão Excluir para recriar. **Nenhuma migração apaga dado**: zerar o banco de produção é
+irreversível e daqui não há acesso a ele; a migração só acrescenta a coluna nula.
+
+**Migration** `f2b6d0c9e1a4`: `installments.anchor_due_date` (date, nulo). Os parcelamentos com
+cronograma criados antes dela (só em ambiente local, nada foi publicado) ficam com âncora nula e
+caem no modo antigo.
+
+**Impacto no contrato com o frontend:** `InstallmentSummary.committed_balance` (novo);
+`InstallmentResponse.current_installment` passa a ser derivado; `PATCH current_installment` → 400
+nos novos. O saldo exibido em todas as telas deixa de contar lançamentos futuros.

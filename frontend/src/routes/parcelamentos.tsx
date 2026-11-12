@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import {
+  canAdvance,
   installmentProgress,
   type Installment,
   type InstallmentsSummary,
@@ -91,8 +92,8 @@ function TotalCard({ label, value }: { label: string; value: string }) {
 
 function LoadingTotals() {
   return (
-    <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-      {Array.from({ length: 3 }, (_, i) => (
+    <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6 mb-8">
+      {Array.from({ length: 4 }, (_, i) => (
         <div
           key={i}
           className="bg-card p-6 rounded-2xl border border-border shadow-sm"
@@ -237,11 +238,11 @@ function InstallmentCard({
               <Trash2 className="h-4 w-4" />
             </button>
             {/*
-              Some quando quitado: um parcelamento encerrado não deveria
-              oferecer avançar mais. O backend aceitaria (13 -> 14 é estado
-              válido pela D13), mas não há sentido de negócio.
+              Só no modo antigo e enquanto não quitou (S-4): com calendário
+              (S-3) a parcela atual muda sozinha com o mês, e o backend recusa
+              o PATCH. Quitado não oferece avançar (D13 aceitaria, sem sentido).
             */}
-            {!progress.isPaidOff && (
+            {canAdvance(installment) && (
               <button
                 type="button"
                 onClick={() => advance.mutate()}
@@ -340,7 +341,7 @@ function ParcelamentosPage() {
               somado no cliente. "Comprometido" e "Ativos" excluem quitados; o
               mock somava a listagem inteira e inflava os dois.
             */}
-          <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6 mb-8">
             <TotalCard
               label="Comprometido/mês"
               value={formatBRL(summary.data.monthly_committed_amount)}
@@ -352,6 +353,14 @@ function ParcelamentosPage() {
             <TotalCard
               label="Parcelamentos ativos"
               value={String(summary.data.active_count)}
+            />
+            {/*
+              S-2: o saldo "se todas as parcelas já tivessem saído". O saldo das
+              outras telas para em hoje (S-1) e não conta as parcelas futuras.
+            */}
+            <TotalCard
+              label="Saldo comprometido"
+              value={formatBRL(summary.data.committed_balance)}
             />
           </section>
 

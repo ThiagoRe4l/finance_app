@@ -19,6 +19,8 @@ export interface Installment {
   account_id: number;
   /** Data da parcela 1; `null` nos parcelamentos anteriores ao cronograma. */
   first_due_date: string | null;
+  /** Com ela, `current_installment` vem do calendário (S-3); `null` = modo antigo. */
+  anchor_due_date: string | null;
   remaining_amount: string;
 }
 
@@ -27,6 +29,8 @@ export interface InstallmentsSummary {
   active_count: number;
   monthly_committed_amount: string;
   remaining_total_amount: string;
+  /** Saldo até hoje menos as parcelas que ainda vão vencer (S-2). */
+  committed_balance: string;
 }
 
 export interface InstallmentProgress {
@@ -68,4 +72,20 @@ export function installmentProgress(
     percent: (paidCount / totalInstallments) * 100,
     isPaidOff: currentInstallment > totalInstallments,
   };
+}
+
+/**
+ * "Avançar parcela" só existe no modo antigo (S-4): com calendário (S-3) a
+ * parcela atual muda sozinha com o mês, e o backend recusa o PATCH (400).
+ */
+export function canAdvance(
+  installment: Pick<
+    Installment,
+    "anchor_due_date" | "current_installment" | "total_installments"
+  >,
+): boolean {
+  return (
+    installment.anchor_due_date === null &&
+    installment.current_installment <= installment.total_installments
+  );
 }

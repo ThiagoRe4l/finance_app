@@ -87,10 +87,25 @@ test("parcelamentos: card empilha valores e ações, alvos de 44 px", () => {
   assert.doesNotMatch(INSTALLMENTS, /className="flex items-center gap-8"/);
 });
 
-for (const [name, source] of [
-  ["parcelamentos.tsx", INSTALLMENTS],
-  ["relatorios.tsx", REPORTS],
-] as const) {
+// Parcelamentos ganhou o 4º cartão (S-2, 12/11/2026) e usa a grade dos
+// cartões do Dashboard, medida na M-15; Relatórios segue com 3.
+test("parcelamentos.tsx: 4 totais na grade medida do Dashboard, com o saldo comprometido", () => {
+  assert.ok(
+    (INSTALLMENTS.match(
+      /grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6 mb-8/g,
+    )?.length ?? 0) >= 2,
+    "a grade dos totais e a do esqueleto",
+  );
+  assert.match(INSTALLMENTS, /label="Saldo comprometido"/);
+  assert.match(INSTALLMENTS, /summary\.data\.committed_balance/);
+  assert.match(INSTALLMENTS, /Array\.from\(\{ length: 4 \}/);
+  assert.match(
+    INSTALLMENTS,
+    /text-2xl font-semibold tabular-nums whitespace-nowrap/,
+  );
+});
+
+for (const [name, source] of [["relatorios.tsx", REPORTS]] as const) {
   test(`${name}: totais empilhados abaixo de xl, valor sem quebra`, () => {
     // M-15: 3 colunas só a partir de xl (medido: vazava a 1024).
     assert.doesNotMatch(

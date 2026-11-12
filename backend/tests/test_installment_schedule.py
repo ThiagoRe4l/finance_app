@@ -105,7 +105,9 @@ def test_response_has_computed_first_due_date_and_end_date(
     inst = create(client, default_account, default_category["id"])
     assert inst["first_due_date"] == "2026-01-15"
     assert inst["end_date"] == "Mai/2026"
-    assert inst["current_installment"] == 3
+    # A parcela atual exibida vem do calendário desde a S-3 (12/11/2026) e
+    # depende de hoje; a âncora gravada é a do cadastro.
+    assert inst["anchor_due_date"] == "2026-03-15"
     assert inst["total_installments"] == 5
 
 
@@ -181,6 +183,8 @@ def test_total_amount_is_split_with_leftover_cents_on_the_first_installments(
         total_amount="100.00",
         total_installments=3,
         current_installment=1,
+        # Âncora hoje: a parcela atual derivada (S-3) é a pedida.
+        current_due_date=datetime.date.today().isoformat(),
     )
     amounts = [money(t["amount"]) for t in parcels(client, inst["id"])]
     assert amounts == [Decimal("33.34"), Decimal("33.33"), Decimal("33.33")]
@@ -201,6 +205,8 @@ def test_remaining_amount_is_exact_when_starting_mid_way(
         total_amount="100.00",
         total_installments=3,
         current_installment=2,
+        # Âncora hoje: a parcela atual derivada (S-3) é a pedida.
+        current_due_date=datetime.date.today().isoformat(),
     )
     amounts = [money(t["amount"]) for t in parcels(client, inst["id"])]
     assert amounts == [Decimal("33.33"), Decimal("33.33")]
@@ -210,7 +216,9 @@ def test_remaining_amount_is_exact_when_starting_mid_way(
 def test_installment_amount_gives_equal_installments_and_total(
     client, default_account, default_category
 ):
-    inst = create(client, default_account, default_category["id"])
+    # Âncora hoje: a parcela atual derivada (S-3) é a 3 pedida.
+    inst = create(client, default_account, default_category["id"],
+                  current_due_date=datetime.date.today().isoformat())
     assert money(inst["total_amount"]) == Decimal("2500.00")
     assert money(inst["remaining_amount"]) == Decimal("1500.00")
 

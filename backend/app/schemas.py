@@ -289,6 +289,10 @@ class InstallmentResponse(BaseModel):
     first_due_date: Optional[datetime.date] = Field(
         None, description="Data da parcela 1; nula nos parcelamentos sem cronograma"
     )
+    anchor_due_date: Optional[datetime.date] = Field(
+        None,
+        description="Com ela, current_installment vem do calendário (S-3); nula = modo antigo",
+    )
     category: CategoryRef
     remaining_amount: Decimal = Field(
         ..., description="Quanto ainda falta pagar: parcela × parcelas restantes"
@@ -311,6 +315,13 @@ class InstallmentSummary(BaseModel):
     active_count: int
     monthly_committed_amount: Decimal
     remaining_total_amount: Decimal
+    committed_balance: Decimal = Field(
+        ...,
+        description=(
+            "Saldo total até hoje menos as parcelas geradas que ainda vão vencer e o "
+            "restante dos parcelamentos antigos (S-2)"
+        ),
+    )
 
 
 # Schemas para Agregações (Dashboard e Relatórios)
