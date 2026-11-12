@@ -263,9 +263,34 @@ Consequências práticas:
 * `npm run test` sem argumento: o runner descobre `*.test.ts` recursivamente e já ignora
   `node_modules`. Sem glob no comando, funciona igual em `cmd`, PowerShell e `sh`.
 
-> 🔓 **Decisão em aberto:** quando aparecer a primeira necessidade real de teste de
-> componente, decidir entre rodar Vitest no Windows (aceitando quebrar o ciclo
-> teste-vermelho-primeiro só nesse caso) ou investigar como viabilizá-lo no container.
+> ✅ **Decidido em 12/11/2026 (item K, a pedido do usuário): Vitest para teste de
+> componente, ao lado do runner nativo.**
+>
+> * **O que entra:** `vitest` **3.2.4**, `@testing-library/react` 16.3.3,
+>   `@testing-library/dom` 10.4.2, `@testing-library/user-event` 14.6.8 e `jsdom`
+>   30.1.3, só de desenvolvimento, em versão exata (todas com mais de duas semanas de
+>   publicadas). `vitest.config.ts` próprio, **sem** o preset da Lovable (o Vitest só
+>   precisa de JSX, do alias `@/` e do jsdom).
+> * ⚠️ **Por que 3.2.4 e não a 4.x:** a 4.1.0 e a 4.1.12 declaram *peers* opcionais
+>   (`@vitest/browser-playwright`, `@vitejs/devtools-vitest`) cujo laço derruba o
+>   `npm install` do npm 10 (`Cannot read properties of null (reading 'edgesOut')`,
+>   bug do arborist). O npm 11 e o `--legacy-peer-deps` instalam, mas escrevem um
+>   lockfile que o `npm ci` do npm 10 — o do CI — recusa (`Missing: miniflare … from
+>   lock file`). A 3.2.4 aceita o Vite 7, não tem esses *peers* e passa no `npm ci` limpo
+>   (verificado em 12/11/2026). Subir para a 4.x exige antes subir o npm do CI.
+> * **O que roda onde:** `*.test.ts` continua no runner nativo (`npm test`), para função
+>   pura e contrato sobre arquivo; `*.test.tsx`, de componente, roda no Vitest
+>   (`npm run test:components`). O runner nativo não pega `.tsx`, e o Vitest só procura
+>   `src/**/*.test.tsx`: as duas suítes não se sobrepõem. O CI ganha o passo.
+> * **Onde roda:** no CI (Linux, `npm ci`), na sessão na nuvem e no Windows direto. Não
+>   roda no container antigo com o `node_modules` do Windows — a mesma limitação do
+>   `vite build` de antes.
+> * **Os primeiros testes** são os defeitos que chegaram à tela e que nenhum teste da época
+>   pegaria: a seta do `MetricCard` (13/08/2026), o resumo antigo com aviso no refetch que
+>   falha, o título do diálogo de exclusão no fechamento e o "Trocar arquivo" da
+>   importação (revisão de 12/11/2026).
+> * **Descartado:** migrar os `*.test.ts` para o Vitest. Funcionam, são rápidos, e a
+>   migração não acrescenta cobertura.
 
 ⚠️ **Primeiro caso concreto, não hipotético (13/08/2026).** Na validação visual do
 Dashboard, "Despesas +325,8%" exibia seta **↘**. O `MetricCard` decidia o ícone a partir de

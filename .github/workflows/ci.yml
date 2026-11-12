@@ -142,6 +142,11 @@ jobs:
       - name: Testes (runner nativo do Node)
         run: npm test
 
+      # Componente React (Vitest + jsdom), decisão K no CLAUDE.md. Os `*.test.ts`
+      # ficam no passo de cima; este só pega `src/**/*.test.tsx`.
+      - name: Testes de componente (Vitest)
+        run: npm run test:components
+
       # Ligado depois de 89bbd86 (format) e do commit que trocou `any` por
       # `unknown`: `npm run lint` agora sai com 0 erros. Gate nasce verde, que
       # era a condição da D-Deploy-4.
