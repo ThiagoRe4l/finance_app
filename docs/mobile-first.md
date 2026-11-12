@@ -552,6 +552,41 @@ Commit separado, depois da 3a validada. Muda `components/dashboard/PageHeader.ts
 
 **Sem impacto no contrato com o backend.**
 
+### M-14: fatias 4 e 5 — Categorias, Parcelamentos e os totais de Relatórios (decidido em 11/11/2026)
+
+**Decidido antes da implementação.** A aprovação dos testes foi **delegada pelo usuário** nesta
+data ("siga implementando todas as fases"). O formulário de parcelamento já foi refeito na issue
+#4, com o layout da 2a; aqui fica o resto da fatia 4 e a fatia 5 inteira. Um commit verde.
+
+**Pendências do contrato que saem:** `routes/categorias.tsx` P2 × 1 e P4 × 2;
+`routes/parcelamentos.tsx` P4 × 2; `components/categories/CategoryFormDialog.tsx` P4 × 2. A
+lista `PENDING` fica **vazia**.
+
+* **Categorias — ações visíveis no toque** (o padrão da 2b, M-12): esconder no hover só a
+  partir de `lg` (`lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100`) e
+  botões `h-11 w-11 lg:h-7 lg:w-7`. A partir de `lg` o card é o de hoje.
+* **Formulário de categoria (M-3):** as mesmas classes `max-sm:` do formulário de transação
+  (folha ancorada embaixo, rolagem interna, rodapé fixo); sem `autoFocus` (o `onOpenAutoFocus`
+  da 2a: em tela de toque o foco vai para o diálogo); campos e botões do rodapé `h-11 sm:h-9`;
+  as amostras de cor `h-11 w-11 sm:h-8 sm:w-8` e os ícones `h-11 w-11 sm:h-9 sm:w-9`. A partir
+  de `sm` o diálogo é o de hoje.
+* **Parcelamentos — card empilhado:** o bloco de valores e ações passa de `flex items-center
+  gap-8` para `flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-8`, com as ações num grupo
+  `ml-auto`; editar `h-11 w-11 lg:h-8 lg:w-8` e "Avançar" `h-11 lg:h-8`. O título ganha
+  `min-w-0` e `wrap-anywhere`.
+* **Totais de Parcelamentos e de Relatórios (fatia 5):** a grade passa de `md:grid-cols-3` para
+  `lg:grid-cols-3` (de 768 a 1023 px, empilhados), e o valor ganha `whitespace-nowrap`, como os
+  cartões do Dashboard (M-13): dinheiro não quebra nem é cortado. Motivo: a 768 px a trilha de
+  `1fr` tem ~208 px, menos que "R$ 100.000,00" em 24 px mais o `p-6` (~223 px, estimativa — a
+  mesma conta da M-13). **A partir de `lg` a grade é a de hoje**, e o mesmo pior caso continua
+  possível de 1024 a ~1150 px com a Sidebar: é o item do backlog "Dashboard de 1024 a 1535 px",
+  que passa a valer para as três telas.
+* **Descartado:** `overflow-x-hidden` nos cards (M-9) e fonte menor no valor (M-13).
+
+**Prova:** o contrato (lista vazia) e um teste sobre arquivo (`lib/slice4-mobile.test.ts`) com
+as classes escritas por extenso. **Conferência visual pelo usuário:** 360, 390 e 768 px nas três
+telas, e por olho a 1280. **Sem impacto no contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -566,8 +601,8 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 1d | Gráficos de meses com rolagem interna (`MonthScroller`, M-11): Fluxo Mensal e Comparativo, cabeçalhos com `flex-wrap gap-x-4`, regra P7 no contrato |
 | 2 | Transações (M-12), em dois commits: **2a**, formulário de transação responsivo (M-3), que o Dashboard também usa, e margem lateral na exclusão; **2b**, cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante |
 | 3 | Dashboard (M-13), em dois commits: **3a**, cartões de métrica em coluna única abaixo de `sm`, recentes com truncamento, "Ver todas" com 44 px, botão flutuante (o componente da 2b); **3b**, `PageHeader` com `actionClassName`, o Dashboard adotando o `PageHeader` e o `<div>` vazio da ação no celular (M-12) |
-| 4 | Categorias e Parcelamentos: ações visíveis, card de parcelamento empilhado, os dois formulários responsivos |
-| 5 | Relatórios: totais (o Comparativo saiu para a 1d, M-11) |
+| 4 | Categorias e Parcelamentos (M-14): ações visíveis, card de parcelamento empilhado, os dois formulários responsivos — o de parcelamento saiu junto da issue #4 |
+| 5 | Relatórios: totais (M-14; o Comparativo saiu para a 1d, M-11) |
 
 ---
 

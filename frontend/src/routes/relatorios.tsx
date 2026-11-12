@@ -63,7 +63,7 @@ function ErrorBanner({
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
@@ -97,7 +97,10 @@ function TotalCard({
       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
         {label}
       </p>
-      <p className={`text-2xl font-semibold tabular-nums ${className}`}>
+      {/* Dinheiro não quebra nem é cortado (M-13, M-14). */}
+      <p
+        className={`text-2xl font-semibold tabular-nums whitespace-nowrap ${className}`}
+      >
         {value}
       </p>
     </div>
@@ -287,7 +290,7 @@ function RelatoriosPage() {
       ) : (
         <>
           {/* Os três totais vêm prontos — o mock somava os 6 meses no cliente. */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <TotalCard
               label="Total de Receitas"
               value={formatBRL(overview.data.total_revenues)}

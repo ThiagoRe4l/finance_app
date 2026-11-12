@@ -360,16 +360,9 @@ test("scanDirs: as raízes e suas pastas, sem components/ui/ nem o que está den
  *
  * P5 não aparece de propósito: a fatia 1a trocou todo `vh` por `dvh`.
  */
-const PENDING: Record<string, PendingEntry[]> = {
-  "routes/categorias.tsx": [
-    { rule: "P2", count: 1, slice: "4" },
-    { rule: "P4", count: 2, slice: "4" },
-  ],
-  "routes/parcelamentos.tsx": [{ rule: "P4", count: 2, slice: "4" }],
-  "components/categories/CategoryFormDialog.tsx": [
-    { rule: "P4", count: 2, slice: "4" },
-  ],
-};
+// Vazia desde a fatia 4 (M-14, 11/11/2026): a migração do M-7 terminou. Uma
+// entrada nova aqui é regressão consciente e aparece no diff.
+const PENDING: Record<string, PendingEntry[]> = {};
 
 /** Exceções justificadas da tabela P1–P7. */
 const EXCEPTIONS: Record<string, Rule[]> = {

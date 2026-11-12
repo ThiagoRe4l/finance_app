@@ -13,7 +13,7 @@ decisão registrada, teste vermelho, implementação.
 | Playwright medindo overflow em 360 px | "📱 Mobile-first → M-7"; defeito real em "Pendências da validação da fatia 1c" |
 | PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
 | Ações da tabela de Transações só no hover: invisíveis em tablet na horizontal sem mouse; avaliar `hover: hover` | "📱 Mobile-first → M-12" (decisões da 2b) |
-| Dashboard de 1024 a 1535 px: cartões de métrica com ~100 a ~164 px úteis, o pior caso estoura (numa linha só, com o `whitespace-nowrap` da 3a); candidato `lg:grid-cols-2 2xl:grid-cols-4`; medir antes de decidir | "📱 Mobile-first → M-13" |
+| Dashboard de 1024 a 1535 px: cartões de métrica com ~100 a ~164 px úteis, o pior caso estoura (numa linha só, com o `whitespace-nowrap` da 3a); candidato `lg:grid-cols-2 2xl:grid-cols-4`; medir antes de decidir. **Desde a M-14 (11/11/2026) vale também para os totais de Parcelamentos e Relatórios** (`lg:grid-cols-3`, de 1024 a ~1150 px) | "📱 Mobile-first → M-13" e "M-14" |
 | ✅ Corrigido em 11/11/2026: cor do valor nos cartões de métrica com percentual `null` caía em verde | aqui, "Cor do valor nos cartões de métrica" |
 | Auxiliares de leitura de JSX copiados em 5 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos; o bloco que confere o botão dentro do `<PageHeader>` está copiado em `dashboard-mobile.test.ts` e `transactions-list-mobile.test.ts`, e o `header.includes` procura na tag inteira, inclusive dentro da prop `action` (code-review da 3a, 27/10/2026, e da 3b, 09/11/2026; fora da reforma) | — |
 | ✅ Corrigido em 11/11/2026: `refetch` que falha trocava o Dashboard já carregado pelo banner de erro | aqui, "Banner de erro sobre o Dashboard já carregado" |

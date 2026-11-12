@@ -81,14 +81,17 @@ function TotalCard({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
         {label}
       </p>
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+      {/* Dinheiro não quebra nem é cortado (M-13, M-14). */}
+      <p className="text-2xl font-semibold tabular-nums whitespace-nowrap">
+        {value}
+      </p>
     </div>
   );
 }
 
 function LoadingTotals() {
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       {Array.from({ length: 3 }, (_, i) => (
         <div
           key={i}
@@ -169,13 +172,15 @@ function InstallmentCard({
       }`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="h-10 w-10 shrink-0 rounded-lg bg-secondary flex items-center justify-center">
             <CreditCard className="h-5 w-5 text-primary" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">{installment.title}</p>
+              <p className="min-w-0 text-sm font-medium wrap-anywhere">
+                {installment.title}
+              </p>
               {/*
                 Quitado ganha marcador em vez de sumir da listagem: cada card é
                 informação discreta, diferente do widget de distribuição do
@@ -193,7 +198,11 @@ function InstallmentCard({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-8">
+        {/*
+          Abaixo de lg os valores e as ações quebram linha em vez de estourar
+          o card (M-14); as ações ficam juntas, à direita.
+        */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-8">
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Parcela</p>
             <p className="text-sm font-medium tabular-nums">
@@ -207,18 +216,17 @@ function InstallmentCard({
               {formatBRL(installment.remaining_amount)}
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
               onClick={onEdit}
               aria-label={`Editar ${installment.title}`}
-              className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="h-11 w-11 lg:h-8 lg:w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Pencil className="h-4 w-4" />
             </button>
             {/*
-              Excluir (P-6) já nasce com o alvo de 44 px no toque (M-7, P4);
-              editar e avançar ficam para a fatia 4, que zera a pendência.
+              Os três alvos com 44 px abaixo de lg (M-7, P4; M-14).
             */}
             <button
               type="button"
@@ -240,7 +248,7 @@ function InstallmentCard({
                 disabled={advance.isPending}
                 aria-label={`Avançar parcela de ${installment.title}`}
                 title="Avançar parcela"
-                className="flex items-center gap-1 h-8 px-3 rounded-md border border-border text-xs hover:bg-secondary transition-colors disabled:opacity-60"
+                className="flex items-center gap-1 h-11 lg:h-8 px-3 rounded-md border border-border text-xs hover:bg-secondary transition-colors disabled:opacity-60"
               >
                 {advance.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -332,7 +340,7 @@ function ParcelamentosPage() {
               somado no cliente. "Comprometido" e "Ativos" excluem quitados; o
               mock somava a listagem inteira e inflava os dois.
             */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <TotalCard
               label="Comprometido/mês"
               value={formatBRL(summary.data.monthly_committed_amount)}

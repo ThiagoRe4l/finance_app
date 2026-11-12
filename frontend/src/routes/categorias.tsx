@@ -107,17 +107,16 @@ function CategoryCard({
   return (
     <div className="group bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
       {/*
-        Editar/excluir não existiam na UI — nem ícone, nem menu. Num card não há
-        área natural para eles, então aparecem no hover, no canto. Em toque não
-        há hover: `focus-within` mantém acessível por teclado, e os botões
-        seguem no DOM (só invisíveis), então leitor de tela os encontra.
+        Editar/excluir no canto do card. Abaixo de lg ficam sempre visíveis,
+        com 44 px: no toque não há hover (M-14, o padrão da 2b). A partir de lg
+        aparecem no hover, e `focus-within` mantém o acesso por teclado.
       */}
-      <div className="flex justify-end gap-1 -mt-2 -mr-2 mb-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+      <div className="flex justify-end gap-1 -mt-2 -mr-2 mb-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={onEdit}
           aria-label={`Editar ${category.name}`}
-          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          className="h-11 w-11 lg:h-7 lg:w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -125,7 +124,7 @@ function CategoryCard({
           type="button"
           onClick={onDelete}
           aria-label={`Excluir ${category.name}`}
-          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="h-11 w-11 lg:h-7 lg:w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
