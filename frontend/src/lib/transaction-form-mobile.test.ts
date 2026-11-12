@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { tagAt, classesIn, assertTokens } from "./jsx-source.ts";
 
 const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
@@ -28,27 +29,6 @@ const FORM = "../components/transactions/TransactionFormDialog.tsx";
 const DELETE = "../components/transactions/DeleteTransactionDialog.tsx";
 const CATEGORY_SELECT = "../components/shared/CategorySelect.tsx";
 
-/**
- * A tag de abertura que começa no `<` em `from`, até o `>` que a fecha,
- * pulando `{...}` e strings (o `=>` de uma expressão não encerra a tag).
- */
-function tagAt(source: string, from: number): string {
-  assert.ok(from >= 0, "tag não encontrada");
-  let depth = 0;
-  let quote: string | null = null;
-  let i = from + 1;
-  for (; i < source.length; i++) {
-    const ch = source[i];
-    if (quote) {
-      if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
-    else if (ch === "{") depth++;
-    else if (ch === "}") depth--;
-    else if (ch === ">" && depth === 0) break;
-  }
-  return source.slice(from, i + 1);
-}
-
 /** A tag de abertura `<Nome …>` que contém o atributo `attr` (ex.: `id="tx-title"`). */
 function tagWith(source: string, name: string, attr: string): string {
   const re = new RegExp(`<${name}\\b`, "g");
@@ -57,19 +37,6 @@ function tagWith(source: string, name: string, attr: string): string {
     if (tag.includes(attr)) return tag;
   }
   assert.fail(`<${name} ${attr}> não encontrado`);
-}
-
-/** Os tokens do `className="…"` literal de uma tag. */
-function classesIn(tag: string): string[] {
-  const m = /className="([^"]*)"/.exec(tag);
-  assert.ok(m, `sem className literal em: ${tag.slice(0, 80)}`);
-  return m[1].split(/\s+/).filter(Boolean);
-}
-
-function assertTokens(tag: string, expected: string[]) {
-  const cls = classesIn(tag);
-  const missing = expected.filter((t) => !cls.includes(t));
-  assert.deepEqual(missing, [], `faltam em: ${cls.join(" ")}`);
 }
 
 // ── Folha ancorada embaixo, só abaixo de sm ──────────────────────────────

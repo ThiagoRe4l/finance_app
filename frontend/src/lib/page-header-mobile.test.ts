@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { cn } from "./utils.ts";
+import { tagAt } from "./jsx-source.ts";
 
 const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
@@ -23,27 +24,6 @@ function read(rel: string): string {
 
 const PAGE_HEADER = "../components/dashboard/PageHeader.tsx";
 const DASHBOARD = "../routes/index.tsx";
-
-/**
- * A tag de abertura que começa no `<` em `from`, até o `>` que a fecha,
- * pulando `{...}` e strings (o `=>` de uma expressão não encerra a tag).
- */
-function tagAt(source: string, from: number): string {
-  assert.ok(from >= 0, "tag não encontrada");
-  let depth = 0;
-  let quote: string | null = null;
-  let i = from + 1;
-  for (; i < source.length; i++) {
-    const ch = source[i];
-    if (quote) {
-      if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
-    else if (ch === "{") depth++;
-    else if (ch === "}") depth--;
-    else if (ch === ">" && depth === 0) break;
-  }
-  return source.slice(from, i + 1);
-}
 
 test("sem actionClassName, o contêiner da ação resolve para a string de hoje", () => {
   const src = read(PAGE_HEADER);

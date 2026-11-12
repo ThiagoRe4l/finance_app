@@ -16,6 +16,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import {
+  tagAt,
+  classesIn,
+  assertTokens,
+  assertNoTokens,
+  fn,
+  elements,
+  headerActionProblems,
+  type Element,
+} from "./jsx-source.ts";
 
 const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
@@ -26,97 +36,6 @@ function read(rel: string): string {
 
 const PAGE = "../routes/transacoes.tsx";
 const FAB = "../components/shared/FloatingActionButton.tsx";
-
-/**
- * A tag de abertura que começa no `<` em `from`, até o `>` que a fecha,
- * pulando `{...}` e strings (o `=>` de uma expressão não encerra a tag).
- */
-function tagAt(source: string, from: number): string {
-  assert.ok(from >= 0, "tag não encontrada");
-  let depth = 0;
-  let quote: string | null = null;
-  let i = from + 1;
-  for (; i < source.length; i++) {
-    const ch = source[i];
-    if (quote) {
-      if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
-    else if (ch === "{") depth++;
-    else if (ch === "}") depth--;
-    else if (ch === ">" && depth === 0) break;
-  }
-  return source.slice(from, i + 1);
-}
-
-/**
- * Onde termina o elemento que abre em `from`: depois do `</nome>` que o
- * fecha, contando os `<nome` aninhados (os auto-fechados `<nome … />` não
- * contam). Para uma tag auto-fechada, o fim da própria tag.
- */
-function elementEnd(source: string, from: number): number {
-  const open = tagAt(source, from);
-  if (open.endsWith("/>")) return from + open.length;
-  const name = /^<([A-Za-z][\w.]*)/.exec(open)?.[1];
-  assert.ok(name, `sem nome de tag em: ${open.slice(0, 40)}`);
-  const re = new RegExp(`<(/?)${name.replace(".", "\\.")}\\b`, "g");
-  re.lastIndex = from + open.length;
-  let depth = 1;
-  for (let m = re.exec(source); m; m = re.exec(source)) {
-    if (m[1] === "/") {
-      depth--;
-      if (depth === 0) return source.indexOf(">", m.index) + 1;
-    } else if (!tagAt(source, m.index).endsWith("/>")) depth++;
-  }
-  assert.fail(`<${name}> sem fechamento`);
-}
-
-/**
- * Os tokens estáticos do `className` de uma tag: `className="…"` ou
- * `className={`…`}`, sem os pedaços `${…}`.
- */
-function classesIn(tag: string): string[] {
-  const m =
-    /className="([^"]*)"/.exec(tag) ?? /className=\{`([^`]*)`\}/.exec(tag);
-  assert.ok(m, `sem className literal em: ${tag.slice(0, 80)}`);
-  return m[1]
-    .replace(/\$\{[^}]*\}/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function assertTokens(tag: string, expected: string[]) {
-  const cls = classesIn(tag);
-  const missing = expected.filter((t) => !cls.includes(t));
-  assert.deepEqual(missing, [], `faltam em: ${cls.join(" ")}`);
-}
-
-function assertNoTokens(tag: string, forbidden: string[]) {
-  const cls = classesIn(tag);
-  const present = forbidden.filter((t) => cls.includes(t));
-  assert.deepEqual(present, [], `não deviam estar em: ${cls.join(" ")}`);
-}
-
-/** O corpo de `function nome(` até a próxima função de topo. */
-function fn(source: string, name: string): string {
-  const start = source.indexOf(`function ${name}(`);
-  assert.ok(start >= 0, `function ${name} não encontrada`);
-  const next = source.indexOf("\nfunction ", start + 1);
-  return source.slice(start, next < 0 ? undefined : next);
-}
-
-type Element = { start: number; end: number; tag: string };
-
-/** Todos os elementos com `className` de um trecho, com início e fim. */
-function elements(source: string): Element[] {
-  const out: Element[] = [];
-  for (const m of source.matchAll(/<[A-Za-z]/g)) {
-    const start = m.index ?? 0;
-    const tag = tagAt(source, start);
-    if (!/className=/.test(tag)) continue;
-    out.push({ start, end: elementEnd(source, start), tag });
-  }
-  return out;
-}
 
 /** O elemento com `className` mais interno que contém a posição `index`. */
 function innermostAround(source: string, index: number): Element {
@@ -332,23 +251,9 @@ test('"Nova" do cabeçalho só a partir de lg (o flutuante a substitui no celula
   const src = page();
   const at = src.search(/\/>\s*Nova\s*</);
   assert.ok(at >= 0, "sem o botão Nova");
-  const button = tagAt(src, src.lastIndexOf("<button", at));
-  // A visibilidade mora no contêiner da ação (M-13, 3b): o botão não repete o
-  // `hidden`, e o `actionClassName` é quem o esconde no celular.
-  const cls = classesIn(button);
-  const headerAt = src.lastIndexOf("<PageHeader", at);
-  const header = headerAt < 0 ? "" : tagAt(src, headerAt);
-  const problems: string[] = [];
-  if (!cls.includes("flex")) problems.push("botão sem flex");
-  for (const token of ["hidden", "lg:flex"]) {
-    if (cls.includes(token)) problems.push(`botão com ${token}`);
-  }
-  if (headerAt < 0 || headerAt + header.length <= at) {
-    problems.push("botão fora de um <PageHeader>");
-  } else if (!header.includes('actionClassName="hidden lg:flex"')) {
-    problems.push('<PageHeader> sem actionClassName="hidden lg:flex"');
-  }
-  assert.deepEqual(problems, []);
+  // A visibilidade mora no contêiner da ação (M-13, 3b): ver
+  // `headerActionProblems` em `jsx-source.ts`.
+  assert.deepEqual(headerActionProblems(src, at), []);
 });
 
 test('"Tentar novamente" com 44 px abaixo de lg', () => {
