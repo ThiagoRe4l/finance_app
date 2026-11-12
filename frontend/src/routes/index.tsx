@@ -48,7 +48,7 @@ interface DashboardSummary {
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
@@ -122,7 +122,7 @@ function Summary({ data }: { data: DashboardSummary }) {
 
   return (
     <>
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
         {/*
           `tone` = julgamento (cor), `trend` = direção real (seta). São passados
           de forma independente: acoplar os dois foi o que fez "+325,8%" em

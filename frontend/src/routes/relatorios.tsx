@@ -63,7 +63,7 @@ function ErrorBanner({
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
@@ -290,7 +290,7 @@ function RelatoriosPage() {
       ) : (
         <>
           {/* Os três totais vêm prontos — o mock somava os 6 meses no cliente. */}
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
             <TotalCard
               label="Total de Receitas"
               value={formatBRL(overview.data.total_revenues)}

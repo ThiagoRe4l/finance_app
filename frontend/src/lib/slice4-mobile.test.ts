@@ -35,7 +35,8 @@ test("categorias: ações visíveis no toque, escondidas no hover só a partir d
   hasTokens(
     CATEGORIES,
     [
-      "lg:opacity-0",
+      // M-15: só onde existe hover de verdade.
+      "lg:hover-capable:opacity-0",
       "lg:group-hover:opacity-100",
       "lg:group-focus-within:opacity-100",
     ],
@@ -90,10 +91,14 @@ for (const [name, source] of [
   ["parcelamentos.tsx", INSTALLMENTS],
   ["relatorios.tsx", REPORTS],
 ] as const) {
-  test(`${name}: totais empilhados abaixo de lg, valor sem quebra`, () => {
-    assert.doesNotMatch(source, /grid grid-cols-1 md:grid-cols-3/);
+  test(`${name}: totais empilhados abaixo de xl, valor sem quebra`, () => {
+    // M-15: 3 colunas só a partir de xl (medido: vazava a 1024).
+    assert.doesNotMatch(
+      source,
+      /grid grid-cols-1 (md|lg):grid-cols-3 gap-6 mb-8/,
+    );
     assert.ok(
-      (source.match(/grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8/g)?.length ??
+      (source.match(/grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8/g)?.length ??
         0) >= 2,
       "a grade dos totais e a do esqueleto",
     );
@@ -103,3 +108,15 @@ for (const [name, source] of [
     );
   });
 }
+
+test("styles.css: variante hover-capable = hover de verdade, com ponteiro fino (M-15)", () => {
+  const css = read("../styles.css");
+  assert.match(
+    css,
+    /@custom-variant hover-capable\s*\{\s*@media \(hover: hover\) and \(pointer: fine\)\s*\{\s*@slot;\s*\}\s*\}/,
+  );
+});
+
+test("categorias: nada esconde as ações só com lg:opacity-0 (M-15)", () => {
+  assert.doesNotMatch(CATEGORIES, /(^|[\s"'`])lg:opacity-0(?=[\s"'`])/m);
+});

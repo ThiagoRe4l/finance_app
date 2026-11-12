@@ -91,7 +91,7 @@ function TotalCard({ label, value }: { label: string; value: string }) {
 
 function LoadingTotals() {
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
       {Array.from({ length: 3 }, (_, i) => (
         <div
           key={i}
@@ -340,7 +340,7 @@ function ParcelamentosPage() {
               somado no cliente. "Comprometido" e "Ativos" excluem quitados; o
               mock somava a listagem inteira e inflava os dois.
             */}
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
             <TotalCard
               label="Comprometido/mês"
               value={formatBRL(summary.data.monthly_committed_amount)}

@@ -275,13 +275,16 @@ test("tabela: ações escondidas no hover só a partir de lg, com 44 px abaixo d
   const edit = src.indexOf("aria-label={`Editar ${transaction.title}`}");
   assert.ok(edit >= 0, "sem botão Editar na linha");
   const actions = innermostAround(src, src.lastIndexOf("<button", edit));
+  // M-15: escondidas só onde existe hover de verdade (`hover-capable`); num
+  // tablet na horizontal sem mouse continuam visíveis.
   assertTokens(actions.tag, [
-    "lg:opacity-0",
+    "lg:hover-capable:opacity-0",
     "lg:group-hover:opacity-100",
     "lg:group-focus-within:opacity-100",
   ]);
   assertNoTokens(actions.tag, [
     "opacity-0",
+    "lg:opacity-0",
     "group-hover:opacity-100",
     "group-focus-within:opacity-100",
   ]);

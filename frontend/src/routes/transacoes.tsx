@@ -201,7 +201,7 @@ function TransactionRow({
         de `lg`, onde a tabela aparece (P2). Os 44 px de base são do P4: a
         tabela só renderiza a partir de `lg`, e lá valem os 28 px de hoje.
       */}
-      <div className="col-span-1 flex justify-end gap-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
+      <div className="col-span-1 flex justify-end gap-1 lg:hover-capable:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={onEdit}

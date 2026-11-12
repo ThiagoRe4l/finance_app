@@ -133,17 +133,17 @@ const CLIPPING = [
 // ── Cartões de métrica ───────────────────────────────────────────────────
 
 /**
- * A grade dos cartões, por extenso: coluna única abaixo de `sm`, e o
- * `lg:grid-cols-4` e o espaçamento de hoje intactos (a grade de desktop não
- * muda na 3, M-13).
+ * A grade dos cartões, por extenso: coluna única abaixo de `sm`, duas até
+ * 1535 px e quatro só a partir de `2xl` (M-15, 12/11/2026: medido, o valor
+ * vazava do cartão em 4 colunas até ~1390 px). O espaçamento é o de antes.
  */
 const METRIC_GRID =
-  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8".split(
+  "grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8".split(
     " ",
   );
 
 for (const name of ["Summary", "LoadingState"]) {
-  test(`${name}: grade dos cartões em coluna única abaixo de sm, lg de hoje intacto`, () => {
+  test(`${name}: grade dos cartões em coluna única abaixo de sm, 4 colunas só em 2xl`, () => {
     const src = fn(read(DASHBOARD), name);
     const grid = tagAt(src, src.indexOf("<section"));
     assert.deepEqual(classesIn(grid), METRIC_GRID);

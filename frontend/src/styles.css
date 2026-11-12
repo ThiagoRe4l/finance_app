@@ -5,6 +5,17 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Hover de verdade (mouse ou trackpad), não toque — M-15. As ações que somem
+ * até o hover (`lg:hover-capable:opacity-0`) ficam visíveis num tablet na
+ * horizontal sem mouse. O `group-hover` do Tailwind v4 já só age com hover.
+ */
+@custom-variant hover-capable {
+  @media (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
+/*
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility

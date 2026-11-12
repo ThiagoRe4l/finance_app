@@ -587,6 +587,46 @@ lista `PENDING` fica **vazia**.
 as classes escritas por extenso. **Conferência visual pelo usuário:** 360, 390 e 768 px nas três
 telas, e por olho a 1280. **Sem impacto no contrato com o backend.**
 
+### M-15: cartões de valor de 1024 a 1535 px e ações só no hover de quem tem hover (decidido em 12/11/2026)
+
+**Decidido antes da implementação**, a partir do pedido do usuário para seguir com os itens I e J
+do backlog. Duas mudanças pequenas; um commit.
+
+**I — medido, não estimado.** Playwright (Chromium) no app local, fonte Inter carregada
+(`document.fonts.check` verdadeiro), valores de seis dígitos semeados (até "−R$ 207.768,51").
+Quanto o **texto** do valor passa da borda interna do cartão (negativo = sobra):
+
+| Largura | Dashboard, 4 colunas | Parcelamentos e Relatórios, 3 colunas |
+|---|---|---|
+| 1024 | +90 px | +17 px |
+| 1100 | +71 | −8 |
+| 1280 | +26 | −68 |
+| 1366 | +5 | −97 |
+| 1400 | −4 | −108 |
+| 1536 | −38 | −154 |
+
+* **Dashboard:** `lg:grid-cols-4` sai; a grade fica `grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4`
+  (o candidato do backlog). Duas colunas de 640 a 1535 px, quatro a partir de 1536. As quatro
+  colunas só cabem a partir de ~1390 px, e o próximo breakpoint padrão é o `2xl`. **Descartado:**
+  breakpoint arbitrário (`min-[1400px]:`), que seria o único do projeto.
+* **Totais de Parcelamentos e Relatórios:** `lg:grid-cols-3` vira `xl:grid-cols-3` (empilhados
+  até 1279 px, como já eram até 1023). O estouro é só de 1024 a ~1090 px, mas o `xl` é o
+  breakpoint padrão seguro mais próximo.
+* **Muda o desktop de propósito:** a 1280 px o Dashboard passa a 2 × 2. É o custo de nunca
+  cortar dinheiro (M-13); a medição mostra que em 4 colunas o valor vazava a 1280.
+* **Prova:** o mesmo script de medição depois da mudança, com todo valor dentro do cartão de
+  1024 a 1920 px.
+
+**J — ações escondidas no hover só onde existe hover.** A tabela de Transações e os cards de
+Categorias escondem editar/excluir a partir de `lg` (`lg:opacity-0`, M-12 e M-14). Num tablet na
+horizontal (≥ 1024 px) sem mouse, elas nunca aparecem. Entra em `styles.css` a variante
+`hover-capable` = `@media (hover: hover) and (pointer: fine)`, e o esconder vira
+`lg:hover-capable:opacity-0`. O `group-hover` do Tailwind v4 já só age em `@media (hover: hover)`.
+**Descartado:** detectar toque por JS (estado novo e troca na hidratação, M-3). **Prova:** opacidade
+computada no Playwright, com contexto de toque (`hasTouch`, `isMobile`) e sem, a 1280 px.
+
+**Sem impacto no contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
