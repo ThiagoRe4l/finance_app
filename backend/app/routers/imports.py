@@ -232,12 +232,29 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
     } if linked_ids else {}
     if set(linked) != linked_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parcelamento não encontrado.")
+    claimed: set[tuple[int, int]] = set()
     for item in payload.items:
-        if item.installment_id is not None and item.installment_number > linked[item.installment_id].total_installments:
+        if item.installment_id is None:
+            continue
+        if item.installment_number > linked[item.installment_id].total_installments:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="O número da parcela passa do total do parcelamento.",
             )
+        # Uma parcela k por parcelamento: vincular a k quando ela já está no
+        # extrato (ou duas vezes no mesmo pedido) duplicaria a parcela, que o
+        # PATCH e o DELETE do parcelamento tratam como gerada (revisão de 12/11).
+        slot = (item.installment_id, item.installment_number)
+        exists = db.query(models.Transaction.id).filter(
+            models.Transaction.installment_id == item.installment_id,
+            models.Transaction.installment_number == item.installment_number,
+        ).first()
+        if exists or slot in claimed:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A parcela {item.installment_number} deste parcelamento já está lançada.",
+            )
+        claimed.add(slot)
 
     existing = _existing_keys(db, payload.account_id, (item.date for item in payload.items))
     owner = owner_id(db)

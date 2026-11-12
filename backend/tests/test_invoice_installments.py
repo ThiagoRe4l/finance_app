@@ -136,3 +136,60 @@ def test_linking_to_another_users_installment_is_404(client_as):
     }]})
     assert response.status_code == 404
     assert response.json()["detail"] == "Parcelamento não encontrado."
+
+
+# --- Revisão de segurança, 12/11/2026 (escritos antes da correção) ----------
+
+
+def _confirm(client, account_id, category_id, **item):
+    body = {"date": TODAY.isoformat(), "title": "LOJA PARC 01/10", "amount": "10.00",
+            "type": "SAÍDA", "category_id": category_id}
+    body.update(item)
+    return client.post(CONFIRM, json={"account_id": account_id, "items": [body]})
+
+
+def test_confirm_date_out_of_range_is_422_not_500(client, default_account, default_category):
+    for date in ("9999-06-01", "9990-01-01", "0001-01-01"):
+        response = _confirm(
+            client, default_account, default_category["id"], date=date,
+            create_installment=True, installment_current=1, installment_total=120,
+        )
+        assert response.status_code == 422, (date, response.text)
+    assert client.get("/api/transactions").json() == []
+
+
+def test_one_confirm_cannot_generate_more_than_500_rows(client, default_account, default_category):
+    """500 itens × 120 parcelas eram 60 mil linhas numa requisição só."""
+    item = {"date": TODAY.isoformat(), "title": "X", "amount": "10.00", "type": "SAÍDA",
+            "category_id": default_category["id"], "create_installment": True,
+            "installment_current": 1, "installment_total": 120}
+    response = client.post(CONFIRM, json={"account_id": default_account, "items": [item] * 5})
+    assert response.status_code == 422, response.text
+    assert client.get("/api/transactions").json() == []
+
+
+def test_linking_a_parcel_number_that_already_exists_is_409(client, default_account, default_category):
+    inst = existing_installment(client, default_account, default_category["id"])
+    response = _confirm(
+        client, default_account, default_category["id"], title="OUTRO TITULO",
+        allow_duplicate=True, installment_id=inst["id"], installment_number=3,
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "A parcela 3 deste parcelamento já está lançada."
+    numbers = [t["installment_number"] for t in client.get("/api/transactions").json()]
+    assert numbers.count(3) == 1
+
+
+def test_installment_total_that_overflows_the_money_column_is_422(client, default_account, default_category):
+    """Numeric(12,2) vai até 9.999.999.999,99; 120 × 99.999.999,99 passa."""
+    response = _confirm(
+        client, default_account, default_category["id"], amount="99999999.99",
+        create_installment=True, installment_current=1, installment_total=120,
+    )
+    assert response.status_code == 422
+    response = client.post("/api/installments", json={
+        "title": "X", "category_id": default_category["id"], "account_id": default_account,
+        "installment_amount": "99999999.99", "total_installments": 120,
+        "current_installment": 1, "current_due_date": TODAY.isoformat(),
+    })
+    assert response.status_code == 422

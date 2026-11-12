@@ -180,6 +180,19 @@ class CategoryResponse(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+#: Maior valor de `Numeric(12, 2)` (`models.MONEY`): passar disso estoura a
+#: coluna no Postgres, como 500 (revisão de segurança, 12/11/2026).
+MAX_MONEY = Decimal("9999999999.99")
+
+
+def _check_calendar_year(value: datetime.date) -> datetime.date:
+    """O cronograma soma até 120 meses: perto do ano 1 ou do 9999 o calendário
+    estourava como 500. Uma regra só para o cadastro e para a importação."""
+    if not 1900 <= value.year <= 2200:
+        raise ValueError("Data fora do intervalo aceito (1900 a 2200).")
+    return value
+
+
 class InstallmentScheduleInput(BaseModel):
     """O que define o cronograma (P-3 a P-5). Usado pelo cadastro e pela
     pré-visualização, que por isso validam igual.
@@ -206,11 +219,7 @@ class InstallmentScheduleInput(BaseModel):
     @field_validator("current_due_date")
     @classmethod
     def check_due_date_range(cls, value: datetime.date) -> datetime.date:
-        # O cronograma soma até 120 meses: perto do ano 1 ou do 9999 o
-        # calendário estourava no router, como 500 (revisão de 12/11/2026).
-        if not 1900 <= value.year <= 2200:
-            raise ValueError("Data fora do intervalo aceito (1900 a 2200).")
-        return value
+        return _check_calendar_year(value)
 
     @model_validator(mode="after")
     def check_schedule(self):
@@ -225,6 +234,9 @@ class InstallmentScheduleInput(BaseModel):
             and self.total_amount < Decimal("0.01") * self.total_installments
         ):
             raise ValueError("O valor total precisa dar pelo menos R$ 0,01 por parcela.")
+        total = self.total_amount or self.installment_amount * self.total_installments
+        if total > MAX_MONEY:
+            raise ValueError("O valor total passa do maior valor aceito.")
         return self
 
 
@@ -486,6 +498,10 @@ class InvoicePreview(BaseModel):
     items: List[InvoicePreviewItem]
 
 
+#: Teto de linhas gravadas por confirmação, contando as parcelas geradas.
+MAX_CONFIRM_ROWS = 500
+
+
 class InvoiceConfirmItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -506,6 +522,19 @@ class InvoiceConfirmItem(BaseModel):
     installment_current: Optional[int] = Field(None, ge=1, le=120)
     installment_total: Optional[int] = Field(None, ge=1, le=120)
 
+    @field_validator("date")
+    @classmethod
+    def check_date_range(cls, value: datetime.date) -> datetime.date:
+        return _check_calendar_year(value)
+
+    @property
+    def rows_written(self) -> int:
+        """Linhas que este item grava: as parcelas de `current` a `total` ao
+        criar parcelamento, senão uma."""
+        if self.create_installment:
+            return self.installment_total - self.installment_current + 1
+        return 1
+
     @model_validator(mode="after")
     def check_installment_fields(self):
         if self.create_installment:
@@ -517,6 +546,8 @@ class InvoiceConfirmItem(BaseModel):
                 raise ValueError("A parcela atual não pode ser maior que o total.")
             if self.type != "SAÍDA":
                 raise ValueError("Só uma saída vira parcelamento.")
+            if self.amount * self.installment_total > MAX_MONEY:
+                raise ValueError("O valor total do parcelamento passa do maior valor aceito.")
         if (self.installment_id is None) != (self.installment_number is None):
             raise ValueError("Vincular exige o parcelamento e o número da parcela.")
         return self
@@ -527,6 +558,16 @@ class InvoiceConfirm(BaseModel):
 
     account_id: int
     items: List[InvoiceConfirmItem] = Field(..., min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def check_rows_written(self):
+        # 500 itens × 120 parcelas eram 60 mil linhas numa requisição — o
+        # timeout da função serverless (revisão de segurança, 12/11/2026).
+        if sum(item.rows_written for item in self.items) > MAX_CONFIRM_ROWS:
+            raise ValueError(
+                f"A importação gravaria mais de {MAX_CONFIRM_ROWS} lançamentos; divida a fatura."
+            )
+        return self
 
 
 class InvoiceConfirmResult(BaseModel):

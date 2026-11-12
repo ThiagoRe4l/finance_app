@@ -155,3 +155,18 @@ Luiza Sofa").
 (`{installment_id, installment_title, transaction_id}` ou nulo). Item do confirm ganha os
 opcionais `installment_id`/`installment_number` (vincular) e `create_installment` com
 `installment_current`/`installment_total` (criar). Vincular a parcelamento de outro dono → 404.
+
+### Revisão de segurança da Fase 2 (12/11/2026) — o que mudou
+
+* **Data da linha entre 1900 e 2200** no `confirm`, a mesma regra do cadastro de parcelamento:
+  `9999-06-01` com `create_installment` estourava `add_months` como **500**, e `9990-01-01`
+  criava parcelas no ano 10000.
+* **Teto de 500 linhas gravadas por confirmação, contando as parcelas geradas**: 500 itens ×
+  120 parcelas eram 60 mil linhas numa requisição (medido: 5 s em SQLite; na Vercel, timeout).
+* **Vincular a uma parcela que já existe é 409** ("A parcela k deste parcelamento já está
+  lançada."), inclusive duas vezes no mesmo pedido: antes duplicava a parcela, que o PATCH e o
+  DELETE do parcelamento tratam como gerada.
+* **Valor total acima de R$ 9.999.999.999,99 é 422** (cadastro e importação): 120 × um valor
+  que cabe na coluna estourava `Numeric(12,2)` no Postgres, como 500.
+* **Fica registrado, sem correção:** uma página de PDF que expande demais dentro do
+  `extract_text` antes do teto de texto (bomba de descompressão; anterior à Fase 2).
