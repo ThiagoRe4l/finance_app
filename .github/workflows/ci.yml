@@ -44,6 +44,16 @@ jobs:
       # Sem PYTHONPATH: `backend/pytest.ini` tem `pythonpath = .`
       - run: pytest
 
+      # Backlog 0.1, item L: a suíte inteira com o relógio do Python nas viradas
+      # (time-machine). Teste com data literal que dependa do mês fica vermelho
+      # aqui, no PR, e não semanas depois. 29/02 cobre o ano bissexto.
+      - name: Suíte em 31/12 (virada do ano)
+        run: pytest -q --today=2026-12-31
+      - name: Suíte em 01/01
+        run: pytest -q --today=2027-01-01
+      - name: Suíte em 29/02 (ano bissexto)
+        run: pytest -q --today=2028-02-29
+
   # Mesma suíte, contra o Postgres real. Existe porque o desenvolvimento local
   # continua em SQLite (D-Vercel-1) e há divergências de dialeto que só o motor
   # de produção revela.

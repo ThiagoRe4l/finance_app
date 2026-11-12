@@ -53,6 +53,22 @@ pegar regressão de renderização (ver o item do Vitest acima).
 
 ### 0.1. Não há mecanismo contra teste que depende do mês em que roda
 
+> ✅ **Decidido e implementado em 12/11/2026 (item L, opção "a" escolhida pelo usuário).**
+> Dependência só de desenvolvimento: **`time-machine` 3.6.0** (publicada em 25/10/2026),
+> que troca o relógio do Python (`date.today()`, `datetime.now()`, `time.time()`) nos testes.
+> * **`pytest --today=AAAA-MM-DD`** roda a suíte inteira como se hoje fosse aquela data
+>   (`conftest.py`). O CI roda a suíte também em **31/12/2026, 01/01/2027 e 29/02/2028**:
+>   uma data literal que dependa do mês fica vermelha no PR, e não semanas depois.
+> * **`tests/test_calendar_edges.py`** fixa as viradas que o código tem: mês corrente e
+>   janela de 6 meses do dashboard e dos relatórios atravessando o ano, a parcela atual pelo
+>   calendário (S-3), o saldo até hoje (S-1) na meia-noite e o ano das linhas da fatura.
+> * *Descartada* a opção "b" (fixture que recusa data literal): heurística sobre o código do
+>   próprio teste, e não pegaria a virada de ano no código da aplicação.
+> * **Limite:** o relógio do **banco** não é trocado. Nenhuma consulta usa `now()` do SQL
+>   hoje (verificado por busca); se uma passar a usar, a data viajada não chega lá.
+>
+> O registro original fica abaixo.
+
 **Levantado em 10/08/2026**, ao introduzir o recorte mensal das agregações.
 
 Data literal num teste que assere `spent`/`txs_count`/`total_expenses` passa no mês em que

@@ -27,6 +27,52 @@ from app.tenancy import current_owner, resolve_user
 from app.database import Base, get_db
 from app.main import app
 
+
+# ---------------------------------------------------------------------------
+# Relógio controlável (backlog 0.1, item L)
+# ---------------------------------------------------------------------------
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--today",
+        metavar="AAAA-MM-DD",
+        default=None,
+        help="Roda a suíte como se hoje fosse esta data (time-machine). "
+             "O CI roda também em 31/12, 01/01 e 29/02.",
+    )
+
+
+_TRAVEL = None
+
+
+def pytest_configure(config):
+    """Com `--today`, o relógio do Python vai para o meio-dia daquela data
+    (UTC) antes de qualquer teste, e anda normalmente a partir dali.
+
+    O relógio do banco não é trocado: nenhuma consulta usa `now()` do SQL
+    (backlog 0.1, "Limite")."""
+    global _TRAVEL
+    raw = config.getoption("--today")
+    if raw:
+        import time_machine
+
+        day = datetime.date.fromisoformat(raw)
+        _TRAVEL = time_machine.travel(
+            datetime.datetime(day.year, day.month, day.day, 12, tzinfo=datetime.timezone.utc),
+            tick=True,
+        )
+        _TRAVEL.start()
+
+
+def pytest_unconfigure(config):
+    if _TRAVEL is not None:
+        _TRAVEL.stop()
+
+
+def pytest_report_header(config):
+    raw = config.getoption("--today")
+    return f"relógio dos testes: {raw}" if raw else None
+
 # E-mail da sessão usada pela fixture `client`. Qualquer valor serve — o que
 # importa é ele ser diferente do `intruso@` dos testes de allowlist.
 TEST_USER_EMAIL = "pessoa@example.com"
