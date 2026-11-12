@@ -75,7 +75,41 @@ test("a Vercel serve a pasta estática do build", () => {
 test("toda rota que não é arquivo nem /api cai no shell do SPA, por último", () => {
   const rewrites = config.rewrites ?? [];
   const last = rewrites[rewrites.length - 1];
-  assert.deepEqual(last, { source: "/(.*)", destination: "/_shell.html" });
+  assert.equal(last.destination, "/_shell.html");
   // O /api vem antes: senão a API também cairia no shell.
   assert.ok(rewrites.indexOf(apiRewrite!) < rewrites.length - 1);
+});
+
+// ---------------------------------------------------------------------------
+// Revisão de 12/11/2026 (escritos antes da correção)
+// ---------------------------------------------------------------------------
+
+test("o shell não responde por /api nem por /assets (arquivo faltando é 404, não HTML)", () => {
+  const rewrites = config.rewrites ?? [];
+  const shell = rewrites.find((r) => r.destination === "/_shell.html")!;
+  const pattern = new RegExp(`^${shell.source}$`);
+  assert.ok(pattern.test("/parcelamentos"));
+  assert.ok(pattern.test("/"));
+  assert.ok(
+    !pattern.test("/assets/index-abc123.js"),
+    "asset velho viraria HTML com 200",
+  );
+  assert.ok(!pattern.test("/api/accounts"));
+});
+
+test("assets com hash têm cache longo e imutável", () => {
+  const headers =
+    (
+      config as {
+        headers?: Array<{
+          source: string;
+          headers: Array<{ key: string; value: string }>;
+        }>;
+      }
+    ).headers ?? [];
+  const assets = headers.find((h) => h.source === "/assets/(.*)");
+  assert.ok(assets, "sem regra de headers para /assets");
+  assert.deepEqual(assets!.headers, [
+    { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+  ]);
 });

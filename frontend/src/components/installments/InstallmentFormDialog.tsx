@@ -33,8 +33,10 @@ import { formatBRL } from "@/lib/money";
 import { formatFullDate, parseISODate, toISODate } from "@/lib/date";
 import {
   installmentCreateSchema,
+  installmentEditPayload,
   installmentEditSchema,
   schedulePreviewPayload,
+  type InstallmentEditPayload,
   type AmountMode,
   type InstallmentFormInput,
   type SchedulePreviewPayload,
@@ -266,7 +268,13 @@ export function InstallmentFormDialog({
     }
 
     setErrors({});
-    mutation.mutate(result.data);
+    mutation.mutate(
+      isEditing
+        ? installmentEditPayload(result.data as InstallmentEditPayload, {
+            anchored: installment.anchor_due_date !== null,
+          })
+        : result.data,
+    );
   }
 
   function update<K extends keyof InstallmentFormInput>(

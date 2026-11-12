@@ -187,3 +187,18 @@ export function schedulePreviewPayload(
 
 export type InstallmentCreatePayload = z.infer<typeof installmentCreateSchema>;
 export type InstallmentEditPayload = z.infer<typeof installmentEditSchema>;
+
+/**
+ * Corpo do `PATCH` de edição. Com calendário (S-3) a parcela atual não vai:
+ * o campo nem aparece na tela, e mandar o valor da lista — que pode estar em
+ * cache desde o mês anterior — fazia o backend recusar (400) sem o usuário ter
+ * como corrigir (revisão de 12/11/2026).
+ */
+export function installmentEditPayload(
+  data: InstallmentEditPayload,
+  { anchored }: { anchored: boolean },
+): Partial<InstallmentEditPayload> {
+  if (!anchored) return data;
+  const { current_installment: _ignored, ...rest } = data;
+  return rest;
+}

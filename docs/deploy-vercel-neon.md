@@ -209,6 +209,11 @@ dela — o mesmo da época do Nitro.
 * **`preview.host: "127.0.0.1"`** no `vite.config.ts`: o *prerender* do shell sobe o servidor
   de preview do Vite, que escutava em `::` e falhava em ambiente sem IPv6 (o container do
   agente). Inofensivo na Vercel.
+* **Revisão de 12/11/2026:** a reescrita para o shell é `"/((?!api/|assets/).*)"`, e não
+  `/(.*)`: um asset que não existe mais (aba antiga depois de um deploy) volta **404**, e não o
+  HTML do shell com 200 (que daria erro de MIME no browser). E `/assets/(.*)` ganha
+  `Cache-Control: public, max-age=31536000, immutable` no `vercel.json` — o preset do Nitro
+  punha isso, e sem ele a Vercel revalidaria todo asset com hash a cada visita.
 * **Não muda:** variáveis `VITE_*` continuam embutidas no build; o proxy `/api` do dev server;
   o rewrite `/api` e o cookie de mesma origem (D-Auth-3).
 * **Descartado:** manter SSR só para o `<head>` das páginas — o modo SPA já entrega título e

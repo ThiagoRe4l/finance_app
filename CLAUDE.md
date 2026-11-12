@@ -287,10 +287,14 @@ Consequências práticas:
 > * **Onde roda:** no CI (Linux, `npm ci`), na sessão na nuvem e no Windows direto. Não
 >   roda no container antigo com o `node_modules` do Windows — a mesma limitação do
 >   `vite build` de antes.
-> * **Os primeiros testes** são os defeitos que chegaram à tela e que nenhum teste da época
->   pegaria: a seta do `MetricCard` (13/08/2026), o resumo antigo com aviso no refetch que
->   falha, o título do diálogo de exclusão no fechamento e o "Trocar arquivo" da
->   importação (revisão de 12/11/2026).
+> * **Os primeiros testes** cobrem dois defeitos que chegaram à tela: a seta do
+>   `MetricCard` (13/08/2026) e o "Trocar arquivo" da importação (revisão de 12/11/2026),
+>   cada um conferido reintroduzindo o defeito. Mais o `DELETE` do diálogo de exclusão de
+>   parcelamento. ⚠️ **Não têm teste de componente** (corrigido em 12/11/2026, revisão): o
+>   resumo antigo com aviso no refetch que falha (só a função pura `dashboardView`), o
+>   título do diálogo no fechamento (o jsdom não anima; o defeito não se reproduz) e a
+>   ligação das props no `routes/index.tsx`, onde o bug da seta nasceu — nenhum teste
+>   renderiza o Dashboard ainda.
 > * **Descartado:** migrar os `*.test.ts` para o Vitest. Funcionam, são rápidos, e a
 >   migração não acrescenta cobertura.
 

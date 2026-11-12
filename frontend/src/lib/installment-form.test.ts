@@ -25,6 +25,7 @@ import assert from "node:assert/strict";
 
 import {
   installmentCreateSchema,
+  installmentEditPayload,
   installmentEditSchema,
   schedulePreviewPayload,
   type InstallmentFormInput,
@@ -231,4 +232,27 @@ test("edição aceita parcela atual acima do total — é o quitado da D13", () 
   );
   assert.equal(result.success, true);
   assert.equal(result.data!.current_installment, 13);
+});
+
+// ---------------------------------------------------------------------------
+// Revisão de 12/11/2026 (escrito antes da correção)
+// ---------------------------------------------------------------------------
+
+test("edição de parcelamento com calendário não manda a parcela atual", () => {
+  /*
+   * O campo some da tela quando há âncora (S-3), mas ia no PATCH com o valor
+   * da lista. Com a lista em cache desde o mês anterior, o backend recusava
+   * (400) e o usuário não tinha o campo para corrigir.
+   */
+  const result = installmentEditSchema.safeParse(input());
+  assert.equal(result.success, true);
+  assert.deepEqual(installmentEditPayload(result.data!, { anchored: true }), {
+    title: "Notebook Dell",
+    category_id: 3,
+  });
+  assert.deepEqual(installmentEditPayload(result.data!, { anchored: false }), {
+    title: "Notebook Dell",
+    category_id: 3,
+    current_installment: 2,
+  });
 });

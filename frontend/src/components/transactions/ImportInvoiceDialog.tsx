@@ -301,6 +301,7 @@ export function ImportInvoiceDialog({
                       // futuras na conta. A linha inteira é o alvo de toque.
                       <label className="mt-2 flex min-h-11 items-center gap-2 text-xs text-muted-foreground lg:min-h-0">
                         <Checkbox
+                          aria-label={`Criar parcelamento de ${row.item.title}`}
                           checked={row.create_installment}
                           onCheckedChange={(checked) =>
                             updateRow(index, {
