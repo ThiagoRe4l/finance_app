@@ -12,7 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import {
+  dashboardView,
   formatDelta,
+  toneFromDelta,
   trendFromDelta,
   type CategorySummary,
 } from "@/lib/dashboard";
@@ -70,10 +72,12 @@ function LoadingState() {
 }
 
 function ErrorBanner({
+  title = "Não foi possível carregar o resumo",
   message,
   onRetry,
   isRetrying,
 }: {
+  title?: string;
   message: string;
   onRetry: () => void;
   isRetrying: boolean;
@@ -83,9 +87,7 @@ function ErrorBanner({
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-foreground">
-            Não foi possível carregar o resumo
-          </p>
+          <p className="text-sm font-medium text-foreground">{title}</p>
           <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
@@ -130,7 +132,7 @@ function Summary({ data }: { data: DashboardSummary }) {
           label="Saldo Total"
           value={formatBRL(data.total_balance)}
           delta={balanceDelta ?? undefined}
-          tone={(data.balance_change_pct ?? 0) < 0 ? "negative" : "positive"}
+          tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
           trend={trendFromDelta(data.balance_change_pct)}
         />
         <MetricCard
@@ -144,16 +146,14 @@ function Summary({ data }: { data: DashboardSummary }) {
           delta={expensesDelta ?? undefined}
           // Único card em que julgamento e direção divergem: gasto subindo é
           // ruim, então o tom inverte — mas a seta continua acompanhando o sinal.
-          tone={(data.expenses_change_pct ?? 0) > 0 ? "negative" : "positive"}
+          tone={toneFromDelta(data.expenses_change_pct, "lower-is-better")}
           trend={trendFromDelta(data.expenses_change_pct)}
         />
         <MetricCard
           label="Economia"
           value={formatBRL(data.total_savings)}
           delta={savingsDelta ?? undefined}
-          tone={
-            (data.savings_pct_of_revenue ?? 0) < 0 ? "negative" : "positive"
-          }
+          tone={toneFromDelta(data.savings_pct_of_revenue, "higher-is-better")}
           trend={trendFromDelta(data.savings_pct_of_revenue)}
         />
       </section>
@@ -194,10 +194,59 @@ function Summary({ data }: { data: DashboardSummary }) {
   );
 }
 
+/**
+ * Dado em memória vence o erro: um `refetch` que falha não esconde o resumo já
+ * carregado (`dashboardView`; docs/backlog.md, "Banner de erro sobre o
+ * Dashboard já carregado").
+ */
+function DashboardBody({
+  data,
+  isError,
+  error,
+  onRetry,
+  isRetrying,
+}: {
+  data: DashboardSummary | undefined;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  const message = error instanceof Error ? error.message : "Erro desconhecido.";
+  const view = dashboardView({ hasData: data !== undefined, isError });
+
+  if (view === "loading") return <LoadingState />;
+  if (data === undefined) {
+    return (
+      <ErrorBanner
+        message={message}
+        onRetry={onRetry}
+        isRetrying={isRetrying}
+      />
+    );
+  }
+  if (view === "stale-summary") {
+    return (
+      <>
+        <div className="mb-6">
+          <ErrorBanner
+            title="Não foi possível atualizar — exibindo os últimos dados"
+            message={message}
+            onRetry={onRetry}
+            isRetrying={isRetrying}
+          />
+        </div>
+        <Summary data={data} />
+      </>
+    );
+  }
+  return <Summary data={data} />;
+}
+
 function Index() {
   const [isCreating, setIsCreating] = useState(false);
 
-  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
+  const { data, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => api.get<DashboardSummary>(SUMMARY_ENDPOINT),
   });
@@ -226,19 +275,13 @@ function Index() {
         }
       />
 
-      {isError ? (
-        <ErrorBanner
-          message={
-            error instanceof Error ? error.message : "Erro desconhecido."
-          }
-          onRetry={() => refetch()}
-          isRetrying={isFetching}
-        />
-      ) : isPending ? (
-        <LoadingState />
-      ) : (
-        <Summary data={data} />
-      )}
+      <DashboardBody
+        data={data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        isRetrying={isFetching}
+      />
 
       <FloatingActionButton
         label="Nova transação"

@@ -14,9 +14,9 @@ decisão registrada, teste vermelho, implementação.
 | PWA (manifest, instalável) | "📱 Mobile-first → M-8" |
 | Ações da tabela de Transações só no hover: invisíveis em tablet na horizontal sem mouse; avaliar `hover: hover` | "📱 Mobile-first → M-12" (decisões da 2b) |
 | Dashboard de 1024 a 1535 px: cartões de métrica com ~100 a ~164 px úteis, o pior caso estoura (numa linha só, com o `whitespace-nowrap` da 3a); candidato `lg:grid-cols-2 2xl:grid-cols-4`; medir antes de decidir | "📱 Mobile-first → M-13" |
-| ⚠️ Defeito: cor do valor nos cartões de métrica com percentual `null` cai em verde | aqui, "Cor do valor nos cartões de métrica" |
+| ✅ Corrigido em 11/11/2026: cor do valor nos cartões de métrica com percentual `null` caía em verde | aqui, "Cor do valor nos cartões de métrica" |
 | Auxiliares de leitura de JSX copiados em 5 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos; o bloco que confere o botão dentro do `<PageHeader>` está copiado em `dashboard-mobile.test.ts` e `transactions-list-mobile.test.ts`, e o `header.includes` procura na tag inteira, inclusive dentro da prop `action` (code-review da 3a, 27/10/2026, e da 3b, 09/11/2026; fora da reforma) | — |
-| ⚠️ Defeito anterior à fatia 3: `refetch` que falha troca o Dashboard já carregado pelo banner de erro | aqui, "Banner de erro sobre o Dashboard já carregado" |
+| ✅ Corrigido em 11/11/2026: `refetch` que falha trocava o Dashboard já carregado pelo banner de erro | aqui, "Banner de erro sobre o Dashboard já carregado" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -253,7 +253,13 @@ não é string de classe. A causa não foi investigada. É o caso que o item fut
   pegaria — a mesma do procedimento manual da M-11. Continua sem orçamento; o argumento passou a
   ter um defeito real, não uma hipótese.
 
-## 🧭 Cor do valor nos cartões de métrica — defeito, não corrigido (registrado em 26/10/2026)
+## 🧭 Cor do valor nos cartões de métrica — ✅ corrigido em 11/11/2026 (registrado em 26/10/2026)
+
+> **Corrigido em 11/11/2026, com a proposta abaixo.** `toneFromDelta(pct, polarity)` em
+> `lib/dashboard.ts`: `null`, `undefined` e não finito dão `"neutral"`; zero continua
+> `"positive"`, como antes. A ligação no JSX tem teste sobre arquivo
+> (`lib/dashboard-state.test.ts`). Teste vermelho antes da implementação; a aprovação foi
+> **delegada pelo usuário** nesta data ("siga implementando todas as fases").
 
 **Defeito conhecido; fora da fatia 3 por decisão (M-13).** O `MetricCard` pinta o valor pelo
 `tone`, e o `tone` julga a **variação percentual**, não o sinal do valor (`routes/index.tsx`):
@@ -272,7 +278,13 @@ dele).
 runner atual, com `null` → `"neutral"`, e ligar o JSX a ela. A ligação em si continua sem teste
 (ver "Testes do frontend: runner nativo do Node").
 
-## 🧭 Banner de erro sobre o Dashboard já carregado — defeito, não corrigido (registrado em 09/11/2026)
+## 🧭 Banner de erro sobre o Dashboard já carregado — ✅ corrigido em 11/11/2026 (registrado em 09/11/2026)
+
+> **Corrigido em 11/11/2026.** Decidido: dado em memória vence o erro. `dashboardView` (função
+> pura em `lib/dashboard.ts`) dá `"stale-summary"` quando há `data` e `isError`, e a rota mostra
+> o resumo com um aviso em cima ("Não foi possível atualizar — exibindo os últimos dados") e o
+> "Tentar novamente". **Descartado:** só esconder o banner quando há dado — o usuário não
+> saberia que os números estão velhos. Teste vermelho antes; aprovação delegada pelo usuário.
 
 **Defeito anterior à fatia 3, não corrigido.** `routes/index.tsx` testa `isError` antes de `data`.
 Apontado pelo code-review da 3b; texto copiado da saída do review:

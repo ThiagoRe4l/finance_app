@@ -1,10 +1,13 @@
 # Validador de código: suíte + lint antes de qualquer deploy.
 #
-# ⚠️ Enquanto o auto-deploy do Railway estiver ligado no push para `main`, este
-# workflow é CONVENÇÃO, não mecanismo — o Railway não espera o Actions
-# terminar. Mesma distinção que a seção 0.1 do CLAUDE.md faz sobre teste
-# dependente de data. Virar mecanismo exige desligar o auto-deploy e disparar o
-# deploy pelo CLI aqui dentro, depois dos jobs verdes.
+# ⚠️ O deploy é na Vercel (docs/deploy-vercel-neon.md); o Railway saiu na
+# D-Vercel-5. Com a integração Git da Vercel publicando no push para `main` (o
+# padrão dela), este workflow é CONVENÇÃO, não mecanismo — a Vercel não espera o
+# Actions terminar. Mesma distinção que o backlog 0.1 faz sobre teste dependente
+# de data. Virar mecanismo exige condicionar o deploy aos jobs verdes (deploy
+# pelo CLI aqui dentro, ou checagem obrigatória antes de promover).
+# Não verificado no painel da Vercel em 11/11/2026: se o deploy automático já
+# estiver desligado lá, este aviso caduca.
 name: CI
 
 on:

@@ -1,8 +1,6 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
-import type { Trend } from "@/lib/dashboard";
-
-type Tone = "neutral" | "positive" | "negative";
+import type { Tone, Trend } from "@/lib/dashboard";
 
 interface MetricCardProps {
   label: string;
