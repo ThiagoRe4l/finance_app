@@ -218,11 +218,13 @@ def _create_installment(client, account_id, current=2, total=12):
     response = client.post("/api/installments", json={
         "title": "Notebook Pro",
         "category_id": CATEGORY_IDS["Eletrônicos"],
-        "total_amount": 5400.0,
-        "installment_amount": 450.0,
+        # Contrato do cronograma (P-3/P-4): um dos valores, data da parcela
+        # atual no passado distante — as parcelas geradas não caem em mês
+        # nenhum que estes testes agregam.
+        "installment_amount": "450.00",
         "current_installment": current,
         "total_installments": total,
-        "end_date": "Ago/2026",
+        "current_due_date": "2019-10-15",
         "account_id": account_id
     })
     assert response.status_code == 201

@@ -197,3 +197,38 @@ test("zero não ganha sinal negativo", () => {
   // negativo na tela.
   assert.ok(Object.is(signedAmount(tx({ type: "SAÍDA", amount: "0.00" })), 0));
 });
+
+// ---------------------------------------------------------------------------
+// Número da parcela gerada (issue #3, P-1) — 11/11/2026, antes da implementação
+// ---------------------------------------------------------------------------
+
+test("parcela gerada mostra o próprio número, não o progresso do parcelamento", () => {
+  /*
+   * O `installment.current_installment` é o mesmo em todas as parcelas de um
+   * parcelamento: com as 10 parcelas geradas, todas diriam "3/10". O número
+   * certo de cada uma é o `installment_number` dela.
+   */
+  assert.deepEqual(
+    deriveTransactionLabel(
+      tx({
+        installment_id: 7,
+        installment_number: 5,
+        installment: { current_installment: 3, total_installments: 10 },
+      }),
+    ),
+    { label: "Parcelada", meta: "5/10" },
+  );
+});
+
+test("ligada à mão (sem número) continua com o progresso do parcelamento", () => {
+  assert.deepEqual(
+    deriveTransactionLabel(
+      tx({
+        installment_id: 7,
+        installment_number: null,
+        installment: { current_installment: 3, total_installments: 10 },
+      }),
+    ),
+    { label: "Parcelada", meta: "3/10" },
+  );
+});

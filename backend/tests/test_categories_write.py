@@ -210,6 +210,10 @@ def test_delete_category_used_only_by_an_installment_returns_409(client, default
         json=installment_payload(default_account, default_category["id"]),
     )
     assert response.status_code == 201, response.text
+    # Desde a P-1 o cadastro gera as parcelas como transações. Para chegar ao
+    # caminho C10 (categoria usada **só** pelo parcelamento), elas saem antes.
+    for transaction in client.get("/api/transactions").json():
+        assert client.delete(f"/api/transactions/{transaction['id']}").status_code == 204
     assert client.get("/api/transactions").json() == []
 
     response = client.delete(f"/api/categories/{default_category['id']}")

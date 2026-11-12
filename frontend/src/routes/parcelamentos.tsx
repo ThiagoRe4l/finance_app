@@ -11,6 +11,7 @@ import {
   Pencil,
   ChevronRight,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -23,6 +24,7 @@ import {
   type InstallmentsSummary,
 } from "@/lib/installments";
 import { InstallmentFormDialog } from "@/components/installments/InstallmentFormDialog";
+import { DeleteInstallmentDialog } from "@/components/installments/DeleteInstallmentDialog";
 
 export const Route = createFileRoute("/parcelamentos")({
   head: () => ({
@@ -128,9 +130,11 @@ function LoadingCards() {
 function InstallmentCard({
   installment,
   onEdit,
+  onDelete,
 }: {
   installment: Installment;
   onEdit: () => void;
+  onDelete: () => void;
 }) {
   const queryClient = useQueryClient();
   const progress = installmentProgress(
@@ -213,6 +217,18 @@ function InstallmentCard({
               <Pencil className="h-4 w-4" />
             </button>
             {/*
+              Excluir (P-6) já nasce com o alvo de 44 px no toque (M-7, P4);
+              editar e avançar ficam para a fatia 4, que zera a pendência.
+            */}
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label={`Excluir ${installment.title}`}
+              className="h-11 w-11 lg:h-8 lg:w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            {/*
               Some quando quitado: um parcelamento encerrado não deveria
               oferecer avançar mais. O backend aceitaria (13 -> 14 é estado
               válido pela D13), mas não há sentido de negócio.
@@ -259,6 +275,7 @@ function InstallmentCard({
 function ParcelamentosPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editing, setEditing] = useState<Installment | undefined>();
+  const [deleting, setDeleting] = useState<Installment | undefined>();
 
   const list = useQuery({
     queryKey: ["installments"],
@@ -343,6 +360,7 @@ function ParcelamentosPage() {
                   key={installment.id}
                   installment={installment}
                   onEdit={() => setEditing(installment)}
+                  onDelete={() => setDeleting(installment)}
                 />
               ))}
             </div>
@@ -356,6 +374,10 @@ function ParcelamentosPage() {
         open={editing !== undefined}
         onOpenChange={(open) => !open && setEditing(undefined)}
         installment={editing}
+      />
+      <DeleteInstallmentDialog
+        installment={deleting}
+        onOpenChange={(open) => !open && setDeleting(undefined)}
       />
     </AppShell>
   );

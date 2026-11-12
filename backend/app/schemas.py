@@ -110,6 +110,8 @@ class TransactionResponse(BaseModel):
     is_fixed: bool
     account_id: int
     installment_id: Optional[int] = None
+    # k de N quando a transação foi gerada pelo parcelamento (P-1).
+    installment_number: Optional[int] = None
     installment: Optional[InstallmentProgress] = None
     # Nulo para transação comum. É por ele que o front distingue a parte de
     # uma despesa compartilhada, que só muda de categoria por aqui (D-Shared-6).
@@ -178,18 +180,59 @@ class CategoryResponse(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class InstallmentBase(BaseModel):
+class InstallmentScheduleInput(BaseModel):
+    """O que define o cronograma (P-3 a P-5). Usado pelo cadastro e pela
+    pré-visualização, que por isso validam igual.
+
+    `extra="forbid"`: `end_date` deixou de ser aceito e tem que falhar
+    barulhento (422), não ser descartado em silêncio.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    total_amount: Optional[Decimal] = Field(
+        None, gt=0, decimal_places=2, description="Valor total. Informe este ou installment_amount."
+    )
+    installment_amount: Optional[Decimal] = Field(
+        None, gt=0, decimal_places=2, description="Valor da parcela. Informe este ou total_amount."
+    )
+    total_installments: int = Field(..., ge=1, le=120)
+    current_installment: int = Field(
+        1, ge=1, description="Parcela ainda a pagar (D13); no cadastro, não passa do total"
+    )
+    current_due_date: datetime.date = Field(
+        ..., description="Data de vencimento da parcela atual; ancora o cronograma"
+    )
+
+    @model_validator(mode="after")
+    def check_schedule(self):
+        if (self.total_amount is None) == (self.installment_amount is None):
+            raise ValueError("Informe o valor total ou o valor da parcela — exatamente um dos dois.")
+        if self.current_installment > self.total_installments:
+            raise ValueError("A parcela atual não pode ser maior que a quantidade de parcelas.")
+        return self
+
+
+class InstallmentCreate(InstallmentScheduleInput):
     title: str = Field(..., max_length=100)
     category_id: int = Field(..., description="ID da categoria cadastrada")
-    total_amount: Decimal
-    installment_amount: Decimal
-    current_installment: int
-    total_installments: int
-    end_date: str
     account_id: int
 
-class InstallmentCreate(InstallmentBase):
-    pass
+
+class InstallmentPreviewParcel(BaseModel):
+    number: int
+    date: datetime.date
+    amount: Decimal
+
+
+class InstallmentPreview(BaseModel):
+    """Resposta de `POST /installments/preview`: o cronograma, sem gravar."""
+    total_amount: Decimal
+    installment_amount: Decimal
+    remaining_amount: Decimal
+    first_due_date: datetime.date
+    end_date: str
+    installments: List[InstallmentPreviewParcel]
+
 
 class InstallmentUpdate(BaseModel):
     """Payload parcial do `PATCH /installments/{id}`.
@@ -213,11 +256,23 @@ class InstallmentUpdate(BaseModel):
         None, description="Pode exceder total_installments — significa quitado"
     )
     total_installments: Optional[int] = None
-    end_date: Optional[str] = Field(None, max_length=20)
+    # `end_date` saiu: é calculado do cronograma (P-3). Com `extra="forbid"`,
+    # enviá-lo é 422.
 
 
-class InstallmentResponse(InstallmentBase):
+class InstallmentResponse(BaseModel):
     id: int
+    title: str
+    category_id: int
+    total_amount: Decimal
+    installment_amount: Decimal
+    current_installment: int
+    total_installments: int
+    end_date: str
+    account_id: int
+    first_due_date: Optional[datetime.date] = Field(
+        None, description="Data da parcela 1; nula nos parcelamentos sem cronograma"
+    )
     category: CategoryRef
     remaining_amount: Decimal = Field(
         ..., description="Quanto ainda falta pagar: parcela × parcelas restantes"

@@ -150,9 +150,9 @@ def _build_dataset(client, share_with=None):
     }))
     installment = _created(client.post("/api/installments", json={
         "title": f"{SENTINEL} parcelamento", "category_id": category,
-        "total_amount": "3999.96", "installment_amount": "333.33",
+        "installment_amount": "333.33",
         "current_installment": 1, "total_installments": 12,
-        "end_date": "Ago/2027", "account_id": account,
+        "current_due_date": "2019-10-15", "account_id": account,
     }))
     transaction = _created(client.post("/api/transactions", json={
         "title": f"{SENTINEL} saída", "type": "SAÍDA", "amount": "777777.77",
@@ -336,9 +336,9 @@ def _bia_resources(bia):
         "name": "Categoria B", "icon_name": "Home", "budget": "0", "color": "oklch(0.5 0 0)",
     }))
     installment = _created(bia.post("/api/installments", json={
-        "title": "Parcelamento B", "category_id": category, "total_amount": "120.00",
+        "title": "Parcelamento B", "category_id": category,
         "installment_amount": "10.00", "current_installment": 1,
-        "total_installments": 12, "end_date": "Ago/2027", "account_id": account,
+        "total_installments": 12, "current_due_date": "2019-10-15", "account_id": account,
     }))
     transaction = _created(bia.post("/api/transactions", json={
         "title": "Saída B", "type": "SAÍDA", "amount": "10.00", "date": today,
@@ -362,9 +362,9 @@ def _body_cases(own, today):
     }
     installment_body = {
         "title": "Tentativa", "category_id": own["category_id"],
-        "total_amount": "120.00", "installment_amount": "10.00",
+        "installment_amount": "10.00",
         "current_installment": 1, "total_installments": 12,
-        "end_date": "Ago/2027", "account_id": own["account_id"],
+        "current_due_date": "2019-10-15", "account_id": own["account_id"],
     }
     shared_body = {
         "title": "Tentativa", "amount": "10.00", "date": today,

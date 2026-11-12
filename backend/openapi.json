@@ -634,6 +634,48 @@
         }
       }
     },
+    "/api/installments/preview": {
+      "post": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Preview Installment",
+        "description": "Cronograma calculado, **sem gravar nada** — o que o formulário mostra\nantes de salvar (#4). Mesma função do cadastro: o que se vê é o que se grava.\n\nNão lê nem escreve dado de ninguém, mas declara `owned_db` mesmo assim:\n`test_every_data_route_uses_the_owner_scoped_session` não tem lista de\nexceções, de propósito, e abrir uma para esta rota enfraqueceria a\nvarredura (D-Tenant-7) por nada.",
+        "operationId": "preview_installment_api_installments_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallmentScheduleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/installments": {
       "get": {
         "tags": [
@@ -663,6 +705,7 @@
           "Installments"
         ],
         "summary": "Create Installment",
+        "description": "Cria o parcelamento **e** uma SAÍDA por parcela de `current` a `total`\n(P-1, P-2), numa transação de banco só: ou tudo, ou nada.",
         "operationId": "create_installment_api_installments_post",
         "requestBody": {
           "content": {
@@ -737,6 +780,40 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Installments"
+        ],
+        "summary": "Delete Installment",
+        "description": "P-6: apaga as parcelas geradas, desvincula as ligadas à mão e apaga o\nparcelamento — numa transação de banco só.\n\nTudo carregado antes e alterado objeto por objeto: o filtro de dono da\nD-Tenant-3 só age em SELECT, e um DELETE em massa não passaria por ele.",
+        "operationId": "delete_installment_api_installments__installment_id__delete",
+        "parameters": [
+          {
+            "name": "installment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Installment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -1441,6 +1518,59 @@
       },
       "InstallmentCreate": {
         "properties": {
+          "total_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount",
+            "description": "Valor total. Informe este ou installment_amount."
+          },
+          "installment_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Amount",
+            "description": "Valor da parcela. Informe este ou total_amount."
+          },
+          "total_installments": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Total Installments"
+          },
+          "current_installment": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Current Installment",
+            "description": "Parcela ainda a pagar (D13); no cadastro, não passa do total",
+            "default": 1
+          },
+          "current_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Current Due Date",
+            "description": "Data de vencimento da parcela atual; ancora o cronograma"
+          },
           "title": {
             "type": "string",
             "maxLength": 100,
@@ -1451,59 +1581,92 @@
             "title": "Category Id",
             "description": "ID da categoria cadastrada"
           },
-          "total_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Total Amount"
-          },
-          "installment_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Installment Amount"
-          },
-          "current_installment": {
-            "type": "integer",
-            "title": "Current Installment"
-          },
-          "total_installments": {
-            "type": "integer",
-            "title": "Total Installments"
-          },
-          "end_date": {
-            "type": "string",
-            "title": "End Date"
-          },
           "account_id": {
             "type": "integer",
             "title": "Account Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
+          "total_installments",
+          "current_due_date",
           "title",
           "category_id",
-          "total_amount",
-          "installment_amount",
-          "current_installment",
-          "total_installments",
-          "end_date",
           "account_id"
         ],
         "title": "InstallmentCreate"
+      },
+      "InstallmentPreview": {
+        "properties": {
+          "total_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Amount"
+          },
+          "installment_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Installment Amount"
+          },
+          "remaining_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Amount"
+          },
+          "first_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Due Date"
+          },
+          "end_date": {
+            "type": "string",
+            "title": "End Date"
+          },
+          "installments": {
+            "items": {
+              "$ref": "#/components/schemas/InstallmentPreviewParcel"
+            },
+            "type": "array",
+            "title": "Installments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_amount",
+          "installment_amount",
+          "remaining_amount",
+          "first_due_date",
+          "end_date",
+          "installments"
+        ],
+        "title": "InstallmentPreview",
+        "description": "Resposta de `POST /installments/preview`: o cronograma, sem gravar."
+      },
+      "InstallmentPreviewParcel": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "date",
+          "amount"
+        ],
+        "title": "InstallmentPreviewParcel"
       },
       "InstallmentProgress": {
         "properties": {
@@ -1525,15 +1688,17 @@
       },
       "InstallmentResponse": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
           "title": {
             "type": "string",
-            "maxLength": 100,
             "title": "Title"
           },
           "category_id": {
             "type": "integer",
-            "title": "Category Id",
-            "description": "ID da categoria cadastrada"
+            "title": "Category Id"
           },
           "total_amount": {
             "type": "string",
@@ -1561,9 +1726,18 @@
             "type": "integer",
             "title": "Account Id"
           },
-          "id": {
-            "type": "integer",
-            "title": "Id"
+          "first_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Due Date",
+            "description": "Data da parcela 1; nula nos parcelamentos sem cronograma"
           },
           "category": {
             "$ref": "#/components/schemas/CategoryRef"
@@ -1577,6 +1751,7 @@
         },
         "type": "object",
         "required": [
+          "id",
           "title",
           "category_id",
           "total_amount",
@@ -1585,11 +1760,75 @@
           "total_installments",
           "end_date",
           "account_id",
-          "id",
           "category",
           "remaining_amount"
         ],
         "title": "InstallmentResponse"
+      },
+      "InstallmentScheduleInput": {
+        "properties": {
+          "total_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount",
+            "description": "Valor total. Informe este ou installment_amount."
+          },
+          "installment_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Amount",
+            "description": "Valor da parcela. Informe este ou total_amount."
+          },
+          "total_installments": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Total Installments"
+          },
+          "current_installment": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Current Installment",
+            "description": "Parcela ainda a pagar (D13); no cadastro, não passa do total",
+            "default": 1
+          },
+          "current_due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Current Due Date",
+            "description": "Data de vencimento da parcela atual; ancora o cronograma"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total_installments",
+          "current_due_date"
+        ],
+        "title": "InstallmentScheduleInput",
+        "description": "O que define o cronograma (P-3 a P-5). Usado pelo cadastro e pela\npré-visualização, que por isso validam igual.\n\n`extra=\"forbid\"`: `end_date` deixou de ser aceito e tem que falhar\nbarulhento (422), não ser descartado em silêncio."
       },
       "InstallmentSummary": {
         "properties": {
@@ -1694,18 +1933,6 @@
               }
             ],
             "title": "Total Installments"
-          },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
           }
         },
         "additionalProperties": false,
@@ -2217,6 +2444,17 @@
               }
             ],
             "title": "Installment Id"
+          },
+          "installment_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Number"
           },
           "installment": {
             "anyOf": [

@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | `categorias.tsx` | ✅ | ✅ | ✅ (409 em uso) | — |
 | `transacoes.tsx` | ✅ | ✅ | ✅ (estorna saldo) | busca client-side |
-| `parcelamentos.tsx` | ✅ | ✅ (409 inline) | ❌ sem endpoint | avançar parcela |
+| `parcelamentos.tsx` | ✅ (gera as parcelas, com pré-visualização) | ✅ (descrição, categoria, parcela atual) | ✅ (apaga as parcelas geradas) | avançar parcela |
 
 **Não sobrou botão inerte.** Os três que existiam foram **removidos**: "Filtrar" em
 Transações, "Buscar" no Dashboard e "Exportar" em Relatórios. Nenhum dos três tinha
@@ -89,7 +89,25 @@ API **não expõe** se há. Em vez de adivinhar, o formulário deixa editar livr
 **mês corrente**, não o total, então a UI não consegue dizer quantas transações bloqueiam.
 Usa o `detail` que o backend já manda; campo novo na API fica para quando incomodar.
 
-#### Parcelamentos: dois acoplamentos textuais assumidos (14/08/2026)
+#### Parcelamentos: cronograma no backend (11/11/2026, issues #3 e #4)
+
+**Substitui os dois acoplamentos abaixo**, que ficam como histórico. Decisão em
+`docs/design-patterns.md` → "Parcelamento gera as próprias transações".
+
+* **Cadastro:** valor da parcela **ou** total, quantidade, parcela atual e a data dela
+  (`current_due_date`). O formulário mostra o cronograma de `POST /installments/preview`
+  (parcela, primeira parcela com a sobra de centavos, total, término): **o front não divide
+  dinheiro** e não monta mais o `end_date`.
+* **Edição:** só descrição, categoria e parcela atual. Os valores travados da D15 não vão
+  mais no `PATCH`, então o parse do 409 saiu (`parseLockedFields`).
+* **Exclusão:** `DELETE /installments/{id}`, com confirmação que avisa que as parcelas
+  geradas saem dos totais e do saldo.
+* **Invalidação:** criar, editar e excluir invalidam também transações, categorias e contas
+  (`components/installments/query-keys.ts`). As parcelas geradas aparecem nessas telas.
+* **Rótulo da transação:** `installment_number/total` na parcela gerada; o progresso do
+  parcelamento só na ligada à mão (`deriveTransactionLabel`).
+
+#### Parcelamentos: dois acoplamentos textuais assumidos (14/08/2026) — ⚠️ superado em 11/11/2026
 
 **`end_date` é rótulo, não data.** `String(20)` livre no backend, sem validação; o seed usa
 `"Ago/2026"`. O formulário usa um seletor mês/ano e **gera** a string nesse formato.

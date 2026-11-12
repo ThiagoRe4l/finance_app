@@ -42,15 +42,29 @@ from tests.conftest import money, create_transaction, installment_payload
 
 def _create_installment(client, account_id, category_id, current, total,
                         installment_amount=500.0, title="Parcelamento"):
+    """Desde 11/11/2026 o cadastro recusa `current > total` (P-5). O quitado da
+    D13 continua alcançável pelo `PATCH`, por onde chega na vida real: o helper
+    cria na última parcela e avança.
+
+    As parcelas geradas ficam no passado distante (`installment_payload`), fora
+    do mês corrente que o dashboard agrega."""
+    valid_current = min(current, total)
     response = client.post("/api/installments/", json=installment_payload(
         account_id, category_id,
         title=title,
-        current_installment=current,
+        current_installment=valid_current,
         total_installments=total,
         installment_amount=installment_amount,
     ))
     assert response.status_code == 201, response.text
-    return response.json()
+    created = response.json()
+    if valid_current != current:
+        response = client.patch(
+            f"/api/installments/{created['id']}", json={"current_installment": current}
+        )
+        assert response.status_code == 200, response.text
+        created = response.json()
+    return created
 
 
 def _summary(client):
@@ -247,7 +261,12 @@ def test_the_filter_does_not_touch_the_transactions_of_a_paid_off_installment(cl
 
     summary = _summary(client)
     assert summary["active_installments_count"] == 0
-    assert len(summary["recent_transactions"]) == 1
+    # Desde a P-1 (11/11/2026) a parcela 12 gerada pelo cadastro (ago/2020)
+    # também está nas recentes, que não têm recorte de mês: eram 1, são 2.
+    titles = [t["title"] for t in summary["recent_transactions"]]
+    assert "Parcela 12" in titles
+    assert len(titles) == 2
+    # Só a lançada hoje cai no mês corrente; a gerada é de 2020.
     assert money(summary["category_distribution"][0]["spent"]) == Decimal("500.00")
 
 

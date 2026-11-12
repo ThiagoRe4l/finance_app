@@ -37,17 +37,22 @@ def test_create_installment(client, default_account, category_id):
     assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["current_installment"] == 2
     assert data["total_installments"] == 12
-    assert data["end_date"] == "Ago/2026"
+    # Calculado do cronograma (P-3): parcela 2 em out/2019 → a 12 em ago/2020.
+    assert data["end_date"] == "Ago/2020"
+    assert data["first_due_date"] == "2019-09-15"
     assert data["account_id"] == default_account
 
 
-def test_create_installment_does_not_touch_account_balance(client, default_account, category_id):
-    """Criar o parcelamento é só um registro de acompanhamento — o débito
-    acontece quando uma transação é vinculada a ele, não aqui."""
+def test_create_installment_debits_the_generated_installments(client, default_account, category_id):
+    """⚠️ **Invertido em 11/11/2026** (issue #3, P-1). Este teste se chamava
+    `..._does_not_touch_account_balance` e fixava que criar o parcelamento não
+    mexia no saldo. Agora o cadastro gera as parcelas 2 a 12 como SAÍDAs, e o
+    saldo é a soma do ledger sem recorte de data: 10.000 − 11 × 500.
+    Consequência aceita da decisão, a confirmar com o usuário."""
     client.post("/api/installments/", json=installment_payload(default_account, category_id))
 
     account = client.get("/api/accounts").json()[0]
-    assert money(account["current_balance"]) == Decimal("10000.00")
+    assert money(account["current_balance"]) == Decimal("4500.00")
 
 
 def test_create_installment_account_not_found(client, category_id):
@@ -68,22 +73,29 @@ def test_create_installment_with_invalid_account_persists_nothing(client, catego
 @pytest.mark.parametrize("missing_field", [
     "title",
     "category_id",
-    "total_amount",
     "installment_amount",
-    "current_installment",
     "total_installments",
-    "end_date",
+    "current_due_date",
     "account_id",
 ])
 def test_create_installment_missing_required_fields(client, default_account, category_id, missing_field):
-    """Nenhum campo do InstallmentBase tem default — todos são obrigatórios."""
+    """Campos obrigatórios do cadastro (P-3 a P-5).
+
+    Saíram da lista em 11/11/2026: `end_date` (calculado, agora proibido),
+    `total_amount` (é um **ou** outro com `installment_amount`) e
+    `current_installment` (default 1). Sem `installment_amount` o payload fica
+    sem valor nenhum, e o erro vem do validador do modelo, não do campo."""
     payload = installment_payload(default_account, category_id)
     del payload[missing_field]
 
     response = client.post("/api/installments/", json=payload)
 
     assert response.status_code == 422
-    assert any(missing_field in err["loc"] for err in response.json()["detail"])
+    errors = response.json()["detail"]
+    if missing_field == "installment_amount":
+        assert any("exatamente um" in err["msg"] for err in errors)
+    else:
+        assert any(missing_field in err["loc"] for err in errors)
 
 
 def test_create_installment_title_exceeds_max_length(client, default_account, category_id):
@@ -96,8 +108,8 @@ def test_create_installment_title_exceeds_max_length(client, default_account, ca
 
 
 @pytest.mark.parametrize("field,bad_value", [
-    ("total_amount", "seis mil"),
     ("installment_amount", "quinhentos"),
+    ("current_due_date", "ontem"),
     ("current_installment", "duas"),
     ("total_installments", 12.5),
     ("account_id", "abc"),
@@ -131,11 +143,10 @@ def test_list_installments_returns_all_records(client, default_account, category
         default_account,
         casa["id"],
         title="Geladeira",
-        total_amount=3000.0,
-        installment_amount=250.0,
+        installment_amount="250.00",
         current_installment=5,
         total_installments=12,
-        end_date="Dez/2026",
+        current_due_date="2020-05-10",
     ))
 
     response = client.get("/api/installments/")
@@ -147,7 +158,7 @@ def test_list_installments_returns_all_records(client, default_account, category
     by_title = {i["title"]: i for i in data}
     assert by_title["Notebook Dell"]["current_installment"] == 2
     assert money(by_title["Geladeira"]["installment_amount"]) == Decimal("250.00")
-    assert by_title["Geladeira"]["end_date"] == "Dez/2026"
+    assert by_title["Geladeira"]["end_date"] == "Dez/2020"
     assert by_title["Geladeira"]["category"]["name"] == "Casa"
 
 

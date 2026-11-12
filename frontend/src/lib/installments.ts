@@ -17,6 +17,8 @@ export interface Installment {
   total_installments: number;
   end_date: string;
   account_id: number;
+  /** Data da parcela 1; `null` nos parcelamentos anteriores ao cronograma. */
+  first_due_date: string | null;
   remaining_amount: string;
 }
 

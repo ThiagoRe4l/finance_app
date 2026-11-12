@@ -12,6 +12,7 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from app import models
+from app.installment_schedule import remaining_from_schedule
 
 ZERO = Decimal("0.00")
 
@@ -50,7 +51,18 @@ def remaining_amount(installment: models.Installment) -> Decimal:
     Campo derivado exposto em `InstallmentResponse` — **exceção declarada ao
     padrão de serialização direta do ORM**, mesma natureza de `spent`/`txs_count`
     em `categories.py`.
+
+    Com cronograma (`first_due_date` preenchido, P-4) é a **soma exata** das
+    parcelas restantes pela regra de sobra do cadastro: `parcela × restantes`
+    erraria o centavo que ficou nas primeiras (100,00 / 3 → 33,34 + 33,33 +
+    33,33). Sem cronograma, os parcelamentos antigos, a fórmula é a de sempre.
     """
+    if installment.first_due_date is not None:
+        return remaining_from_schedule(
+            total_amount=installment.total_amount,
+            total_installments=installment.total_installments,
+            current_installment=installment.current_installment,
+        )
     return installment.installment_amount * remaining_installment_count(installment)
 
 

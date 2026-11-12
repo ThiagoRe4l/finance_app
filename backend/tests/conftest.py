@@ -450,18 +450,29 @@ def create_transaction(client, account_id, category_id, tx_type="SAÍDA",
 
 
 def installment_payload(account_id, category_id, **overrides):
+    """Cadastro de parcelamento no contrato do cronograma (issues #3 e #4).
+
+    Parcela 2 de 12 em 15/10/2019, então a 12 cai em agosto de 2020
+    (`end_date == "Ago/2020"`). **Datas no passado distante de propósito:** o
+    cadastro gera uma SAÍDA por parcela restante (P-1), e nenhuma delas pode cair
+    no mês corrente nem na janela de 6 meses do relatório, senão todo teste que
+    cria parcelamento passaria a depender do mês em que roda (backlog 0.1).
+    As 11 parcelas geradas (2 a 12, R$ 500) **contam no saldo** da conta.
+
+    `total_amount` não vai junto: é um **ou** outro (P-4). Passe
+    `installment_amount=None, total_amount=...` para cadastrar pelo total.
+    """
     payload = {
         "title": "Notebook Dell",
         "category_id": category_id,
-        "total_amount": 6000.0,
-        "installment_amount": 500.0,
+        "installment_amount": "500.00",
         "current_installment": 2,
         "total_installments": 12,
-        "end_date": "Ago/2026",
+        "current_due_date": "2019-10-15",
         "account_id": account_id,
     }
     payload.update(overrides)
-    return payload
+    return {key: value for key, value in payload.items() if value is not None}
 
 
 @pytest.fixture(name="default_category")

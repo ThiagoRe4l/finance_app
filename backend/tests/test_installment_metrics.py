@@ -29,19 +29,36 @@ from tests.conftest import money
 
 
 def _installment(client, account_id, category_id, *, current, total,
-                 amount="450.00", total_amount="5400.00", title="Notebook Pro"):
+                 amount="450.00", title="Notebook Pro"):
+    """Parcelamento no contrato do cronograma (11/11/2026).
+
+    Antes enviava `total_amount` junto; agora é um **ou** outro (P-4), e o
+    total sai de `amount × total`, que é o que todos estes testes já usavam.
+
+    O cadastro só aceita `1 ≤ current ≤ total` (P-5). `current = 0` e o quitado
+    (`current > total`, D13) continuam alcançáveis pelo `PATCH`, que é por onde
+    chegam na vida real; o helper cria na faixa e ajusta pelo `PATCH`.
+    """
+    valid_current = min(max(current, 1), total)
     response = client.post("/api/installments/", json={
         "title": title,
         "category_id": category_id,
-        "total_amount": total_amount,
         "installment_amount": amount,
-        "current_installment": current,
+        "current_installment": valid_current,
         "total_installments": total,
-        "end_date": "Ago/2026",
+        # Passado distante: as parcelas geradas não caem no mês corrente.
+        "current_due_date": "2019-10-15",
         "account_id": account_id,
     })
     assert response.status_code == 201, response.text
-    return response.json()
+    created = response.json()
+    if valid_current != current:
+        response = client.patch(
+            f"/api/installments/{created['id']}", json={"current_installment": current}
+        )
+        assert response.status_code == 200, response.text
+        created = response.json()
+    return created
 
 
 def _summary(client):
@@ -111,7 +128,7 @@ def test_current_below_one_is_capped_at_the_total(client, default_account, defau
 def test_remaining_amount_is_money_typed(client, default_account, default_category):
     """Campo derivado também é `Decimal` — string JSON com duas casas."""
     _installment(client, default_account, default_category["id"],
-                 current=3, total=6, amount="120.00", total_amount="720.00")
+                 current=3, total=6, amount="120.00")
 
     assert _only(client)["remaining_amount"] == "480.00"
 
@@ -119,7 +136,7 @@ def test_remaining_amount_is_money_typed(client, default_account, default_catego
 def test_remaining_amount_is_exact_with_awkward_cents(client, default_account, default_category):
     """R$ 33,33 × 11 = R$ 366,63 exatos — não 366.62999999999994."""
     _installment(client, default_account, default_category["id"],
-                 current=2, total=12, amount="33.33", total_amount="399.96")
+                 current=2, total=12, amount="33.33")
 
     assert money(_only(client)["remaining_amount"]) == Decimal("366.63")
 
@@ -135,14 +152,10 @@ def test_summary_returns_the_three_numbers(client, default_account, default_cate
     Saldo a pagar = 450×11 + 120×4 + 55×8 + 0 = 4950 + 480 + 440 = 5870.
     """
     cat = default_category["id"]
-    _installment(client, default_account, cat, current=2, total=12, amount="450.00",
-                 total_amount="5400.00", title="Notebook Pro")
-    _installment(client, default_account, cat, current=3, total=6, amount="120.00",
-                 total_amount="720.00", title="Curso Online")
-    _installment(client, default_account, cat, current=5, total=12, amount="55.00",
-                 total_amount="660.00", title="Sofá Retrátil")
-    _installment(client, default_account, cat, current=13, total=12, amount="300.00",
-                 total_amount="3600.00", title="Geladeira")
+    _installment(client, default_account, cat, current=2, total=12, amount="450.00", title="Notebook Pro")
+    _installment(client, default_account, cat, current=3, total=6, amount="120.00", title="Curso Online")
+    _installment(client, default_account, cat, current=5, total=12, amount="55.00", title="Sofá Retrátil")
+    _installment(client, default_account, cat, current=13, total=12, amount="300.00", title="Geladeira")
 
     summary = _summary(client)
 
@@ -192,7 +205,7 @@ def test_summary_totals_are_exact_with_awkward_cents(client, default_account, de
     cat = default_category["id"]
     for i in range(3):
         _installment(client, default_account, cat, current=12, total=12,
-                     amount="33.33", total_amount="399.96", title=f"P{i}")
+                     amount="33.33", title=f"P{i}")
 
     summary = _summary(client)
 

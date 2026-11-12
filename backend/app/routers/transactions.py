@@ -166,6 +166,11 @@ def update_transaction(
     for field, value in data.items():
         setattr(transaction, field, value)
 
+    # Desvincular uma parcela gerada zera o número junto: "parcela 3" sem
+    # parcelamento não significa nada (P-6).
+    if "installment_id" in data and data["installment_id"] is None:
+        transaction.installment_number = None
+
     db.commit()
     db.refresh(transaction)
 

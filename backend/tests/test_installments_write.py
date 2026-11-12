@@ -56,6 +56,21 @@ def _create_installment(client, account_id, category_id, **overrides):
     return response.json()
 
 
+def _create_installment_without_parcels(client, account_id, category_id, **overrides):
+    """Parcelamento **sem transação vinculada** — o estado em que a D15 não trava.
+
+    Desde a P-1 (11/11/2026) o cadastro gera as parcelas como transações, então
+    todo parcelamento novo nasce vinculado. Os testes que exercitam o lado
+    "sem vínculo" da D15 apagam as parcelas geradas antes, pela API, e
+    continuam provando a mesma coisa: a trava olha `installment_id`, e só ele.
+    """
+    installment = _create_installment(client, account_id, category_id, **overrides)
+    for transaction in client.get("/api/transactions").json():
+        if transaction["installment_id"] == installment["id"]:
+            assert client.delete(f"/api/transactions/{transaction['id']}").status_code == 204
+    return installment
+
+
 def _link_transaction(client, account_id, category_id, installment_id, amount=500.0):
     """Transação vinculada ao parcelamento — é o que dispara o bloqueio D15."""
     response = client.post("/api/transactions", json={
@@ -117,22 +132,25 @@ def test_patch_is_partial_and_preserves_untouched_fields(client, default_account
     assert money(data["total_amount"]) == Decimal("6000.00")
     assert money(data["installment_amount"]) == Decimal("500.00")
     assert data["total_installments"] == 12
-    assert data["end_date"] == "Ago/2026"
+    assert data["end_date"] == "Ago/2020"
     assert data["account_id"] == default_account
 
 
-def test_patch_title_and_end_date(client, default_account, default_category):
+def test_patch_title_keeps_the_computed_end_date(client, default_account, default_category):
+    """Era `test_patch_title_and_end_date`. Desde a P-3 (11/11/2026) o
+    `end_date` é calculado do cronograma e o `PATCH` o recusa com 422
+    (`test_installment_schedule.py::test_patch_end_date_is_rejected`)."""
     installment = _create_installment(client, default_account, default_category["id"])
 
     response = client.patch(
         f"/api/installments/{installment['id']}",
-        json={"title": "Notebook Dell XPS", "end_date": "Set/2026"},
+        json={"title": "Notebook Dell XPS"},
     )
 
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["title"] == "Notebook Dell XPS"
-    assert data["end_date"] == "Set/2026"
+    assert data["end_date"] == "Ago/2020"
 
 
 def test_patch_category_updates_the_nested_ref(client, default_account, default_category):
@@ -297,7 +315,7 @@ def test_blocked_patch_persists_nothing(client, default_account, default_categor
 def test_installment_amount_is_editable_without_linked_transactions(client, default_account, default_category):
     """Sem transação vinculada, o bloqueio não se aplica — corrigir um
     parcelamento recém-cadastrado é caso legítimo."""
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
 
     response = client.patch(
         f"/api/installments/{installment['id']}", json={"installment_amount": 600.0}
@@ -308,7 +326,7 @@ def test_installment_amount_is_editable_without_linked_transactions(client, defa
 
 
 def test_total_installments_is_editable_without_linked_transactions(client, default_account, default_category):
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
 
     response = client.patch(
         f"/api/installments/{installment['id']}", json={"total_installments": 24}
@@ -330,14 +348,13 @@ def test_other_fields_stay_editable_with_a_linked_transaction(client, default_ac
 
     response = client.patch(
         f"/api/installments/{installment['id']}",
-        json={"current_installment": 3, "title": "Notebook Dell XPS", "end_date": "Set/2026"},
+        json={"current_installment": 3, "title": "Notebook Dell XPS"},
     )
 
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["current_installment"] == 3
     assert data["title"] == "Notebook Dell XPS"
-    assert data["end_date"] == "Set/2026"
 
 
 def test_editing_unlocks_after_the_transaction_is_unlinked(client, default_account, default_category):
@@ -348,7 +365,7 @@ def test_editing_unlocks_after_the_transaction_is_unlinked(client, default_accou
     que não seja `installment_id` — uma flag no parcelamento, uma contagem
     cacheada —, ele continua travado e este teste pega.
     """
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
     tx = _link_transaction(client, default_account, default_category["id"], installment["id"])
 
     assert client.patch(
@@ -369,7 +386,7 @@ def test_editing_unlocks_after_the_transaction_is_unlinked(client, default_accou
 
 def test_deleting_the_linked_transaction_also_unlocks_editing(client, default_account, default_category):
     """Mesmo desbloqueio pelo outro caminho do 4.1: DELETE da transação."""
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
     tx = _link_transaction(client, default_account, default_category["id"], installment["id"])
 
     assert client.delete(f"/api/transactions/{tx['id']}").status_code == 204
@@ -424,7 +441,7 @@ def test_patch_total_amount_blocked_when_a_transaction_is_linked(client, default
 
 def test_total_amount_is_editable_without_linked_transactions(client, default_account, default_category):
     """Simetria com os outros dois campos travados: sem transação, edita."""
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
 
     response = client.patch(
         f"/api/installments/{installment['id']}", json={"total_amount": 9000.0}
@@ -484,7 +501,8 @@ def test_patch_does_not_touch_the_account_balance(client, default_account, defau
     aqui — e passar a debitar a conta duas vezes, no parcelamento e na parcela
     lançada.
     """
-    installment = _create_installment(client, default_account, default_category["id"])
+    installment = _create_installment_without_parcels(client, default_account, default_category["id"])
+    # Sem parcelas: com elas o `installment_amount` estaria travado (D15).
     before = _balance(client)
 
     assert client.patch(

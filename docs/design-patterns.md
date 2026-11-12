@@ -459,3 +459,93 @@ referência antes e devolve **409**:
 
 ---
 
+
+---
+
+### Parcelamento gera as próprias transações, com cronograma calculado (issues #3 e #4)
+
+**Decidido em 11/11/2026, antes da implementação.** A aprovação foi **delegada pelo usuário**
+nesta data ("siga implementando todas as fases; as perguntas vêm por fase"). As perguntas em
+aberto estão no fim desta seção e podem reverter partes da decisão.
+
+**Problema (#3).** O parcelamento era só contrato: nenhuma parcela virava transação sem o
+usuário lançá-la à mão com `installment_id`. Dashboard, categorias e relatórios somam
+**transações**, então o parcelado ficava fora de todos os totais.
+
+**P-1: as parcelas são materializadas na criação.** O `POST /installments` grava, na mesma
+transação de banco, uma `Transaction` de SAÍDA para cada parcela **de `current_installment` até
+`total_installments`**. Cada uma tem o `installment_id`, o novo `installment_number` (k), o
+título e a categoria do parcelamento, e a data `add_months(first_due_date, k − 1)`, com o dia
+limitado ao fim do mês.
+*Descartado:* **derivar as parcelas na leitura.** Exigiria somar parcelas virtuais em cada
+agregação (dashboard, `_aggregated_rows`, relatórios, saldo) e na listagem de transações:
+quatro consumidores com a mesma regra duplicada, o que `installment_metrics.py` existe para
+evitar. *Descartado:* **gerar só até o mês corrente e completar depois.** Não há processo
+periódico (serverless), e gerar num `GET` seria escrita com efeito colateral numa leitura.
+
+**P-2: as parcelas anteriores a `current_installment` não são geradas.** Quem cadastra "3 de
+10" já pagou a 1 e a 2 antes de o app acompanhar, e elas podem já estar lançadas à mão; gerar
+duplicaria. É coerente com a D13: `current` é a parcela **ainda a pagar**.
+
+**P-3: cronograma pela data da parcela atual (#4).** O cadastro recebe
+`current_due_date` (data da parcela atual, **obrigatória**: um default de "hoje" no servidor
+tornaria os testes dependentes do mês em que rodam, backlog 0.1). O servidor grava
+`first_due_date = current_due_date − (current − 1) meses`. O `end_date` (rótulo `"Ago/2026"`)
+passa a ser **calculado** a partir dele e deixa de ser aceito no `POST` e no `PATCH` (**422**,
+`extra="forbid"`).
+
+**P-4: valor total ou valor da parcela, exatamente um (#4).** `total_amount` **xor**
+`installment_amount`, senão **422**.
+* Com `installment_amount`: todas as parcelas iguais, e `total = parcela × N`.
+* Com `total_amount`: `base = ⌊total/N⌋` em centavos, e os centavos que sobram vão **um em cada
+  parcela, a partir da primeira**. Assim R$ 100,00 em 3 vira 33,34 + 33,33 + 33,33 = 100,00. O
+  `installment_amount` gravado é a `base`, a parcela regular.
+* Toda a conta é em `Decimal` no backend. O front **não divide dinheiro**: a pré-visualização
+  vem de `POST /installments/preview`, que roda a mesma função e não grava nada.
+* `remaining_amount` de parcelamento com cronograma passa a ser a **soma exata** das parcelas
+  de `current` a `N` pela mesma regra. A fórmula `parcela × restantes` erraria o centavo da
+  sobra; ela continua só para o parcelamento antigo, sem cronograma.
+
+**P-5: validação do cadastro.** `1 ≤ current_installment ≤ total_installments` (a issue pede
+recusar `current > total`; no `PATCH`, `current > total` continua sendo "quitado", D13).
+`total_installments ≤ 120`, um teto contra gerar milhares de linhas por engano. Valores com no
+máximo 2 casas e `> 0`.
+
+**P-6: edição e exclusão mantêm as parcelas consistentes.**
+* `PATCH` de `title` ou `category_id` propaga para as parcelas geradas
+  (`installment_number` não nulo). As transações ligadas à mão, legadas, não mudam.
+* Os valores travados da D15 continuam travados: todo parcelamento novo tem parcela gerada,
+  então **mudar valor ou quantidade é excluir e recriar**. É a consequência direta da D15, não
+  regra nova.
+* **`DELETE /installments/{id}`** (novo, **204**; inexistente ou de outro dono → **404**
+  "Parcelamento não encontrado."): apaga as parcelas geradas, desvincula as ligadas à mão
+  (`installment_id → null`) e apaga o parcelamento. Tudo pelo ORM, objeto por objeto, porque o
+  filtro de dono da D-Tenant-3 não age em `DELETE` em massa.
+* Desvincular uma parcela pelo `PATCH /transactions` (`installment_id: null`) zera também o
+  `installment_number`, para não deixar número sem parcelamento.
+
+**P-7: migration** `e5c1a9b47d20`: `transactions.installment_number` (int, nulo) e
+`installments.first_due_date` (date, nulo). **Os parcelamentos já existentes não ganham
+parcelas**: sem data de início, o mês de cada parcela seria inferido do rótulo `end_date`.
+Eles seguem como antes (sem cronograma, fórmula antiga). O caminho para corrigi-los é
+**excluir e recriar** pela tela, o que agora é possível com o `DELETE`.
+
+**Impacto no contrato com o frontend.**
+* `POST /installments`: sai `end_date` e entra `current_due_date`; `total_amount` e
+  `installment_amount` passam a ser um ou outro.
+* `InstallmentResponse` ganha `first_due_date` (nulo nos antigos).
+* `TransactionResponse` ganha `installment_number`, e o rótulo "2/10" da transação passa a
+  usá-lo, em vez do `current_installment` do parcelamento, que é o mesmo número em toda parcela.
+* Entram `POST /installments/preview` e `DELETE /installments/{id}`.
+* `PATCH /installments` deixa de aceitar `end_date`.
+
+**⚠️ Consequência aceita no saldo, a confirmar com o usuário.** O saldo é derivado do ledger
+**sem recorte de data** ("um lançamento futuro já conta", acima). Logo, cadastrar 10× de
+R$ 500 baixa o saldo da conta em R$ 5.000 na hora, não mês a mês. Para conta de cartão isso é
+o limite comprometido, e está certo. Para conta corrente, não. Mudar o saldo para `date ≤ hoje`
+é decisão própria, fora desta.
+
+**Perguntas em aberto (para o usuário):** (1) o saldo com parcelas futuras, acima; (2) se o
+botão "Avançar parcela", que edita `current_installment` à mão, deve dar lugar a uma "parcela
+atual" derivada da data; (3) se os parcelamentos antigos devem ganhar parcelas por um script de
+migração, em vez de excluir e recriar.
