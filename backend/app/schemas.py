@@ -457,6 +457,15 @@ class InstallmentHint(BaseModel):
     total: int
 
 
+class InstallmentMatch(BaseModel):
+    """A linha é a parcela de um parcelamento que já existe (D-Import-8)."""
+    installment_id: int
+    installment_title: str
+    transaction_id: Optional[int] = Field(
+        None, description="A parcela já gerada; nula se foi apagada"
+    )
+
+
 class InvoicePreviewItem(BaseModel):
     """Uma linha reconhecida na fatura. Nada foi gravado (D-Import-1)."""
     date: datetime.date
@@ -468,9 +477,11 @@ class InvoicePreviewItem(BaseModel):
     duplicate: bool = Field(..., description="Já existe na conta (D-Import-4)")
     selected: bool = Field(..., description="Sugestão da tela: falso para pagamento e duplicada")
     suggested_category_id: Optional[int] = None
+    installment_match: Optional[InstallmentMatch] = None
 
 
 class InvoicePreview(BaseModel):
+    bank: str = Field(..., description="itau, nubank, mercado_pago ou generic (D-Import-7)")
     lines_read: int = Field(..., description="Linhas de texto lidas no PDF")
     items: List[InvoicePreviewItem]
 
@@ -487,6 +498,28 @@ class InvoiceConfirmItem(BaseModel):
         False,
         description="O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
     )
+    # D-Import-8: vincular a um parcelamento existente...
+    installment_id: Optional[int] = None
+    installment_number: Optional[int] = Field(None, ge=1, le=120)
+    # ...ou criar o parcelamento a partir desta linha.
+    create_installment: bool = False
+    installment_current: Optional[int] = Field(None, ge=1, le=120)
+    installment_total: Optional[int] = Field(None, ge=1, le=120)
+
+    @model_validator(mode="after")
+    def check_installment_fields(self):
+        if self.create_installment:
+            if self.installment_id is not None:
+                raise ValueError("Vincular e criar parcelamento são excludentes.")
+            if self.installment_current is None or self.installment_total is None:
+                raise ValueError("Criar parcelamento exige a parcela atual e o total.")
+            if self.installment_current > self.installment_total:
+                raise ValueError("A parcela atual não pode ser maior que o total.")
+            if self.type != "SAÍDA":
+                raise ValueError("Só uma saída vira parcelamento.")
+        if (self.installment_id is None) != (self.installment_number is None):
+            raise ValueError("Vincular exige o parcelamento e o número da parcela.")
+        return self
 
 
 class InvoiceConfirm(BaseModel):

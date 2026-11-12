@@ -11,6 +11,16 @@ export interface InstallmentHint {
   total: number;
 }
 
+/** A linha é a parcela de um parcelamento que já existe (D-Import-8). */
+export interface InstallmentMatch {
+  installment_id: number;
+  installment_title: string;
+  /** A parcela já gerada; `null` se foi apagada. */
+  transaction_id: number | null;
+}
+
+export type InvoiceBank = "itau" | "nubank" | "mercado_pago" | "generic";
+
 /** Espelha `InvoicePreviewItem` do backend. Valor monetário é string. */
 export interface InvoicePreviewItem {
   date: string;
@@ -22,9 +32,11 @@ export interface InvoicePreviewItem {
   duplicate: boolean;
   selected: boolean;
   suggested_category_id: number | null;
+  installment_match: InstallmentMatch | null;
 }
 
 export interface InvoicePreview {
+  bank: InvoiceBank;
   lines_read: number;
   items: InvoicePreviewItem[];
 }
@@ -40,6 +52,8 @@ export interface ReviewRow {
   selected: boolean;
   /** Id em string, como o `CategorySelect` fala; `""` = sem categoria. */
   category_id: string;
+  /** "Criar parcelamento" marcado (D-Import-8); desmarcado por padrão. */
+  create_installment: boolean;
 }
 
 export interface ConfirmPayload {
@@ -52,6 +66,13 @@ export interface ConfirmPayload {
     category_id: number;
     /** Marcada de novo depois de apontada como duplicada (D-Import-4). */
     allow_duplicate?: true;
+    /** Vincular ao parcelamento que casou (D-Import-8). */
+    installment_id?: number;
+    installment_number?: number;
+    /** Criar o parcelamento a partir desta linha (D-Import-8). */
+    create_installment?: true;
+    installment_current?: number;
+    installment_total?: number;
   }[];
 }
 
@@ -77,6 +98,7 @@ export function initialRows(items: InvoicePreviewItem[]): ReviewRow[] {
       item.suggested_category_id === null
         ? ""
         : String(item.suggested_category_id),
+    create_installment: false,
   }));
 }
 
@@ -101,7 +123,7 @@ export function buildConfirmPayload(
     ok: true,
     payload: {
       account_id: accountId,
-      items: chosen.map(({ item, category_id }) => ({
+      items: chosen.map(({ item, category_id, create_installment }) => ({
         date: item.date,
         title: item.title,
         amount: item.amount,
@@ -110,6 +132,7 @@ export function buildConfirmPayload(
         // A duplicada vem desmarcada; se o usuário a marcou, é escolha dele, e
         // o servidor não pode pulá-la de novo.
         ...(item.duplicate ? { allow_duplicate: true as const } : {}),
+        ...installmentFields(item, create_installment),
       })),
     },
   };
@@ -127,4 +150,48 @@ export function importResultMessage(result: InvoiceConfirmResult): string {
   const head = `${created} ${plural(created, "transação importada", "transações importadas")}`;
   if (skipped === 0) return `${head}.`;
   return `${head}; ${skipped} já ${plural(skipped, "existia e foi ignorada", "existiam e foram ignoradas")}.`;
+}
+
+/** Os campos de parcelamento de uma linha no `confirm` (D-Import-8). */
+function installmentFields(item: InvoicePreviewItem, create: boolean) {
+  const hint = item.installment_hint;
+  if (hint === null) return {};
+  if (item.installment_match !== null) {
+    // Casou e a parcela não está no extrato: grava vinculada. Se já está, a
+    // linha vem desmarcada; marcada de novo, vai avulsa, como duplicada.
+    return item.installment_match.transaction_id === null
+      ? {
+          installment_id: item.installment_match.installment_id,
+          installment_number: hint.current,
+        }
+      : {};
+  }
+  return create && canCreateInstallment(item)
+    ? {
+        create_installment: true as const,
+        installment_current: hint.current,
+        installment_total: hint.total,
+      }
+    : {};
+}
+
+/** "Criar parcelamento" só para saída com parcela e sem parcelamento casado. */
+export function canCreateInstallment(item: InvoicePreviewItem): boolean {
+  return (
+    item.type === "SAÍDA" &&
+    item.installment_hint !== null &&
+    item.installment_match === null
+  );
+}
+
+const BANK_NAMES: Record<Exclude<InvoiceBank, "generic">, string> = {
+  itau: "Itaú",
+  nubank: "Nubank",
+  mercado_pago: "Mercado Pago",
+};
+
+/** D-Import-7: os três leitores seguem o formato público, sem fatura real. */
+export function bankLabel(bank: InvoiceBank): string {
+  if (bank === "generic") return "Banco não reconhecido: leitor genérico";
+  return `Fatura do ${BANK_NAMES[bank]} (leitor ainda não verificado com fatura real)`;
 }

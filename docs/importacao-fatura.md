@@ -107,3 +107,51 @@ base (restrição do `docs/mobile-first.md`). Não muda nenhuma rota existente.
    parcela de novo, então a deduplicação teria que reconhecer a parcela gerada.
 3. **Data da compra comum:** a da linha (v1) ou o vencimento? A da linha é o que aconteceu; o
    vencimento é quando o dinheiro sai.
+
+### Fase 2 — leitores por banco e parcela vinculada (decidido em 12/11/2026)
+
+**Decidido antes da implementação**, com as respostas do usuário: Itaú é o banco dele, e há
+leitores também para Nubank e Mercado Pago (4); a parcela na fatura casa com o parcelamento
+(5c); a compra comum fica com a data da linha (6a, já é o comportamento).
+
+⚠️ **Os três leitores seguem o formato público conhecido de cada banco e NÃO foram
+verificados contra uma fatura real.** Os testes usam PDFs sintéticos que imitam esses
+formatos. O usuário combinou ajustar em produção: cada ajuste vira um teste com a linha que
+falhou, anonimizada.
+
+**D-Import-7: banco detectado pelo texto, regras por banco sobre o leitor genérico.**
+* **Detecção:** "nubank" ou "nu pagamentos" → `nubank`; "itaú", "itau" ou "itaucard" → `itau`;
+  "mercado pago" → `mercado_pago`; senão `generic`. Sem acento e sem caixa. A resposta do
+  preview ganha `bank`, e a tela mostra "Fatura do Itaú (leitor ainda não verificado)".
+* **Comum a todos:** parcela também como "Parcela 3 de 10".
+* **Itaú:** a fatura em PDF tem **duas colunas de lançamentos** (um cartão de cada lado), e o
+  texto extraído pode juntar dois lançamentos numa linha (`10/11 PADARIA 12,50 11/11 POSTO
+  100,00`). A linha é cortada antes de cada data `DD/MM` seguida de texto **quando cada pedaço
+  é um lançamento completo**; senão fica inteira.
+* **Mercado Pago:** aceita a data completa `DD/MM/AAAA` e usa o ano dela. No genérico essa
+  linha continua ignorada (costuma ser cabeçalho, como "Vencimento 20/11/2026").
+* **Nubank:** `DD MMM` e o "−" Unicode, que o leitor genérico já cobre; só a detecção.
+* *Descartado:* um leitor inteiro por banco. As faturas compartilham o essencial (data,
+  descrição, valor no fim), e três cópias da regex divergiriam a cada ajuste.
+
+**D-Import-8: parcela da fatura casa com o parcelamento (5c).** Linha com `installment_hint`
+(k de N) procura, **na mesma conta**, um parcelamento com cronograma, N parcelas e o mesmo
+título normalizado sem o sufixo da parcela (um contido no outro: "MAGAZINE LUIZA" × "Magazine
+Luiza Sofa").
+* **Casou e a parcela k já foi gerada:** `installment_match` aponta o parcelamento e a
+  transação; a linha vem como **duplicada e desmarcada** — a parcela já está no extrato.
+* **Casou e a parcela k não existe** (apagada à mão): vem marcada; a confirmação grava a
+  transação **vinculada** (`installment_id` e `installment_number`).
+* **Não casou:** importa avulsa, como antes. A tela oferece **"Criar parcelamento"**,
+  desmarcado por padrão (cria as parcelas futuras na conta, efeito grande demais para ser
+  automático). Marcado, a confirmação cria o parcelamento com parcela = valor da linha, N
+  parcelas, atual = k e vencimento da atual = o da fatura (D-Import-5). A parcela k é **esta
+  linha**: não se grava uma avulsa a mais. Na fatura seguinte, a k + 1 casa e vem desmarcada.
+* O cadastro do parcelamento pela importação usa **a mesma função** do `POST /installments`
+  (extraída para `app/installment_service.py`): cronograma, âncora e parcelas iguais.
+* *Descartado:* criar o parcelamento automaticamente para toda linha com parcela.
+
+**Impacto no contrato:** preview ganha `bank` e, por item, `installment_match`
+(`{installment_id, installment_title, transaction_id}` ou nulo). Item do confirm ganha os
+opcionais `installment_id`/`installment_number` (vincular) e `create_installment` com
+`installment_current`/`installment_total` (criar). Vincular a parcelamento de outro dono → 404.

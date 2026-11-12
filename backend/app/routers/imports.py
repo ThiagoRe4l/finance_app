@@ -15,8 +15,11 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app import installment_service
 from app.invoice_import import (
     InvoiceUnreadable,
+    detect_bank,
+    installment_base_title,
     extract_text,
     normalize_title,
     parse_invoice_text,
@@ -63,6 +66,32 @@ def _existing_keys(db: Session, account_id: int, dates: Iterable[datetime.date])
         models.Transaction.date <= max(dates),
     ).all()
     return Counter(_key(*row) for row in rows)
+
+
+def _installment_match(db: Session, scheduled, entry) -> "schemas.InstallmentMatch | None":
+    """D-Import-8: o parcelamento com cronograma, nesta conta, com o mesmo total
+    de parcelas e o título normalizado contido no da linha (ou o contrário)."""
+    if entry.installment_hint is None:
+        return None
+    number, total = entry.installment_hint
+    line_title = normalize_title(installment_base_title(entry.title))
+    if not line_title:
+        return None
+    for installment in scheduled:
+        title = normalize_title(installment_base_title(installment.title))
+        if installment.total_installments != total or not title:
+            continue
+        if title in line_title or line_title in title:
+            parcel = db.query(models.Transaction.id).filter(
+                models.Transaction.installment_id == installment.id,
+                models.Transaction.installment_number == number,
+            ).first()
+            return schemas.InstallmentMatch(
+                installment_id=installment.id,
+                installment_title=installment.title,
+                transaction_id=parcel.id if parcel else None,
+            )
+    return None
 
 
 def _category_by_title(db: Session) -> dict[str, int]:
@@ -130,9 +159,17 @@ def _preview(pdf: bytes, due_date: datetime.date, account_id: int, db: Session) 
     except InvoiceUnreadable as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
-    entries = parse_invoice_text(text, due_date)
+    bank = detect_bank(text)
+    entries = parse_invoice_text(text, due_date, bank=bank)
     existing = _existing_keys(db, account_id, (e.date for e in entries))
     suggestions = _category_by_title(db) if entries else {}
+    scheduled = (
+        db.query(models.Installment).filter(
+            models.Installment.account_id == account_id,
+            models.Installment.first_due_date.isnot(None),
+        ).order_by(models.Installment.id).all()
+        if any(e.installment_hint for e in entries) else []
+    )
 
     items = []
     for entry in entries:
@@ -140,6 +177,10 @@ def _preview(pdf: bytes, due_date: datetime.date, account_id: int, db: Session) 
         duplicate = existing[key] > 0
         if duplicate:
             existing[key] -= 1
+        match = _installment_match(db, scheduled, entry)
+        if match is not None and match.transaction_id is not None:
+            # A parcela já está no extrato (gerada pelo parcelamento).
+            duplicate = True
         items.append(schemas.InvoicePreviewItem(
             date=entry.date,
             title=entry.title,
@@ -153,9 +194,11 @@ def _preview(pdf: bytes, due_date: datetime.date, account_id: int, db: Session) 
             duplicate=duplicate,
             selected=not (duplicate or entry.is_payment),
             suggested_category_id=suggestions.get(normalize_title(entry.title)),
+            installment_match=match,
         ))
 
     return schemas.InvoicePreview(
+        bank=bank,
         lines_read=len([line for line in text.splitlines() if line.strip()]),
         items=items,
     )
@@ -178,6 +221,24 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
     if found != category_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoria não encontrada.")
 
+    # D-Import-8: parcelamento a vincular, buscado pela sessão escopada e na
+    # mesma conta — de outro dono ou de outra conta é 404, antes de gravar.
+    linked_ids = {item.installment_id for item in payload.items if item.installment_id is not None}
+    linked = {
+        row.id: row for row in db.query(models.Installment).filter(
+            models.Installment.id.in_(linked_ids),
+            models.Installment.account_id == payload.account_id,
+        ).all()
+    } if linked_ids else {}
+    if set(linked) != linked_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parcelamento não encontrado.")
+    for item in payload.items:
+        if item.installment_id is not None and item.installment_number > linked[item.installment_id].total_installments:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="O número da parcela passa do total do parcelamento.",
+            )
+
     existing = _existing_keys(db, payload.account_id, (item.date for item in payload.items))
     owner = owner_id(db)
     created = skipped = 0
@@ -189,16 +250,33 @@ def confirm_invoice(payload: schemas.InvoiceConfirm, db: Session = Depends(owned
             existing[key] -= 1
             skipped += 1
             continue
-        db.add(models.Transaction(
-            owner_id=owner,
-            title=item.title,
-            type=item.type,
-            amount=item.amount,
-            date=item.date,
-            category_id=item.category_id,
-            is_fixed=False,
-            account_id=payload.account_id,
-        ))
+        if item.create_installment:
+            # A parcela atual é esta linha: o cadastro a gera junto com as
+            # futuras, sem uma avulsa a mais (D-Import-8).
+            installment_service.create_with_parcels(
+                db,
+                owner,
+                title=installment_base_title(item.title) or item.title,
+                category_id=item.category_id,
+                account_id=payload.account_id,
+                total_installments=item.installment_total,
+                current_installment=item.installment_current,
+                current_due_date=item.date,
+                installment_amount=item.amount,
+            )
+        else:
+            db.add(models.Transaction(
+                owner_id=owner,
+                title=item.title,
+                type=item.type,
+                amount=item.amount,
+                date=item.date,
+                category_id=item.category_id,
+                is_fixed=False,
+                account_id=payload.account_id,
+                installment_id=item.installment_id,
+                installment_number=item.installment_number,
+            ))
         created += 1
 
     db.commit()

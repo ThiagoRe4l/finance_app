@@ -13,7 +13,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  bankLabel,
   buildConfirmPayload,
+  canCreateInstallment,
   initialRows,
   importResultMessage,
   invoicePreviewPath,
@@ -31,6 +33,7 @@ function item(overrides: Partial<InvoicePreviewItem> = {}): InvoicePreviewItem {
     duplicate: false,
     selected: true,
     suggested_category_id: null,
+    installment_match: null,
     ...overrides,
   };
 }
@@ -150,4 +153,93 @@ test("linha duplicada que o usuário marcou de novo vai com allow_duplicate", ()
   const items = (result.ok && result.payload.items) || [];
   assert.equal(items[0].allow_duplicate, true);
   assert.equal("allow_duplicate" in items[1], false);
+});
+
+// ---------------------------------------------------------------------------
+// D-Import-7 e D-Import-8 (12/11/2026), escritos antes da implementação
+// ---------------------------------------------------------------------------
+
+test("rótulo do banco avisa que o leitor ainda não foi verificado", () => {
+  assert.equal(
+    bankLabel("itau"),
+    "Fatura do Itaú (leitor ainda não verificado com fatura real)",
+  );
+  assert.equal(
+    bankLabel("nubank"),
+    "Fatura do Nubank (leitor ainda não verificado com fatura real)",
+  );
+  assert.equal(
+    bankLabel("mercado_pago"),
+    "Fatura do Mercado Pago (leitor ainda não verificado com fatura real)",
+  );
+  assert.equal(bankLabel("generic"), "Banco não reconhecido: leitor genérico");
+});
+
+test("parcela casada sem transação vai vinculada ao parcelamento", () => {
+  const rows = initialRows([
+    item({
+      suggested_category_id: 2,
+      installment_hint: { current: 3, total: 10 },
+      installment_match: {
+        installment_id: 7,
+        installment_title: "Magazine",
+        transaction_id: null,
+      },
+    }),
+  ]);
+  const result = buildConfirmPayload(9, rows);
+  assert.equal(result.ok, true);
+  const [sent] = (result.ok && result.payload.items) || [];
+  assert.equal(sent.installment_id, 7);
+  assert.equal(sent.installment_number, 3);
+  assert.equal("create_installment" in sent, false);
+});
+
+test("linha com parcela sem parcelamento só cria se o usuário marcar", () => {
+  const rows = initialRows([
+    item({
+      suggested_category_id: 2,
+      installment_hint: { current: 3, total: 10 },
+    }),
+  ]);
+  assert.equal(rows[0].create_installment, false);
+  let result = buildConfirmPayload(9, rows);
+  assert.equal(
+    "create_installment" in ((result.ok && result.payload.items[0]) || {}),
+    false,
+  );
+
+  rows[0].create_installment = true;
+  result = buildConfirmPayload(9, rows);
+  const [sent] = (result.ok && result.payload.items) || [];
+  assert.equal(sent.create_installment, true);
+  assert.equal(sent.installment_current, 3);
+  assert.equal(sent.installment_total, 10);
+});
+
+test("canCreateInstallment: só saída com parcela e sem parcelamento casado", () => {
+  assert.equal(
+    canCreateInstallment(item({ installment_hint: { current: 1, total: 2 } })),
+    true,
+  );
+  assert.equal(canCreateInstallment(item()), false);
+  assert.equal(
+    canCreateInstallment(
+      item({ type: "ENTRADA", installment_hint: { current: 1, total: 2 } }),
+    ),
+    false,
+  );
+  assert.equal(
+    canCreateInstallment(
+      item({
+        installment_hint: { current: 1, total: 2 },
+        installment_match: {
+          installment_id: 1,
+          installment_title: "x",
+          transaction_id: 5,
+        },
+      }),
+    ),
+    false,
+  );
 });

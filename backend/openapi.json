@@ -1725,6 +1725,37 @@
         ],
         "title": "InstallmentHint"
       },
+      "InstallmentMatch": {
+        "properties": {
+          "installment_id": {
+            "type": "integer",
+            "title": "Installment Id"
+          },
+          "installment_title": {
+            "type": "string",
+            "title": "Installment Title"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id",
+            "description": "A parcela já gerada; nula se foi apagada"
+          }
+        },
+        "type": "object",
+        "required": [
+          "installment_id",
+          "installment_title"
+        ],
+        "title": "InstallmentMatch",
+        "description": "A linha é a parcela de um parcelamento que já existe (D-Import-8)."
+      },
       "InstallmentPreview": {
         "properties": {
           "total_amount": {
@@ -2264,6 +2295,61 @@
             "title": "Allow Duplicate",
             "description": "O usuário marcou de novo uma linha apontada como duplicada: importar mesmo assim",
             "default": false
+          },
+          "installment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Id"
+          },
+          "installment_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Number"
+          },
+          "create_installment": {
+            "type": "boolean",
+            "title": "Create Installment",
+            "default": false
+          },
+          "installment_current": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Current"
+          },
+          "installment_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installment Total"
           }
         },
         "additionalProperties": false,
@@ -2297,6 +2383,11 @@
       },
       "InvoicePreview": {
         "properties": {
+          "bank": {
+            "type": "string",
+            "title": "Bank",
+            "description": "itau, nubank, mercado_pago ou generic (D-Import-7)"
+          },
           "lines_read": {
             "type": "integer",
             "title": "Lines Read",
@@ -2312,6 +2403,7 @@
         },
         "type": "object",
         "required": [
+          "bank",
           "lines_read",
           "items"
         ],
@@ -2371,6 +2463,16 @@
               }
             ],
             "title": "Suggested Category Id"
+          },
+          "installment_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallmentMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

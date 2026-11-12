@@ -8,7 +8,7 @@ import datetime
 
 from sqlalchemy import func
 
-from app import account_balance, installment_metrics
+from app import account_balance, installment_metrics, installment_service
 from app.installment_metrics import ZERO
 from app.installment_schedule import Schedule, build_schedule
 
@@ -137,39 +137,18 @@ def create_installment(installment: schemas.InstallmentCreate, db: Session = Dep
             detail="Categoria não encontrada."
         )
 
-    schedule = _schedule_of(installment)
-    owner = owner_id(db)
-
-    new_installment = models.Installment(
-        owner_id=owner,
+    new_installment = installment_service.create_with_parcels(
+        db,
+        owner_id(db),
         title=installment.title,
         category_id=installment.category_id,
-        total_amount=schedule.total_amount,
-        installment_amount=schedule.installment_amount,
-        current_installment=installment.current_installment,
-        total_installments=installment.total_installments,
-        end_date=schedule.end_date,
-        first_due_date=schedule.first_due_date,
-        anchor_due_date=installment.current_due_date,
         account_id=installment.account_id,
+        total_installments=installment.total_installments,
+        current_installment=installment.current_installment,
+        current_due_date=installment.current_due_date,
+        total_amount=installment.total_amount,
+        installment_amount=installment.installment_amount,
     )
-    db.add(new_installment)
-    # `flush` para ter o id antes de gerar as parcelas; o commit é um só.
-    db.flush()
-
-    for parcel in schedule.parcels:
-        db.add(models.Transaction(
-            owner_id=owner,
-            title=installment.title,
-            type="SAÍDA",
-            amount=parcel.amount,
-            date=parcel.date,
-            category_id=installment.category_id,
-            is_fixed=False,
-            account_id=installment.account_id,
-            installment_id=new_installment.id,
-            installment_number=parcel.number,
-        ))
 
     db.commit()
     db.refresh(new_installment)

@@ -31,7 +31,9 @@ import {
   toISODate,
 } from "@/lib/date";
 import {
+  bankLabel,
   buildConfirmPayload,
+  canCreateInstallment,
   importResultMessage,
   initialRows,
   invoicePreviewPath,
@@ -183,7 +185,7 @@ export function ImportInvoiceDialog({
           <DialogDescription>
             {preview === null
               ? "O PDF é lido e descartado: nada é gravado antes da sua revisão."
-              : `${preview.items.length} lançamento(s) reconhecido(s) em ${preview.lines_read} linha(s) lida(s). Revise antes de importar.`}
+              : `${bankLabel(preview.bank)}. ${preview.items.length} lançamento(s) reconhecido(s) em ${preview.lines_read} linha(s) lida(s). Revise antes de importar.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -286,7 +288,30 @@ export function ImportInvoiceDialog({
                       )}
                       {row.item.is_payment && <span>Pagamento da fatura</span>}
                       {row.item.duplicate && <span>Já existe na conta</span>}
+                      {row.item.installment_match && (
+                        <span>
+                          {row.item.installment_match.transaction_id === null
+                            ? `Vai para o parcelamento "${row.item.installment_match.installment_title}"`
+                            : `Parcela de "${row.item.installment_match.installment_title}", já lançada`}
+                        </span>
+                      )}
                     </p>
+                    {row.selected && canCreateInstallment(row.item) && (
+                      // D-Import-8: desmarcado por padrão — cria as parcelas
+                      // futuras na conta. A linha inteira é o alvo de toque.
+                      <label className="mt-2 flex min-h-11 items-center gap-2 text-xs text-muted-foreground lg:min-h-0">
+                        <Checkbox
+                          checked={row.create_installment}
+                          onCheckedChange={(checked) =>
+                            updateRow(index, {
+                              create_installment: checked === true,
+                            })
+                          }
+                        />
+                        Criar parcelamento ({row.item.installment_hint!.total}{" "}
+                        parcelas; as próximas entram nas transações)
+                      </label>
+                    )}
                     {row.selected && (
                       <div className="mt-2">
                         <CategorySelect

@@ -107,7 +107,8 @@ def test_preview_suggests_the_category_of_the_latest_matching_transaction(client
 def test_preview_with_no_recognized_entry_is_not_an_error(client, default_account):
     response = preview(client, default_account, lines=["Extrato sem lançamentos", "Obrigado"])
     assert response.status_code == 200
-    assert response.json() == {"lines_read": 2, "items": []}
+    # `bank` entrou no contrato em 12/11/2026 (D-Import-7).
+    assert response.json() == {"bank": "generic", "lines_read": 2, "items": []}
 
 
 def test_preview_requires_pdf_content_type(client, default_account):
