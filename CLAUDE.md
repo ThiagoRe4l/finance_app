@@ -34,6 +34,7 @@ D-Tenant-7.
 | `docs/variaveis-de-ambiente.md` | 🔐 Variáveis de Ambiente | ao criar ou ler variável de ambiente, ou ao lidar com `.env.local` |
 | `docs/common-hurdles.md` | 🧯 Common Hurdles (Problemas Recorrentes) | antes de depurar erro de ambiente, deploy, CI ou barra final |
 | `docs/backlog.md` | 🧭 Itens futuros + 🧭 Candidatos ao dia 5 | antes de propor trabalho novo ou escolher o próximo |
+| `docs/importacao-fatura.md` | 📄 Importação de fatura em PDF | ao mexer na importação de fatura, no parser ou na deduplicação |
 | `docs/produto.md` | 🎯 Produto — princípios e requisitos originais (ex-`GEMINI.md`) | ao propor feature nova, para checar contra os requisitos de origem |
 | `docs/seguranca-dependencias.md` | 🔒 Correções de segurança em dependências | ao atualizar dependência ou responder a CVE / `npm audit` |
 | `docs/historico/deploy-railway.md` | 🗃️ Deploy — Railway (superado) | só como histórico das alternativas descartadas |
@@ -385,6 +386,7 @@ Documentação escrita depois do código não conta como decisão registrada —
 * layout e reforma mobile → `docs/mobile-first.md`;
 * item em aberto, sem decisão → `docs/backlog.md`;
 * correção de segurança em dependência → `docs/seguranca-dependencias.md`;
+* importação de fatura → `docs/importacao-fatura.md`;
 * problema recorrente já resolvido → `docs/common-hurdles.md`.
 
 Assunto que não cabe em nenhum: arquivo novo em `docs/` e uma linha no índice deste arquivo.

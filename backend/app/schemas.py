@@ -420,3 +420,51 @@ class SharedExpenseResponse(BaseModel):
 
 class Participant(BaseModel):
     email: str
+
+
+# --- Importação de fatura (`docs/importacao-fatura.md`) ---------------------
+
+
+class InstallmentHint(BaseModel):
+    current: int
+    total: int
+
+
+class InvoicePreviewItem(BaseModel):
+    """Uma linha reconhecida na fatura. Nada foi gravado (D-Import-1)."""
+    date: datetime.date
+    title: str
+    amount: Decimal
+    type: str
+    installment_hint: Optional[InstallmentHint] = None
+    is_payment: bool
+    duplicate: bool = Field(..., description="Já existe na conta (D-Import-4)")
+    selected: bool = Field(..., description="Sugestão da tela: falso para pagamento e duplicada")
+    suggested_category_id: Optional[int] = None
+
+
+class InvoicePreview(BaseModel):
+    lines_read: int = Field(..., description="Linhas de texto lidas no PDF")
+    items: List[InvoicePreviewItem]
+
+
+class InvoiceConfirmItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: datetime.date
+    title: str = Field(..., min_length=1, max_length=150)
+    amount: Decimal = Field(..., gt=0, decimal_places=2)
+    type: str = Field(..., pattern="^(ENTRADA|SAÍDA)$")
+    category_id: int
+
+
+class InvoiceConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: int
+    items: List[InvoiceConfirmItem] = Field(..., min_length=1, max_length=500)
+
+
+class InvoiceConfirmResult(BaseModel):
+    created: int
+    skipped_duplicates: int

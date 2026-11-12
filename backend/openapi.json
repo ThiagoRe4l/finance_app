@@ -1088,6 +1088,133 @@
         }
       }
     },
+    "/api/imports/invoice/preview": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "summary": "Preview Invoice",
+        "description": "Lê a fatura e devolve as linhas reconhecidas, **sem gravar nada**.",
+        "operationId": "preview_invoice_api_imports_invoice_preview_post",
+        "parameters": [
+          {
+            "name": "due_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Vencimento da fatura: dá o ano das linhas",
+              "title": "Due Date"
+            },
+            "description": "Vencimento da fatura: dá o ano das linhas"
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Conta (cartão) onde as linhas serão lançadas",
+              "title": "Account Id"
+            },
+            "description": "Conta (cartão) onde as linhas serão lançadas"
+          },
+          {
+            "name": "content-type",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Type"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "contentMediaType": "application/octet-stream",
+                "title": "Pdf"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports/invoice/confirm": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "summary": "Confirm Invoice",
+        "description": "Grava as linhas escolhidas, numa transação de banco só. Confere a\nduplicidade de novo no servidor e pula a repetida (D-Import-4).",
+        "operationId": "confirm_invoice_api_imports_invoice_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceConfirmResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Read Root",
@@ -1597,6 +1724,24 @@
         ],
         "title": "InstallmentCreate"
       },
+      "InstallmentHint": {
+        "properties": {
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "total"
+        ],
+        "title": "InstallmentHint"
+      },
       "InstallmentPreview": {
         "properties": {
           "total_amount": {
@@ -2051,6 +2196,186 @@
           "current_balance"
         ],
         "title": "InvestmentResponse"
+      },
+      "InvoiceConfirm": {
+        "properties": {
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceConfirmItem"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "items"
+        ],
+        "title": "InvoiceConfirm"
+      },
+      "InvoiceConfirmItem": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Amount"
+          },
+          "type": {
+            "type": "string",
+            "pattern": "^(ENTRADA|SAÍDA)$",
+            "title": "Type"
+          },
+          "category_id": {
+            "type": "integer",
+            "title": "Category Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "amount",
+          "type",
+          "category_id"
+        ],
+        "title": "InvoiceConfirmItem"
+      },
+      "InvoiceConfirmResult": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "skipped_duplicates": {
+            "type": "integer",
+            "title": "Skipped Duplicates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "skipped_duplicates"
+        ],
+        "title": "InvoiceConfirmResult"
+      },
+      "InvoicePreview": {
+        "properties": {
+          "lines_read": {
+            "type": "integer",
+            "title": "Lines Read",
+            "description": "Linhas de texto lidas no PDF"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoicePreviewItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lines_read",
+          "items"
+        ],
+        "title": "InvoicePreview"
+      },
+      "InvoicePreviewItem": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "installment_hint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstallmentHint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_payment": {
+            "type": "boolean",
+            "title": "Is Payment"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate",
+            "description": "Já existe na conta (D-Import-4)"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "description": "Sugestão da tela: falso para pagamento e duplicada"
+          },
+          "suggested_category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Category Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "amount",
+          "type",
+          "is_payment",
+          "duplicate",
+          "selected"
+        ],
+        "title": "InvoicePreviewItem",
+        "description": "Uma linha reconhecida na fatura. Nada foi gravado (D-Import-1)."
       },
       "MonthlyFlow": {
         "properties": {

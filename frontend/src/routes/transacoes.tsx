@@ -8,6 +8,7 @@ import {
   RotateCw,
   Pencil,
   Trash2,
+  FileUp,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/transactions";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
 import { DeleteTransactionDialog } from "@/components/transactions/DeleteTransactionDialog";
+import { ImportInvoiceDialog } from "@/components/transactions/ImportInvoiceDialog";
 import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
 
 export const Route = createFileRoute("/transacoes")({
@@ -301,6 +303,7 @@ function TransacoesPage() {
   const [editing, setEditing] = useState<Transaction | undefined>();
   const [deleting, setDeleting] = useState<Transaction | undefined>();
   const [search, setSearch] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
 
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["transactions"],
@@ -337,15 +340,29 @@ function TransacoesPage() {
         }
       />
 
-      <div className="mb-6 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por descrição ou categoria..."
-          className="w-full md:w-96 pl-10 pr-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+      {/*
+        "Importar fatura" fica fora do cabeçalho de propósito: a ação do
+        `PageHeader` some abaixo de lg (o flutuante é "Nova"), e a importação
+        precisa existir no celular também (docs/importacao-fatura.md).
+      */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por descrição ou categoria..."
+            className="w-full md:w-96 pl-10 pr-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsImporting(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors"
+        >
+          <FileUp className="h-4 w-4" /> Importar fatura
+        </button>
       </div>
 
       {isError ? (
@@ -405,6 +422,7 @@ function TransacoesPage() {
         onClick={() => setIsCreating(true)}
       />
       <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+      <ImportInvoiceDialog open={isImporting} onOpenChange={setIsImporting} />
       <TransactionFormDialog
         key={editing?.id}
         open={editing !== undefined}

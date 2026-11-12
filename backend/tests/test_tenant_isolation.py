@@ -371,6 +371,16 @@ def _body_cases(own, today):
         "account_id": own["account_id"], "category_id": own["category_id"],
         "participants": [CAIO],
     }
+    # Importação de fatura: o `category_id` mora **dentro** de `items` e a
+    # descoberta de `_body_id_fields` só vê o nível de cima — o caso aninhado
+    # tem teste próprio em `test_invoice_import.py`.
+    invoice_body = {
+        "account_id": own["account_id"],
+        "items": [{
+            "date": today, "title": "Tentativa", "amount": "1.00",
+            "type": "SAÍDA", "category_id": own["category_id"],
+        }],
+    }
     tx_path = f"/api/transactions/{own['transaction_id']}"
     inst_path = f"/api/installments/{own['installment_id']}"
 
@@ -387,6 +397,9 @@ def _body_cases(own, today):
         ("PATCH", "/api/installments/{installment_id}", "category_id"): (inst_path, {}, 404),
         ("POST", "/api/shared-expenses", "account_id"): ("/api/shared-expenses", shared_body, 404),
         ("POST", "/api/shared-expenses", "category_id"): ("/api/shared-expenses", shared_body, 404),
+        ("POST", "/api/imports/invoice/confirm", "account_id"): (
+            "/api/imports/invoice/confirm", invoice_body, 404,
+        ),
     }
 
 
