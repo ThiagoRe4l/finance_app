@@ -34,6 +34,9 @@ Não é urgente e não tem consumidor pedindo.
 
 ### 0.2. O SSR do frontend não paga o que custa
 
+> ✅ **Decidido em 12/11/2026 (item M): o frontend vira SPA estático.** Decisão D-Vercel-7 em
+> `docs/deploy-vercel-neon.md`. O registro original fica abaixo.
+
 **Levantado em 23/08/2026**, ao mapear o deploy. Registrado como débito na D-Deploy-1.
 
 O app é TanStack Start com SSR via Nitro, mas **não há um `loader:` nem um

@@ -21,7 +21,12 @@ const config = JSON.parse(
     fileURLToPath(new URL("../../vercel.json", import.meta.url)),
     "utf8",
   ),
-) as { rewrites?: Array<{ source: string; destination: string }> };
+) as {
+  rewrites?: Array<{ source: string; destination: string }>;
+  outputDirectory?: string;
+  framework?: string | null;
+  buildCommand?: string;
+};
 
 const apiRewrite = config.rewrites?.find((rewrite) =>
   rewrite.source.startsWith("/api"),
@@ -55,4 +60,22 @@ test("o parâmetro de caminho é preservado nas duas pontas", () => {
   // `/api/accounts/` e `/api/dashboard/summary` chegam no mesmo lugar.
   assert.match(apiRewrite!.source, /:path\*/);
   assert.match(apiRewrite!.destination, /:path\*/);
+});
+
+// ---------------------------------------------------------------------------
+// SPA estático — D-Vercel-7 (12/11/2026), escritos antes da mudança
+// ---------------------------------------------------------------------------
+
+test("a Vercel serve a pasta estática do build", () => {
+  assert.equal(config.outputDirectory, "dist/client");
+  assert.equal(config.framework, null);
+  assert.equal(config.buildCommand, "npm run build");
+});
+
+test("toda rota que não é arquivo nem /api cai no shell do SPA, por último", () => {
+  const rewrites = config.rewrites ?? [];
+  const last = rewrites[rewrites.length - 1];
+  assert.deepEqual(last, { source: "/(.*)", destination: "/_shell.html" });
+  // O /api vem antes: senão a API também cairia no shell.
+  assert.ok(rewrites.indexOf(apiRewrite!) < rewrites.length - 1);
 });

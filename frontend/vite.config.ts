@@ -17,43 +17,21 @@ import { assertProxySurvives } from "./src/lib/dev-proxy.ts";
 // importado: check importado e não chamado é decoração.
 assertProxySurvives(process.env);
 
-// ⚠️ `nitro.preset` é OBRIGATÓRIO e vai fixado aqui, não em `NITRO_PRESET`.
+// SPA estático (D-Vercel-7, 12/11/2026 — `docs/deploy-vercel-neon.md`).
 //
-// O default do preset é `cloudflare-module`: sem esta linha, `npm run build`
-// produz um Cloudflare Worker, e o deploy falha de forma silenciosa — build
-// "verde", serviço que não sobe. Via variável de ambiente, uma variável
-// faltando no build reintroduz o mesmo silêncio.
+// Nenhuma rota tem `loader` nem `createServerFn`: o SSR renderizava um esqueleto
+// vazio e o browser buscava tudo. Agora `npm run build` emite arquivos estáticos
+// em `dist/client/` — os assets e um `_shell.html` gerado pelo *prerender* da
+// rota `/` — que a Vercel serve direto (`vercel.json`: `outputDirectory` e a
+// reescrita de toda rota para o shell).
 //
-// `vercel` emite `.vercel/output` (Build Output API v3), que é o que a Vercel
-// consome. Era `node-server` enquanto o alvo era o Railway; mudou com o pivô
-// de 28/08/2026 — ver "🚢 Deploy — Vercel + Neon" no CLAUDE.md.
+// `nitro: false` tira a função de servidor do build. Até 11/11 aqui ficavam o
+// preset `vercel` e os diretórios de `.vercel/output` (o 404 silencioso do
+// primeiro deploy, que um comentário de 40 linhas explicava); com o SPA nada
+// disso existe mais.
 export default defineConfig({
-  nitro: {
-    preset: "vercel",
-
-    // 🔴 `output` é OBRIGATÓRIO aqui, e por um motivo que não é óbvio.
-    //
-    // O `@lovable.dev/vite-tanstack-config` hardcoda os diretórios de saída e
-    // **sobrescreve os que o preset `vercel` do Nitro declara**:
-    //
-    //     const output = {
-    //       dir: "dist", serverDir: "dist/server", publicDir: "dist/client",
-    //       ...userNitroOpts.output        // <- a única saída
-    //     };
-    //
-    // Sem estas três linhas, o build emite `dist/` com `client/`+`server/` e um
-    // `config.json` de Build Output API v3 solto dentro — que **não é BOA v3
-    // válida**, porque faltam `static/` e `functions/`. A Vercel não acha output
-    // nenhum e devolve o 404 genérico dela, sem erro de build.
-    //
-    // ⚠️ Nenhuma configuração na interface da Vercel corrige isso: o *layout*
-    // está errado, não o caminho.
-    output: {
-      dir: ".vercel/output",
-      serverDir: ".vercel/output/functions/__server.func",
-      publicDir: ".vercel/output/static",
-    },
-  },
+  nitro: false,
+  tanstackStart: { spa: { enabled: true } },
 
   // Proxy `/api` para o backend local (D-Auth-7).
   //
@@ -62,6 +40,9 @@ export default defineConfig({
   // `credentials: "include"` no `apiFetch` e sem reabrir a D-Deploy-6
   // (CORS com credenciais).
   vite: {
+    // O *prerender* do shell sobe o servidor de preview do Vite. Sem host, ele
+    // escuta em `::` e falha em ambiente sem IPv6 (o container do agente).
+    preview: { host: "127.0.0.1" },
     server: {
       proxy: {
         "/api": {

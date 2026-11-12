@@ -175,3 +175,46 @@ banco de produção. `init_db.py` deixa de ser entrypoint e vira isso.
 
 ---
 
+
+### D-Vercel-7: o frontend vira SPA estático (decidido em 12/11/2026, item M)
+
+**Decidido antes da implementação**, a pedido do usuário (backlog 0.2, item M). Revê a parte do
+frontend da D-Deploy-1 (`docs/historico/deploy-railway.md`) e o preset `vercel` do Nitro da
+tabela acima.
+
+**O que se decidiu.** O TanStack Start roda em **modo SPA** (`tanstackStart.spa.enabled`), e o
+Nitro sai do build (`nitro: false`). `npm run build` emite **arquivos estáticos** em
+`dist/client/`: os assets e um `_shell.html`, gerado no build pelo *prerender* da rota `/`. Na
+Vercel o projeto do frontend serve essa pasta (`outputDirectory: "dist/client"`,
+`framework: null` no `vercel.json`), e duas regras de reescrita fazem o resto: `/api/*` para o
+backend (D-Vercel-3, sem mudança) e **todo o resto para `/_shell.html`** (o roteador resolve a
+rota no browser). Arquivo que existe (asset) é servido antes da reescrita.
+
+**Por quê** (backlog 0.2): nenhuma rota tinha `loader` nem `createServerFn` — o servidor
+renderizava um esqueleto vazio e o browser buscava tudo. Saem com o SSR: a função Node do
+frontend e sua partida a frio, o preset do Nitro fixado à mão e o layout de `.vercel/output`
+(o comentário de 40 linhas do `vite.config.ts`), e a classe de bug de hidratação que pesou em
+M-3 e M-10.
+
+**Verificado no container em 12/11/2026**, com a pasta servida por um servidor estático que
+imita as duas reescritas: as 5 telas abrem direto pela URL (título de cada uma pelo `head`), a
+navegação interna funciona, a tela de login aparece sem sessão, e nenhum erro no console.
+
+⚠️ **Não verificado na Vercel.** Depois do merge, conferir no primeiro deploy: (1) abrir
+`/parcelamentos` direto e recarregar — tem que vir a tela, não 404; (2) login com o Google e
+`/api/auth/me` 200; (3) um asset em `/assets/…` com `content-type` de JS. Se a Vercel ignorar
+o `outputDirectory` (configuração da interface vencendo o arquivo), o sintoma é o 404 genérico
+dela — o mesmo da época do Nitro.
+
+* **`preview.host: "127.0.0.1"`** no `vite.config.ts`: o *prerender* do shell sobe o servidor
+  de preview do Vite, que escutava em `::` e falhava em ambiente sem IPv6 (o container do
+  agente). Inofensivo na Vercel.
+* **Não muda:** variáveis `VITE_*` continuam embutidas no build; o proxy `/api` do dev server;
+  o rewrite `/api` e o cookie de mesma origem (D-Auth-3).
+* **Descartado:** manter SSR só para o `<head>` das páginas — o modo SPA já entrega título e
+  descrição por rota no browser, e app atrás de login não tem SEO a perder.
+* **Fica para depois, registrado:** `nitro`, `@cloudflare/vite-plugin` e `wrangler` deixam de
+  ser usados no build; saem numa limpeza de dependências própria (mexer no lockfile tem o
+  risco descrito na decisão K do CLAUDE.md).
+
+**Impacto no contrato com o backend:** nenhum.

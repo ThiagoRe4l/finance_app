@@ -93,15 +93,17 @@ D-Tenant-7.
     (`test_category_fk.py`).
 
 ### 🎨 Frontend (`/frontend`)
-* **Framework:** React + Vite + TypeScript — **TanStack Start com SSR**, não SPA estático
+* **Framework:** React + Vite + TypeScript — **TanStack Start em modo SPA estático** desde
+  12/11/2026 (D-Vercel-7 em `docs/deploy-vercel-neon.md`; até então era SSR via Nitro)
 * **Roteamento:** TanStack Router (`src/routes/`)
 * **Estilização e Componentes:** Tailwind CSS + Shadcn/UI (`src/components/ui/`). Os dois
   gráficos (`CashFlow`, `MonthlyComparison`) são barras em `div`: o Recharts está instalado,
   mas só `components/ui/chart.tsx` o importa — nenhuma tela o usa (verificado em 07/10/2026).
 * **Comunicação com API:** `fetch` centralizado em `src/lib/api.ts`
-* **Build:** `@lovable.dev/vite-tanstack-config` (v1.8.0) embute `tanstackStart` + **Nitro**.
-  ⚠️ O preset default do Nitro é `cloudflare-module` — sem fixar `node-server`, `npm run
-  build` produz um Cloudflare Worker, não uma pasta servível. Ver "🚢 Deploy → D-Deploy-1".
+* **Build:** `@lovable.dev/vite-tanstack-config` (v1.8.0) embute `tanstackStart` e o Nitro.
+  Desde a D-Vercel-7 o Nitro vai **desligado** (`nitro: false`) e o build emite
+  `dist/client/` (assets + `_shell.html`), servido como estático pela Vercel. O alerta antigo
+  do preset `cloudflare-module` só volta a valer se alguém religar o Nitro.
   ⚠️ O comentário no topo do `vite.config.ts` descreve a **API antiga** do preset (fala em
   `cloudflare`, que a v1.8 migrou para `nitro`) — desorienta em vez de orientar.
 
