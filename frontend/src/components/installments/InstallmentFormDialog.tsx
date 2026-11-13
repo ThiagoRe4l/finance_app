@@ -195,7 +195,7 @@ export function InstallmentFormDialog({
 
   const accounts = useQuery({
     queryKey: ["accounts"],
-    queryFn: () => api.get<Account[]>("/accounts/"),
+    queryFn: () => api.get<Account[]>("/accounts"),
     enabled: open && !isEditing,
   });
 
@@ -219,7 +219,7 @@ export function InstallmentFormDialog({
     mutationFn: (payload: unknown) =>
       isEditing
         ? api.patch(`/installments/${installment!.id}`, payload)
-        : api.post("/installments/", payload),
+        : api.post("/installments", payload),
     onSuccess: () => {
       for (const key of INSTALLMENT_QUERY_KEYS) {
         queryClient.invalidateQueries({ queryKey: key });

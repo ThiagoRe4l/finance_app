@@ -94,14 +94,14 @@ export function TransactionFormDialog({
    */
   const accounts = useQuery({
     queryKey: ["accounts"],
-    queryFn: () => api.get<Account[]>("/accounts/"),
+    queryFn: () => api.get<Account[]>("/accounts"),
     enabled: open && !isEditing,
   });
 
   // Só na criação: vincular é impossível na edição (B6), então nem se busca.
   const installments = useQuery({
     queryKey: ["installments"],
-    queryFn: () => api.get<Installment[]>("/installments/"),
+    queryFn: () => api.get<Installment[]>("/installments"),
     enabled: open && !isEditing,
   });
 
@@ -127,7 +127,7 @@ export function TransactionFormDialog({
     mutationFn: (payload: unknown) =>
       isEditing
         ? api.patch(`/transactions/${transaction!.id}`, payload)
-        : api.post("/transactions/", payload),
+        : api.post("/transactions", payload),
     onSuccess: () => {
       /*
        * Transação move saldo e agregados: dashboard, categorias e a própria

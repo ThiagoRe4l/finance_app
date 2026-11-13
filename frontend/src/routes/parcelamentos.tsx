@@ -41,7 +41,7 @@ export const Route = createFileRoute("/parcelamentos")({
 });
 
 // Coleção precisa da barra; `/summary` é rota específica e não pode ter.
-const INSTALLMENTS_ENDPOINT = "/installments/";
+const INSTALLMENTS_ENDPOINT = "/installments";
 const SUMMARY_ENDPOINT = "/installments/summary";
 
 function ErrorBanner({

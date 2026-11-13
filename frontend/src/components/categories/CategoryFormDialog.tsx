@@ -94,7 +94,7 @@ export function CategoryFormDialog({
     mutationFn: (payload: unknown) =>
       isEditing
         ? api.patch(`/categories/${category!.id}`, payload)
-        : api.post("/categories/", payload),
+        : api.post("/categories", payload),
     onSuccess: () => {
       // Categoria aparece no dashboard também — invalidar as duas evita a tela
       // vizinha ficar com dado velho até um reload.

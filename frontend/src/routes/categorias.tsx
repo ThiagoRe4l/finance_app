@@ -27,7 +27,7 @@ export const Route = createFileRoute("/categorias")({
 });
 
 // Com barra: é coleção (`@router.get("/")`), e sem ela o FastAPI responde 307.
-const CATEGORIES_ENDPOINT = "/categories/";
+const CATEGORIES_ENDPOINT = "/categories";
 
 const ALERT_COLOR = "oklch(0.6 0.2 25)";
 

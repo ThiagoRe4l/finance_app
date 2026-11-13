@@ -36,7 +36,7 @@ export function CategorySelect({
 }) {
   const categories = useQuery({
     queryKey: ["categories"],
-    queryFn: () => api.get<CategorySummary[]>("/categories/"),
+    queryFn: () => api.get<CategorySummary[]>("/categories"),
   });
 
   return (

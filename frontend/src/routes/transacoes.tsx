@@ -47,9 +47,10 @@ const typeColor: Record<TransactionLabel, string> = {
   Receita: "bg-[oklch(0.94_0.06_155)] text-[oklch(0.45_0.15_155)]",
 };
 
-// A barra final evita o 307 do FastAPI: a rota registrada é `/transactions/`,
-// e sem ela toda listagem custa dois round-trips.
-const TRANSACTIONS_ENDPOINT = "/transactions/";
+// Sem barra final: é a forma canônica das rotas de coleção (o backend aceita
+// as duas). Com barra, `GET /api/transactions/` respondeu 404 no deploy
+// estático da Vercel em 12/11/2026 — ver docs/common-hurdles.md, item 7.
+const TRANSACTIONS_ENDPOINT = "/transactions";
 
 // Só a tabela, que aparece a partir de `lg`, usa a grade; abaixo disso a
 // lista é de cartões (M-12).

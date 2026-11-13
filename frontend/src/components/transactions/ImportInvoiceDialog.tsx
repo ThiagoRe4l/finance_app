@@ -76,7 +76,7 @@ export function ImportInvoiceDialog({
 
   const accounts = useQuery({
     queryKey: ["accounts"],
-    queryFn: () => api.get<Account[]>("/accounts/"),
+    queryFn: () => api.get<Account[]>("/accounts"),
     enabled: open,
   });
   const accountId = accounts.data?.[0]?.id;
