@@ -24,16 +24,6 @@ function read(rel: string): string {
 
 const SCROLLER = "../components/shared/MonthScroller.tsx";
 const CASHFLOW = "../components/dashboard/CashFlow.tsx";
-const RELATORIOS = "../routes/relatorios.tsx";
-
-/** O `MonthlyComparison` de `relatorios.tsx`, sem o resto da rota. */
-function monthlyComparison(): string {
-  const src = read(RELATORIOS);
-  const start = src.indexOf("function MonthlyComparison");
-  const end = src.indexOf("function TopCategories");
-  assert.ok(start >= 0 && end > start, "MonthlyComparison não encontrado");
-  return src.slice(start, end);
-}
 
 const CHARTS = [
   {
@@ -41,12 +31,6 @@ const CHARTS = [
     source: () => read(CASHFLOW),
     // Duas barras `w-3` + `gap-1`: a coluna fixa não pode ser mais estreita.
     minColumnPx: 28,
-  },
-  {
-    name: "Comparativo Mensal (relatorios.tsx)",
-    source: monthlyComparison,
-    // Duas barras `w-5` + `gap-1.5`.
-    minColumnPx: 46,
   },
 ] as const;
 
@@ -136,7 +120,9 @@ for (const chart of CHARTS) {
     const src = chart.source();
     const map = src.indexOf("bars.map(");
     assert.ok(map >= 0, "sem bars.map(");
-    const cls = classesIn(tagAt(src, src.indexOf("<div", map)));
+    // A coluna virou `MonthColumn` (tooltip, docs/periodos.md fatia 3): as
+    // classes de largura seguem no mesmo lugar, agora no `className` dela.
+    const cls = classesIn(tagAt(src, src.indexOf("<MonthColumn", map)));
     assert.ok(cls.includes("flex-none"), cls.join(" "));
     assert.ok(cls.includes("md:flex-1"), cls.join(" "));
     assert.ok(!cls.includes("flex-1"), `flex-1 sem prefixo: ${cls.join(" ")}`);

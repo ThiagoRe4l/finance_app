@@ -405,7 +405,7 @@ def test_average_savings_remains_a_number(client, default_account, default_categ
     """
     _tx(client, default_account, default_category["id"], "ENTRADA", "1000.00")
 
-    data = client.get("/api/reports/overview").json()
+    data = client.get("/api/reports/overview", params={"period": "6m"}).json()
 
     assert isinstance(data["average_savings"], float)
     assert data["average_savings"] == pytest.approx(1000.0 / 6)

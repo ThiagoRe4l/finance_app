@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, AlertCircle, RotateCw } from "lucide-react";
+import { AlertCircle, RotateCw } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { SavingsHero } from "@/components/dashboard/SavingsHero";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { CategoryBars } from "@/components/dashboard/CategoryBars";
+import { RecurringCard } from "@/components/dashboard/RecurringCard";
 import { Transactions } from "@/components/dashboard/Transactions";
 import { CashFlow, type MonthlyFlow } from "@/components/dashboard/CashFlow";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,10 +20,26 @@ import {
   type CategorySummary,
 } from "@/lib/dashboard";
 import type { Transaction } from "@/lib/transactions";
-import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
-import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
+import { EmptyPeriod } from "@/components/shared/EmptyPeriod";
+import { PeriodFilter } from "@/components/shared/PeriodFilter";
+import {
+  currentMonthKey,
+  parsePeriodParam,
+  periodEyebrow,
+  periodHasData,
+  periodLabel,
+  periodQuery,
+  periodSearch,
+  type PeriodInfo,
+} from "@/lib/period";
 
 export const Route = createFileRoute("/")({
+  // O período vai na URL (`?periodo=`), como a aba de /recorrencias. Valor que o
+  // backend recusaria é descartado e a tela volta ao mês corrente.
+  validateSearch: (search: Record<string, unknown>): { periodo?: string } => {
+    const periodo = parsePeriodParam(search.periodo);
+    return periodo === undefined ? {} : { periodo };
+  },
   component: Index,
 });
 
@@ -40,16 +57,23 @@ interface DashboardSummary {
   category_distribution: CategorySummary[];
   active_installments_count: number;
   monthly_committed_amount: string;
+  active_subscriptions_count: number;
+  monthly_subscriptions_amount: string;
+  monthly_recurring_amount: string;
   balance_change_pct: number | null;
   expenses_change_pct: number | null;
   savings_pct_of_revenue: number | null;
+  period: PeriodInfo;
+  projected_expenses: string;
+  is_projection: boolean;
 }
 
 function LoadingState() {
   return (
     <>
-      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
-        {Array.from({ length: 4 }, (_, i) => (
+      <Skeleton className="mb-4 md:mb-6 h-44 rounded-2xl" />
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8">
+        {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
             className="bg-card p-6 rounded-2xl border border-border shadow-sm"
@@ -64,7 +88,7 @@ function LoadingState() {
         <Skeleton className="lg:col-span-2 h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
       </section>
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Skeleton className="lg:col-span-2 h-72 rounded-2xl" />
       </section>
     </>
@@ -118,30 +142,28 @@ function Summary({ data }: { data: DashboardSummary }) {
     data.expenses_change_pct,
     "vs mês anterior",
   );
-  const savingsDelta = formatDelta(data.savings_pct_of_revenue, "das receitas");
 
   return (
     <>
-      <section className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8">
+      <SavingsHero
+        savings={data.total_savings}
+        revenues={data.total_revenues}
+        expenses={data.total_expenses}
+        savingsPct={data.savings_pct_of_revenue}
+      />
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8">
         {/*
           `tone` = julgamento (cor), `trend` = direção real (seta). São passados
           de forma independente: acoplar os dois foi o que fez "+325,8%" em
           Despesas exibir seta para baixo.
         */}
         <MetricCard
-          label="Saldo Total"
-          value={formatBRL(data.total_balance)}
-          delta={balanceDelta ?? undefined}
-          tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
-          trend={trendFromDelta(data.balance_change_pct)}
-        />
-        <MetricCard
-          label="Receitas"
+          label="Entradas"
           value={formatBRL(data.total_revenues)}
           tone="neutral"
         />
         <MetricCard
-          label="Despesas"
+          label="Saídas"
           value={formatBRL(data.total_expenses)}
           delta={expensesDelta ?? undefined}
           // Único card em que julgamento e direção divergem: gasto subindo é
@@ -149,45 +171,44 @@ function Summary({ data }: { data: DashboardSummary }) {
           tone={toneFromDelta(data.expenses_change_pct, "lower-is-better")}
           trend={trendFromDelta(data.expenses_change_pct)}
         />
-        <MetricCard
-          label="Economia"
-          value={formatBRL(data.total_savings)}
-          delta={savingsDelta ?? undefined}
-          tone={toneFromDelta(data.savings_pct_of_revenue, "higher-is-better")}
-          trend={trendFromDelta(data.savings_pct_of_revenue)}
-        />
+        <div className="sm:col-span-2 xl:col-span-1">
+          <MetricCard
+            label="Saldo atual"
+            value={formatBRL(data.total_balance)}
+            delta={balanceDelta ?? undefined}
+            tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
+            trend={trendFromDelta(data.balance_change_pct)}
+          />
+        </div>
       </section>
+      {data.projected_expenses !== "0.00" && (
+        <p className="mb-8 -mt-4 text-xs text-muted-foreground">
+          As saídas incluem {formatBRL(data.projected_expenses)} previstos em
+          cobranças de assinatura que ainda não aconteceram.
+        </p>
+      )}
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
           <CashFlow months={data.monthly_flow} />
         </div>
-        <Transactions transactions={data.recent_transactions} />
+        <RecurringCard
+          installmentsCount={data.active_installments_count}
+          subscriptionsCount={data.active_subscriptions_count}
+          monthlyAmount={data.monthly_recurring_amount}
+        />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-16 lg:pb-0">
-        <div className="lg:col-span-2">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-5">
           <CategoryBars
             categories={data.category_distribution}
             totalExpenses={data.total_expenses}
+            periodLabel={periodLabel(data.period.key)}
           />
         </div>
-        <div className="bg-card p-8 rounded-2xl border border-border shadow-sm flex flex-col">
-          <h2 className="text-sm font-medium mb-6">Parcelamentos</h2>
-          <div className="flex-1 flex flex-col justify-center gap-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Ativos</span>
-              <span className="tabular-nums font-medium">
-                {data.active_installments_count}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Comprometido</span>
-              <span className="tabular-nums font-medium">
-                {formatBRL(data.monthly_committed_amount)}/mês
-              </span>
-            </div>
-          </div>
+        <div className="lg:col-span-7">
+          <Transactions transactions={data.recent_transactions} />
         </div>
       </section>
     </>
@@ -225,6 +246,15 @@ function DashboardBody({
       />
     );
   }
+  const body = periodHasData({
+    revenues: data.total_revenues,
+    expenses: data.total_expenses,
+    itemCount: data.recent_transactions.length,
+  }) ? (
+    <Summary data={data} />
+  ) : (
+    <EmptyPeriod label={periodLabel(data.period.key)} />
+  );
   if (view === "stale-summary") {
     return (
       <>
@@ -236,42 +266,45 @@ function DashboardBody({
             isRetrying={isRetrying}
           />
         </div>
-        <Summary data={data} />
+        {body}
       </>
     );
   }
-  return <Summary data={data} />;
+  return body;
 }
 
 function Index() {
-  const [isCreating, setIsCreating] = useState(false);
+  const { periodo } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const currentKey = currentMonthKey();
 
   const { data, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["dashboard", "summary"],
-    queryFn: () => api.get<DashboardSummary>(SUMMARY_ENDPOINT),
+    queryKey: ["dashboard", "summary", periodo ?? ""],
+    queryFn: () =>
+      api.get<DashboardSummary>(`${SUMMARY_ENDPOINT}${periodQuery(periodo)}`),
+    // Trocar de mês não pisca o esqueleto: os números antigos ficam até os novos chegarem.
+    placeholderData: (previous) => previous,
   });
 
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Mês corrente"
+        eyebrow={periodEyebrow(
+          periodo,
+          currentKey,
+          data?.is_projection ?? false,
+        )}
         title="Visão Geral"
         description="Acompanhe seu fluxo, categorias e parcelamentos em um só lugar."
-        actionClassName="hidden lg:flex"
-        action={
-          /*
-              "Buscar" removido: era botão sem campo e sem estado, e o Dashboard
-              não tem lista para filtrar — são agregados e 7 transações
-              recentes. Mesma lógica do "Filtrar" de Transações: inerte ao lado
-              de ações que funcionam é pior que ausente.
-            */
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus className="h-4 w-4" />
-            Nova transação
-          </button>
+      />
+
+      <PeriodFilter
+        value={periodo ?? currentKey}
+        onChange={(key) =>
+          navigate({
+            search: { periodo: periodSearch(key, currentKey) },
+            replace: true,
+          })
         }
       />
 
@@ -282,14 +315,6 @@ function Index() {
         onRetry={() => refetch()}
         isRetrying={isFetching}
       />
-
-      <FloatingActionButton
-        label="Nova transação"
-        onClick={() => setIsCreating(true)}
-      />
-
-      {/* Mesmo diálogo da tela de Transações — modo criação é o default. */}
-      <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
     </AppShell>
   );
 }

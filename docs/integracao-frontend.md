@@ -257,3 +257,63 @@ um `onClick` sequer em `routes/` ou `components/dashboard/`, e os botões existe
 resposta a uma tela que já pede. Não existe tela de contas nem de investimentos — a
 `Sidebar` tem 5 itens e nenhum aponta para elas.
 
+
+---
+
+### 💱 Transações por tipo — entrada × saída (decidido em 13/11/2026)
+
+**Decidido antes da implementação.** A aprovação dos testes foi **delegada pelo usuário** nesta
+data ("pode seguir com o plano ... planejamento > implementação > teste > revisão"). Só frontend;
+**sem impacto no contrato com o backend** e sem migration.
+
+**T-1: o formulário muda por tipo.** O seletor "Tipo" vira um alternador Entrada/Saída no topo
+(o `Tabs` de `/recorrencias`). *Entrada:* descrição, valor, data, categoria e "Entrada fixa" (o
+mesmo `is_fixed`; só o rótulo muda). **Sem parcelamento**: o schema de criação passa a recusar
+`ENTRADA` com `installment_id`. *Saída:* tudo o que existe hoje, mais "Criar novo parcelamento".
+*Descartado:* proibir `installment_id` em entrada também no backend — dado antigo não quebra, e
+a regra de produto é da tela.
+
+**T-2: parcelamento criado ali mesmo.** Escolher "Criar novo parcelamento" mostra *Informar*
+(parcela/total), *Nº de parcelas* e *Parcela atual*; valor e data viram o valor e o vencimento
+da parcela atual. Salvar chama **só** `POST /installments`, que já grava as parcelas como
+transações (P-1): nada de duas chamadas nem de criar a transação à parte (duplicaria a parcela).
+`inlineInstallmentInput` (`lib/transaction-form.ts`) monta a entrada de `installmentCreateSchema`.
+O front não divide dinheiro. *Descartado:* endpoint novo que cria transação e parcelamento juntos.
+
+**T-3: máscara de valor "caixa registradora", no sistema todo.** `maskMoney` /`decimalToMask`
+(`lib/money.ts`) e `components/shared/MoneyInput.tsx`: só dígitos, entram pela direita (`4` →
+`R$ 0,04`, `40000` → `R$ 400,00`), 12 dígitos no máximo (`Numeric(12, 2)`), backspace tira o
+último. O campo guarda o texto mascarado e `parseMoneyInput` (já aceita `R$` e milhar) o
+converte em string decimal: **sem `number`, sem float**. Vale em transação, parcelamento,
+assinatura e orçamento de categoria.
+
+**T-4: criar só em Transações.** Sai "Nova transação" do Dashboard (botão, flutuante e
+formulário). Em Transações, o "Nova" e o flutuante abrem o formulário já no tipo da aba ativa.
+
+**T-5: listas separadas.** Transações ganha as abas *Entradas* e *Saídas* (`?aba=`, como
+`/recorrencias`); a busca vale dentro da aba. O Dashboard separa "Transações Recentes" em
+*Entradas* e *Saídas* por `type`. Nenhuma soma monetária no cliente.
+
+---
+
+### 🧩 Relatórios unificado ao Dashboard (decidido em 13/11/2026)
+
+**Decidido antes da implementação**, a pedido do usuário ("tem dados iguais ou quase iguais"). Só
+frontend; os endpoints `/reports/*` ficam no backend, sem uso pela UI (**fora do escopo**).
+
+**U-1: a tela de Relatórios sai; o Dashboard já tem o que ela mostrava.** Comparação feita em
+13/11/2026: *Total de Receitas/Despesas* = cartões Receitas/Despesas; *Comparativo Mensal* =
+Fluxo Mensal (`MonthScroller` + `MonthColumn`, os dois com o filtro de período); *Maiores
+categorias* = Distribuição de gastos; o insight de parcelamentos ("N parcelamentos
+comprometendo R$ X") = cartão Recorrências (que ainda soma as assinaturas). Sai o item da
+navegação (de 5 para 4) e `lib/reports.ts` (`buildReportInsights`, sem outro uso). `/relatorios`
+vira redirecionamento para `/`, levando `?periodo=`, como `/parcelamentos` fez para Recorrências.
+
+**O que se perde, de propósito:** o cartão "Economia média" (`average_savings`) — o Dashboard
+mostra a Economia do período — e a frase do insight, já coberta pelo cartão Recorrências.
+*Descartado:* trazer "Economia média" para o Dashboard (vira cartão extra, e a medida de
+1024–1535 px da M-15 já aperta os quatro de hoje). *Descartado:* manter Relatórios com o que
+sobra (nada sobra).
+
+**Impacto no contrato:** nenhum. O teto de 4 itens na barra inferior também folga o rótulo
+"Recorrente".

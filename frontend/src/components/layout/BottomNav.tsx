@@ -17,7 +17,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)]"
     >
       <div className="flex h-[var(--app-bottombar-height)]">
         {NAV_ITEMS.map(({ key, to, shortLabel }) => {
@@ -29,7 +29,7 @@ export function BottomNav() {
               to={to}
               activeOptions={{ exact: true }}
               aria-current={isActive ? "page" : undefined}
-              className="flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-muted-foreground transition-colors aria-[current=page]:font-medium aria-[current=page]:text-primary"
+              className="flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-sidebar-foreground/75 transition-colors aria-[current=page]:font-medium aria-[current=page]:text-sidebar-primary"
             >
               <Icon className="h-5 w-5" />
               {shortLabel}

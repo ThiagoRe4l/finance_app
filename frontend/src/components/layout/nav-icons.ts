@@ -2,8 +2,7 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   Tags,
-  CreditCard,
-  BarChart3,
+  Repeat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -14,6 +13,5 @@ export const NAV_ICONS: Record<NavKey, LucideIcon> = {
   inicio: LayoutDashboard,
   transacoes: ArrowLeftRight,
   categorias: Tags,
-  parcelamentos: CreditCard,
-  relatorios: BarChart3,
+  recorrencias: Repeat,
 };

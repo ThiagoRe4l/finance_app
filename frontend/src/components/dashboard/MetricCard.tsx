@@ -14,7 +14,7 @@ interface MetricCardProps {
 
 const toneClasses: Record<Tone, string> = {
   neutral: "text-foreground",
-  positive: "text-[oklch(0.55_0.15_155)]",
+  positive: "text-income",
   negative: "text-destructive",
 };
 
@@ -46,7 +46,7 @@ export function MetricCard({
         {label}
       </p>
       <p
-        className={`text-2xl font-semibold tabular-nums whitespace-nowrap ${toneClasses[tone]}`}
+        className={`text-2xl font-display font-semibold tabular-nums whitespace-nowrap ${toneClasses[tone]}`}
       >
         {value}
       </p>

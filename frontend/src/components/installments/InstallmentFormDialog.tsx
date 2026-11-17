@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CategorySelect } from "@/components/shared/CategorySelect";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import { formatFullDate, parseISODate, toISODate } from "@/lib/date";
@@ -368,14 +369,10 @@ export function InstallmentFormDialog({
                     <Label htmlFor="inst-amount">
                       {values.amount_mode === "total" ? "Total" : "Parcela"}
                     </Label>
-                    <Input
+                    <MoneyInput
                       id="inst-amount"
                       value={values.amount}
-                      onChange={(e) => update("amount", e.target.value)}
-                      placeholder={
-                        values.amount_mode === "total" ? "5.400,00" : "450,00"
-                      }
-                      inputMode="decimal"
+                      onValueChange={(v) => update("amount", v)}
                       className="h-11 sm:h-9"
                     />
                     {errors.amount && (

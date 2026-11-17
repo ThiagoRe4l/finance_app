@@ -12,15 +12,14 @@ import { fileURLToPath } from "node:url";
 
 import { NAV_ITEMS, activeNavKey } from "./navigation.ts";
 
-test("os 5 itens, na ordem da Sidebar de hoje", () => {
+test("os 4 itens, na ordem da Sidebar (Relatórios saiu, 13/11/2026)", () => {
   assert.deepEqual(
     NAV_ITEMS.map((i) => [i.key, i.to]),
     [
       ["inicio", "/"],
       ["transacoes", "/transacoes"],
       ["categorias", "/categorias"],
-      ["parcelamentos", "/parcelamentos"],
-      ["relatorios", "/relatorios"],
+      ["recorrencias", "/recorrencias"],
     ],
   );
 });
@@ -28,14 +27,14 @@ test("os 5 itens, na ordem da Sidebar de hoje", () => {
 test("label é o da Sidebar de hoje: ≥ 1024 px não muda", () => {
   assert.deepEqual(
     NAV_ITEMS.map((i) => i.label),
-    ["Dashboard", "Transações", "Categorias", "Parcelamentos", "Relatórios"],
+    ["Dashboard", "Transações", "Categorias", "Recorrências"],
   );
 });
 
 test("shortLabel é o da barra inferior e cabe em ~64 px (até 10 caracteres)", () => {
   assert.deepEqual(
     NAV_ITEMS.map((i) => i.shortLabel),
-    ["Início", "Transações", "Categorias", "Parcelas", "Relatórios"],
+    ["Início", "Transações", "Categorias", "Recorrente"],
   );
   for (const { shortLabel } of NAV_ITEMS) {
     assert.ok(shortLabel.length <= 10, `"${shortLabel}" não cabe na barra`);
@@ -60,12 +59,13 @@ test("activeNavKey: cada destino ativa o próprio item (igual ao exact da Sideba
 
 test("activeNavKey: barra final é ignorada", () => {
   assert.equal(activeNavKey("/transacoes/"), "transacoes");
-  assert.equal(activeNavKey("/relatorios/"), "relatorios");
+  // A rota antiga só redireciona: nenhum item da navegação a reivindica.
+  assert.equal(activeNavKey("/relatorios/"), null);
 });
 
 test("activeNavKey: subcaminho ativa o pai, menos para /", () => {
   assert.equal(activeNavKey("/transacoes/123"), "transacoes");
-  assert.equal(activeNavKey("/parcelamentos/a/b"), "parcelamentos");
+  assert.equal(activeNavKey("/recorrencias/a/b"), "recorrencias");
 });
 
 test("activeNavKey: prefixo sem fronteira de segmento não casa", () => {

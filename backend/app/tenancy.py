@@ -41,6 +41,7 @@ OWNED_MODELS = (
     models.Category,
     models.Installment,
     models.Investment,
+    models.Subscription,
     models.Transaction,
 )
 

@@ -9,25 +9,58 @@ import {
   Pencil,
   Trash2,
   FileUp,
+  Inbox,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
 import { formatShortDate } from "@/lib/date";
 import {
   deriveTransactionLabel,
+  directionOf,
   signedAmount,
+  sortNewestFirst,
   type Transaction,
   type TransactionLabel,
+  type TransactionType,
 } from "@/lib/transactions";
+import { PeriodFilter } from "@/components/shared/PeriodFilter";
+import {
+  currentMonthKey,
+  parsePeriodParam,
+  periodLabel,
+  periodSearch,
+} from "@/lib/period";
 import { TransactionFormDialog } from "@/components/transactions/TransactionFormDialog";
 import { DeleteTransactionDialog } from "@/components/transactions/DeleteTransactionDialog";
 import { ImportInvoiceDialog } from "@/components/transactions/ImportInvoiceDialog";
 import { FloatingActionButton } from "@/components/shared/FloatingActionButton";
 
+type Aba = "entradas" | "saidas";
+
 export const Route = createFileRoute("/transacoes")({
+  // A aba vai na URL, como em /recorrencias (T-5). Valor desconhecido cai na
+  // aba padrão.
+  // O período vai na URL como no Dashboard (`?periodo=`, PER-8); inválido é
+  // descartado e a tela volta ao mês corrente.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { aba?: Aba; periodo?: string } => {
+    const aba =
+      search.aba === "saidas"
+        ? "saidas"
+        : search.aba === "entradas"
+          ? "entradas"
+          : undefined;
+    const periodo = parsePeriodParam(search.periodo);
+    return {
+      ...(aba === undefined ? {} : { aba }),
+      ...(periodo === undefined ? {} : { periodo }),
+    };
+  },
   head: () => ({
     meta: [
       { title: "Transações — Fisco" },
@@ -42,9 +75,9 @@ export const Route = createFileRoute("/transacoes")({
 
 const typeColor: Record<TransactionLabel, string> = {
   Fixa: "bg-secondary text-foreground",
-  Variável: "bg-[oklch(0.94_0.04_50)] text-[oklch(0.45_0.15_50)]",
-  Parcelada: "bg-[oklch(0.94_0.04_300)] text-[oklch(0.45_0.18_300)]",
-  Receita: "bg-[oklch(0.94_0.06_155)] text-[oklch(0.45_0.15_155)]",
+  Variável: "bg-expense/20 text-expense-text",
+  Parcelada: "bg-accent text-brand",
+  Receita: "bg-income/10 text-income",
 };
 
 // Sem barra final: é a forma canônica das rotas de coleção (o backend aceita
@@ -146,15 +179,73 @@ function ErrorBanner({
   );
 }
 
-function EmptyState({ hasSearch }: { hasSearch: boolean }) {
+function EmptyState({
+  hasSearch,
+  type,
+  period,
+  onCreate,
+  onImport,
+}: {
+  hasSearch: boolean;
+  type: TransactionType;
+  /** O período já por extenso (ex.: `Novembro de 2026`). */
+  period: string;
+  onCreate: () => void;
+  onImport: () => void;
+}) {
+  const noun = type === "ENTRADA" ? "entrada" : "saída";
+  // Ensina no contexto (Q6): o vazio diz o que fazer em seguida.
   return (
-    <div className="px-6 py-16 text-center">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <Inbox className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+      <p className="text-sm font-medium">
         {hasSearch
-          ? "Nenhuma transação corresponde à busca."
-          : "Nenhuma transação registrada ainda."}
+          ? `Nenhuma ${noun} corresponde à busca`
+          : `Nenhuma ${noun} em ${period}`}
       </p>
+      {!hasSearch && (
+        <>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Lance {type === "ENTRADA" ? "o que recebeu" : "o que gastou"} em
+            poucos segundos, ou traga uma fatura em PDF.
+          </p>
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={onCreate}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 lg:min-h-0 lg:py-2"
+            >
+              <Plus className="h-4 w-4" /> Nova transação
+            </button>
+            <button
+              type="button"
+              onClick={onImport}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm hover:bg-secondary lg:min-h-0 lg:py-2"
+            >
+              <FileUp className="h-4 w-4" /> Importar fatura
+            </button>
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+/** Valor com sinal e rótulo para leitor de tela: a cor não é a única pista (M4). */
+function SignedAmount({
+  type,
+  amount,
+}: {
+  type: TransactionType;
+  amount: number;
+}) {
+  const { sign, srLabel } = directionOf(type);
+  return (
+    <>
+      <span className="sr-only">{srLabel}: </span>
+      {sign}
+      {formatBRL(Math.abs(amount))}
+    </>
   );
 }
 
@@ -189,11 +280,10 @@ function TransactionRow({
       </div>
       <div
         className={`col-span-2 text-right text-sm font-medium tabular-nums ${
-          isIncome ? "text-[oklch(0.55_0.15_155)]" : "text-foreground"
+          isIncome ? "text-income" : "text-foreground"
         }`}
       >
-        {isIncome ? "+" : ""}
-        {formatBRL(amount)}
+        <SignedAmount type={transaction.type} amount={amount} />
       </div>
       {/*
         Coluna própria, ao contrário dos cards de Categorias: numa tabela há
@@ -256,27 +346,27 @@ function TransactionCard({
         </div>
         <p
           className={`shrink-0 whitespace-nowrap tabular-nums text-sm font-medium ${
-            isIncome ? "text-[oklch(0.55_0.15_155)]" : "text-foreground"
+            isIncome ? "text-income" : "text-foreground"
           }`}
         >
-          {isIncome ? "+" : ""}
-          {formatBRL(amount)}
+          <SignedAmount type={transaction.type} amount={amount} />
         </p>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="tabular-nums">
-            {formatShortDate(transaction.date)}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span className="min-w-0 truncate">{transaction.category.name}</span>
-          <span
-            className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full ${typeColor[label]}`}
-          >
-            {meta ? `${label} ${meta}` : label}
-          </span>
-        </div>
-        <div className="flex shrink-0 gap-1">
+      <div className="mt-1 flex items-center gap-x-2 text-xs text-muted-foreground">
+        <span className="tabular-nums">
+          {formatShortDate(transaction.date)}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span className="min-w-0 truncate">{transaction.category.name}</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <span
+          className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full ${typeColor[label]}`}
+        >
+          {meta ? `${label} ${meta}` : label}
+        </span>
+        {/* gap maior: editar e excluir ficam longe um do outro (Fitts, Q7). */}
+        <div className="flex shrink-0 gap-4">
           <button
             type="button"
             onClick={onEdit}
@@ -305,10 +395,20 @@ function TransacoesPage() {
   const [deleting, setDeleting] = useState<Transaction | undefined>();
   const [search, setSearch] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const { aba = "entradas", periodo } = Route.useSearch();
+  const currentKey = currentMonthKey();
+  // O padrão é o mês corrente (PER-1): a tela nunca pede o histórico inteiro
+  // sem o usuário escolher `Tudo`.
+  const period = periodo ?? currentKey;
+  const navigate = Route.useNavigate();
+  const type: TransactionType = aba === "saidas" ? "SAÍDA" : "ENTRADA";
 
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: () => api.get<Transaction[]>(TRANSACTIONS_ENDPOINT),
+    queryKey: ["transactions", period],
+    queryFn: () =>
+      api.get<Transaction[]>(`${TRANSACTIONS_ENDPOINT}?period=${period}`),
+    // Trocar de período não pisca: a lista antiga fica até a nova chegar.
+    placeholderData: (previous) => previous,
   });
 
   /*
@@ -317,11 +417,12 @@ function TransacoesPage() {
    * ⚠️ Vira dívida com volume — ver "sem paginação" no CLAUDE.md.
    */
   const term = search.trim().toLowerCase();
-  const visible = (data ?? []).filter(
+  const visible = sortNewestFirst(data ?? []).filter(
     (t) =>
-      term === "" ||
-      t.title.toLowerCase().includes(term) ||
-      t.category.name.toLowerCase().includes(term),
+      t.type === type &&
+      (term === "" ||
+        t.title.toLowerCase().includes(term) ||
+        t.category.name.toLowerCase().includes(term)),
   );
 
   return (
@@ -330,99 +431,152 @@ function TransacoesPage() {
         eyebrow="Histórico"
         title="Transações"
         description="Histórico completo de entradas e saídas."
-        actionClassName="hidden lg:flex"
-        action={
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" /> Nova
-          </button>
-        }
       />
 
-      {/*
-        "Importar fatura" fica fora do cabeçalho de propósito: a ação do
-        `PageHeader` some abaixo de lg (o flutuante é "Nova"), e a importação
-        precisa existir no celular também (docs/importacao-fatura.md).
-      */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative sm:flex-1 md:flex-none">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por descrição ou categoria..."
-            className="w-full md:w-96 pl-10 pr-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+      <Tabs
+        value={aba}
+        onValueChange={(value) =>
+          navigate({
+            search: (prev) => ({ ...prev, aba: value as Aba }),
+            replace: true,
+          })
+        }
+      >
+        <div className="mb-4 border-b border-border">
+          <TabsList className="h-auto justify-start gap-6 rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="entradas"
+              className="-mb-px h-11 sm:h-9 rounded-none border-b-2 border-transparent bg-transparent px-1 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              Entradas
+            </TabsTrigger>
+            <TabsTrigger
+              value="saidas"
+              className="-mb-px h-11 sm:h-9 rounded-none border-b-2 border-transparent bg-transparent px-1 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              Saídas
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsImporting(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors"
-        >
-          <FileUp className="h-4 w-4" /> Importar fatura
-        </button>
-      </div>
 
-      {isError ? (
-        <ErrorBanner
-          message={
-            error instanceof Error ? error.message : "Erro desconhecido."
-          }
-          onRetry={() => refetch()}
-          isRetrying={isFetching}
-        />
-      ) : !isPending && visible.length === 0 ? (
-        // Vazio uma vez só, fora das duas marcações (M-12).
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-          <EmptyState hasSearch={search.trim() !== ""} />
+        {/*
+          Opção B (F-2): o período à esquerda; à direita, pela ordem, Nova,
+          Importar fatura e a busca. "Nova" só a partir de lg: abaixo, o
+          flutuante a substitui.
+        */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <PeriodFilter
+            bare
+            value={period}
+            onChange={(key) =>
+              navigate({
+                search: (prev) => ({
+                  ...prev,
+                  periodo: periodSearch(key, currentKey),
+                }),
+                replace: true,
+              })
+            }
+          />
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-1 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setIsCreating(true)}
+              className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" /> Nova
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsImporting(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors"
+            >
+              <FileUp className="h-4 w-4" /> Importar fatura
+            </button>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por descrição ou categoria..."
+                aria-label="Buscar por descrição ou categoria"
+                className="w-full pl-10 pr-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
         </div>
-      ) : (
-        <>
-          {/*
+
+        <TabsContent value={aba} className="mt-0">
+          {isError ? (
+            <ErrorBanner
+              message={
+                error instanceof Error ? error.message : "Erro desconhecido."
+              }
+              onRetry={() => refetch()}
+              isRetrying={isFetching}
+            />
+          ) : !isPending && visible.length === 0 ? (
+            // Vazio uma vez só, fora das duas marcações (M-12).
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <EmptyState
+                hasSearch={search.trim() !== ""}
+                type={type}
+                period={periodLabel(period)}
+                onCreate={() => setIsCreating(true)}
+                onImport={() => setIsImporting(true)}
+              />
+            </div>
+          ) : (
+            <>
+              {/*
             Cartões abaixo de `lg`, tabela a partir de `lg`: as duas marcações
             renderizadas, escolhidas só por CSS (M-12). O `pb-16` é a folga
             para o botão flutuante não cobrir o último cartão.
           */}
-          <ul className="lg:hidden flex flex-col gap-3 pb-16">
-            {isPending ? (
-              <LoadingCards />
-            ) : (
-              visible.map((transaction) => (
-                <TransactionCard
-                  key={transaction.id}
-                  transaction={transaction}
-                  onEdit={() => setEditing(transaction)}
-                  onDelete={() => setDeleting(transaction)}
-                />
-              ))
-            )}
-          </ul>
-          <div className="hidden lg:block bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-            <TableHeader />
-            {isPending ? (
-              <LoadingRows />
-            ) : (
-              visible.map((transaction) => (
-                <TransactionRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  onEdit={() => setEditing(transaction)}
-                  onDelete={() => setDeleting(transaction)}
-                />
-              ))
-            )}
-          </div>
-        </>
-      )}
+              <ul className="lg:hidden flex flex-col gap-3 pb-16">
+                {isPending ? (
+                  <LoadingCards />
+                ) : (
+                  visible.map((transaction) => (
+                    <TransactionCard
+                      key={transaction.id}
+                      transaction={transaction}
+                      onEdit={() => setEditing(transaction)}
+                      onDelete={() => setDeleting(transaction)}
+                    />
+                  ))
+                )}
+              </ul>
+              <div className="hidden lg:block bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+                <TableHeader />
+                {isPending ? (
+                  <LoadingRows />
+                ) : (
+                  visible.map((transaction) => (
+                    <TransactionRow
+                      key={transaction.id}
+                      transaction={transaction}
+                      onEdit={() => setEditing(transaction)}
+                      onDelete={() => setDeleting(transaction)}
+                    />
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <FloatingActionButton
         label="Nova transação"
         onClick={() => setIsCreating(true)}
       />
-      <TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />
+      <TransactionFormDialog
+        open={isCreating}
+        onOpenChange={setIsCreating}
+        defaultType={type}
+      />
       <ImportInvoiceDialog open={isImporting} onOpenChange={setIsImporting} />
       <TransactionFormDialog
         key={editing?.id}

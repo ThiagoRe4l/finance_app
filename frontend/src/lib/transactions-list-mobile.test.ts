@@ -139,8 +139,8 @@ test("cartão: descrição em até duas linhas, palavra longa quebra, pai com mi
 
 test("cartão: o valor não encolhe nem quebra", () => {
   const src = fn(read(PAGE), "TransactionCard");
-  const at = src.indexOf("formatBRL(amount)");
-  assert.ok(at >= 0, "sem formatBRL(amount) no cartão");
+  const at = src.indexOf("<SignedAmount");
+  assert.ok(at >= 0, "sem <SignedAmount> no cartão");
   assertTokens(innermostAround(src, at).tag, [
     "shrink-0",
     "whitespace-nowrap",
@@ -148,7 +148,7 @@ test("cartão: o valor não encolhe nem quebra", () => {
   ]);
 });
 
-test("cartão: linha 2 com data · categoria (truncate) e tipo, em flex-wrap", () => {
+test("cartão: linha 2 com data · categoria (truncate); o tipo fica na linha 3 (Q7)", () => {
   const src = fn(read(PAGE), "TransactionCard");
   const date = src.indexOf("formatShortDate(transaction.date)");
   const category = src.indexOf("{transaction.category.name}");
@@ -160,11 +160,10 @@ test("cartão: linha 2 com data · categoria (truncate) e tipo, em flex-wrap", (
 
   assertTokens(innermostAround(src, category).tag, ["truncate"]);
   const line = elements(src)
-    .filter((e) =>
-      [date, category, type].every((i) => e.start < i && i < e.end),
-    )
+    .filter((e) => [date, category].every((i) => e.start < i && i < e.end))
     .reduce((a, b) => (b.start > a.start ? b : a));
-  assertTokens(line.tag, ["flex", "flex-wrap"]);
+  assertTokens(line.tag, ["flex", "items-center"]);
+  assert.ok(!(line.start < type && type < line.end), "o tipo saiu da linha 2");
 });
 
 test("cartão: editar e excluir com 44×44, sempre visíveis, rotulados com o título", () => {
@@ -247,13 +246,12 @@ test("busca: 16 px no celular (sem zoom no iOS) e 44 px de altura abaixo de lg",
   assertNoTokens(input, ["text-sm", "text-xs"]);
 });
 
-test('"Nova" do cabeçalho só a partir de lg (o flutuante a substitui no celular)', () => {
+test('"Nova" só a partir de lg (o flutuante a substitui no celular)', () => {
   const src = page();
   const at = src.search(/\/>\s*Nova\s*</);
   assert.ok(at >= 0, "sem o botão Nova");
-  // A visibilidade mora no contêiner da ação (M-13, 3b): ver
-  // `headerActionProblems` em `jsx-source.ts`.
-  assert.deepEqual(headerActionProblems(src, at), []);
+  const button = tagAt(src, src.lastIndexOf("<button", at));
+  assertTokens(button, ["hidden", "lg:flex"]);
 });
 
 test('"Tentar novamente" com 44 px abaixo de lg', () => {

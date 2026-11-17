@@ -57,7 +57,7 @@ export function UserMenu({
       <div className="flex min-w-0 items-center gap-2">
         {data?.email && (
           <p
-            className="min-w-0 truncate text-xs text-muted-foreground"
+            className="min-w-0 truncate text-xs text-sidebar-foreground/75"
             title={data.email}
           >
             {data.email}
@@ -67,7 +67,7 @@ export function UserMenu({
           type="button"
           onClick={() => logout.mutate()}
           disabled={logout.isPending}
-          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground disabled:opacity-60"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-60"
         >
           <LogOut className="h-4 w-4" />
           {label}
@@ -80,7 +80,7 @@ export function UserMenu({
     <div className="mt-auto flex flex-col gap-2">
       {data?.email && (
         <p
-          className="truncate text-xs text-muted-foreground"
+          className="truncate text-xs text-sidebar-foreground/75"
           title={data.email}
         >
           {data.email}
@@ -90,7 +90,7 @@ export function UserMenu({
         type="button"
         onClick={() => logout.mutate()}
         disabled={logout.isPending}
-        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground disabled:opacity-60"
+        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-60"
       >
         <LogOut className="h-4 w-4" />
         {label}

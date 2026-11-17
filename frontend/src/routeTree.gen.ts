@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as ParcelamentosRouteImport } from './routes/parcelamentos'
+import { Route as RecorrenciasRouteImport } from './routes/recorrencias'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
 
@@ -30,6 +31,11 @@ const ParcelamentosRoute = ParcelamentosRouteImport.update({
   path: '/parcelamentos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecorrenciasRoute = RecorrenciasRouteImport.update({
+  id: '/recorrencias',
+  path: '/recorrencias',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/parcelamentos': typeof ParcelamentosRoute
+  '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/parcelamentos': typeof ParcelamentosRoute
+  '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
 }
@@ -60,20 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/parcelamentos': typeof ParcelamentosRoute
+  '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/categorias' | '/parcelamentos' | '/relatorios' | '/transacoes'
+    | '/'
+    | '/categorias'
+    | '/parcelamentos'
+    | '/recorrencias'
+    | '/relatorios'
+    | '/transacoes'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/categorias' | '/parcelamentos' | '/relatorios' | '/transacoes'
+  to:
+    | '/'
+    | '/categorias'
+    | '/parcelamentos'
+    | '/recorrencias'
+    | '/relatorios'
+    | '/transacoes'
   id:
     | '__root__'
     | '/'
     | '/categorias'
     | '/parcelamentos'
+    | '/recorrencias'
     | '/relatorios'
     | '/transacoes'
   fileRoutesById: FileRoutesById
@@ -82,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CategoriasRoute: typeof CategoriasRoute
   ParcelamentosRoute: typeof ParcelamentosRoute
+  RecorrenciasRoute: typeof RecorrenciasRoute
   RelatoriosRoute: typeof RelatoriosRoute
   TransacoesRoute: typeof TransacoesRoute
 }
@@ -109,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ParcelamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recorrencias': {
+      id: '/recorrencias'
+      path: '/recorrencias'
+      fullPath: '/recorrencias'
+      preLoaderRoute: typeof RecorrenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/relatorios': {
       id: '/relatorios'
       path: '/relatorios'
@@ -130,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriasRoute: CategoriasRoute,
   ParcelamentosRoute: ParcelamentosRoute,
+  RecorrenciasRoute: RecorrenciasRoute,
   RelatoriosRoute: RelatoriosRoute,
   TransacoesRoute: TransacoesRoute,
 }

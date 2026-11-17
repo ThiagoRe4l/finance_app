@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { orderCategories } from "@/lib/last-category";
 import { resolveCategoryIcon } from "@/lib/category-icons";
 import type { CategorySummary } from "@/lib/dashboard";
 
@@ -51,7 +52,7 @@ export function CategorySelect({
         />
       </SelectTrigger>
       <SelectContent>
-        {(categories.data ?? []).map((category) => {
+        {orderCategories(categories.data ?? []).map((category) => {
           const Icon = resolveCategoryIcon(category.icon_name);
           return (
             <SelectItem key={category.id} value={String(category.id)}>

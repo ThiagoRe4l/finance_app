@@ -22,13 +22,7 @@ const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const read = (rel: string) => readFileSync(path(rel), "utf8");
 
 const SHELL = "../components/layout/AppShell.tsx";
-const ROUTES = [
-  "index",
-  "transacoes",
-  "categorias",
-  "parcelamentos",
-  "relatorios",
-] as const;
+const ROUTES = ["index", "transacoes", "categorias", "recorrencias"] as const;
 
 /** Os tokens de antes da extração, iguais nas 5 rotas (conferido em 11/10/2026). */
 const WRAPPER = "flex min-h-dvh bg-background text-foreground";

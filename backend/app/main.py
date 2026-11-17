@@ -27,6 +27,8 @@ from app.routers import (
     reports,
     shared_expenses,
     imports,
+    subscriptions,
+    periods,
 )
 
 class NormalizeTrailingSlash:
@@ -88,6 +90,8 @@ DATA_ROUTERS = (
     reports.router,
     shared_expenses.router,
     imports.router,
+    subscriptions.router,
+    periods.router,
 )
 
 

@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { formatBRL } from "@/lib/money";
+import { decimalToMask } from "@/lib/money";
+import { MoneyInput } from "@/components/shared/MoneyInput";
 import {
   categoryFormSchema,
   type CategoryFormInput,
@@ -82,9 +83,9 @@ export function CategoryFormDialog({
             name: category.name,
             icon_name: category.icon_name,
             color: category.color,
-            // O valor vem canônico da API ("1500.00") e o campo é pt-BR:
-            // `formatBRL` sem o símbolo devolve "1.500,00".
-            budget: formatBRL(category.budget).replace(/[^\d.,-]/g, ""),
+            // O valor vem canônico da API ("1500.00"); o campo é mascarado
+            // (T-3), então vira "R$ 1.500,00" sem passar por `number`.
+            budget: decimalToMask(category.budget),
           }
         : EMPTY,
     );
@@ -185,12 +186,10 @@ export function CategoryFormDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="category-budget">Orçamento mensal</Label>
-              <Input
+              <MoneyInput
                 id="category-budget"
                 value={values.budget}
-                onChange={(e) => update("budget", e.target.value)}
-                placeholder="1.500,00"
-                inputMode="decimal"
+                onValueChange={(v) => update("budget", v)}
                 className="h-11 sm:h-9"
               />
               {errors.budget && (

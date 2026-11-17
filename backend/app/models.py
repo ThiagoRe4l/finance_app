@@ -119,6 +119,10 @@ class Transaction(Base):
             ["category_id", "owner_id"], ["categories.id", "categories.owner_id"],
             name="fk_transactions_category_owner", ondelete="RESTRICT",
         ),
+        # R-3: uma cobrança por assinatura e dia. É o que impede duas requisições
+        # de `sync` simultâneas de lançarem a mesma cobrança duas vezes. Linhas sem
+        # assinatura (`subscription_id` nulo) não se afetam: NULL não colide.
+        UniqueConstraint("subscription_id", "date", name="uq_transactions_subscription_id_date"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -139,6 +143,13 @@ class Transaction(Base):
     # parcelamento (P-1). Nulo nas ligadas à mão, legadas: é o que separa as
     # duas no PATCH e no DELETE do parcelamento.
     installment_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Cobrança lançada por uma assinatura (R-3). FK simples e `SET NULL` pelo mesmo
+    # motivo de `installment_id`; excluir a assinatura desvincula, não apaga o extrato.
+    subscription_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("subscriptions.id", ondelete="SET NULL", name="fk_transactions_subscription"),
+        nullable=True,
+        index=True,
+    )
     # Parte de uma despesa compartilhada (D-Shared-2). CASCADE: excluir o grupo
     # é excluir as partes — no ledger de cada participante.
     shared_expense_id: Mapped[Optional[int]] = mapped_column(
@@ -247,6 +258,47 @@ class Installment(Base):
 
     def __repr__(self) -> str:
         return f"<Installment {self.title} ({self.current_installment}/{self.total_installments})>"
+
+
+class Subscription(Base):
+    """Cobrança recorrente sem fim (Netflix, R$ 50, todo dia 15). R-1.
+
+    Não guarda cobrança futura: `app/subscription_service.py` lança uma SAÍDA
+    quando a data chega. `charged_through` é o cursor dessa varredura.
+    """
+
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["account_id", "owner_id"], ["accounts.id", "accounts.owner_id"],
+            name="fk_subscriptions_account_owner", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["category_id", "owner_id"], ["categories.id", "categories.owner_id"],
+            name="fk_subscriptions_category_owner", ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    category_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    account_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
+    # O dia da cobrança é o dia desta data; as seguintes saem por `add_months`.
+    first_charge_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Última cobrança que ainda pode sair (inclusive). Nulo = ativa.
+    ended_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Data da última cobrança já varrida pelo `sync`. Cobrança apagada pelo usuário
+    # não volta, porque só as datas depois deste cursor são lançadas.
+    charged_through: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    owner_id: Mapped[int] = _owner_column("subscriptions")
+
+    category: Mapped["Category"] = relationship(
+        "Category", primaryjoin="Category.id == foreign(Subscription.category_id)"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Subscription {self.title} ({self.amount})>"
 
 
 class Investment(Base):

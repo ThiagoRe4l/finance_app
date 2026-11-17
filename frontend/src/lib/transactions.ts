@@ -106,3 +106,32 @@ export function signedAmount(transaction: Transaction): number {
   const value = parseMoney(transaction.amount);
   return transaction.type === "SAÍDA" && value !== 0 ? -value : value;
 }
+
+/**
+ * Da mais nova para a mais antiga: `date` decrescente e, no mesmo dia, o `id`
+ * maior (o lançado por último) primeiro (`docs/periodos.md`, PER-8). O backend já
+ * entrega assim; aqui a regra se repete para valer depois da aba e da busca.
+ * Devolve cópia — a lista recebida (do cache do TanStack Query) não é mutada.
+ *
+ * `date` é ISO `AAAA-MM-DD`, então a comparação de texto é a de data.
+ */
+export function sortNewestFirst<T extends { id: number; date: string }>(
+  rows: readonly T[],
+): T[] {
+  return [...rows].sort((a, b) =>
+    a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1,
+  );
+}
+
+/**
+ * Sinal e rótulo de leitor de tela do sentido da transação (M4): a cor não é a
+ * única pista de entrada × saída (WCAG 1.4.1). O menos é U+2212.
+ */
+export function directionOf(type: TransactionType): {
+  sign: "+" | "\u2212";
+  srLabel: "Entrada" | "Saída";
+} {
+  return type === "ENTRADA"
+    ? { sign: "+", srLabel: "Entrada" }
+    : { sign: "\u2212", srLabel: "Saída" };
+}

@@ -48,7 +48,9 @@ test("o Dashboard usa o PageHeader com os textos do Header local", () => {
   assert.ok(at >= 0, "sem <PageHeader> em routes/index.tsx");
   const tag = tagAt(src, at);
   for (const prop of [
-    'eyebrow="Mês corrente"',
+    // Era `eyebrow="Mês corrente"`; o filtro de período a tornou dinâmica
+    // (docs/periodos.md, fatia 2).
+    "eyebrow={periodEyebrow(",
     'title="Visão Geral"',
     'description="Acompanhe seu fluxo, categorias e parcelamentos em um só lugar."',
   ]) {
@@ -56,7 +58,7 @@ test("o Dashboard usa o PageHeader com os textos do Header local", () => {
   }
 });
 
-for (const route of ["categorias", "parcelamentos", "relatorios"]) {
+for (const route of ["categorias", "recorrencias"]) {
   test(`✅ ${route}: o <PageHeader> não passa actionClassName`, () => {
     // Regressão: já passa hoje. É o que faz o teste acima valer para esta tela.
     const src = read(`../routes/${route}.tsx`);
@@ -75,7 +77,7 @@ test("✅ o resto do PageHeader continua igual, com a ação condicional", () =>
   for (const classes of [
     "mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4",
     "text-xs text-muted-foreground uppercase tracking-wider mb-2",
-    "text-3xl font-semibold tracking-tight",
+    "text-3xl font-display font-semibold tracking-tight",
     "text-sm text-muted-foreground mt-2 max-w-xl",
   ]) {
     assert.ok(src.includes(`className="${classes}"`), `sem: ${classes}`);

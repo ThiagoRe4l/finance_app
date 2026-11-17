@@ -112,6 +112,9 @@ class TransactionResponse(BaseModel):
     installment_id: Optional[int] = None
     # k de N quando a transação foi gerada pelo parcelamento (P-1).
     installment_number: Optional[int] = None
+    # Nulo para transação comum; preenchido nas cobranças lançadas por uma
+    # assinatura (R-3).
+    subscription_id: Optional[int] = None
     installment: Optional[InstallmentProgress] = None
     # Nulo para transação comum. É por ele que o front distingue a parte de
     # uma despesa compartilhada, que só muda de categoria por aqui (D-Shared-6).
@@ -337,8 +340,23 @@ class InstallmentSummary(BaseModel):
 
 
 # Schemas para Agregações (Dashboard e Relatórios)
+class PeriodInfo(BaseModel):
+    """Período em vigor. `end` é exclusivo (`docs/periodos.md`, PER-2)."""
+    key: str
+    start: datetime.date
+    end: datetime.date
+
+
+class PeriodRange(BaseModel):
+    min_month: str
+    max_month: str
+    current_month: str
+
+
 class MonthlyFlow(BaseModel):
     month: str
+    # "2026-11": o rótulo curto sozinho é ambíguo com `all` e `YYYY` (PER-7).
+    month_key: str
     income: Decimal
     outcome: Decimal
 
@@ -352,9 +370,18 @@ class DashboardSummary(BaseModel):
     category_distribution: List[CategoryResponse]
     active_installments_count: int
     monthly_committed_amount: Decimal
+    # R-7: assinaturas. Os dois campos acima seguem só de parcelamento.
+    active_subscriptions_count: int
+    monthly_subscriptions_amount: Decimal
+    monthly_recurring_amount: Decimal = Field(
+        ..., description="Parcelamentos + assinaturas, somados no backend"
+    )
     balance_change_pct: Optional[float] = None
     expenses_change_pct: Optional[float] = None
     savings_pct_of_revenue: Optional[float] = None
+    period: PeriodInfo
+    projected_expenses: Decimal
+    is_projection: bool
 
 class CategoryReport(BaseModel):
     name: str
@@ -366,6 +393,9 @@ class ReportSummary(BaseModel):
     average_savings: float
     monthly_comparative: List[MonthlyFlow]
     top_categories: List[CategoryReport]
+    period: PeriodInfo
+    projected_expenses: Decimal
+    is_projection: bool
     # `insights` foi removido em 13/08/2026: frase pronta em português é
     # apresentação, e o backend não duplica lógica de apresentação (padrão do
     # dia 3). A tela monta o único insight com lastro — parcelamentos — a partir
@@ -573,3 +603,87 @@ class InvoiceConfirm(BaseModel):
 class InvoiceConfirmResult(BaseModel):
     created: int
     skipped_duplicates: int
+
+
+# ---------------------------------------------------------------------------
+# Assinaturas (R-1 a R-6, docs/recorrencias.md)
+# ---------------------------------------------------------------------------
+
+# Retroativo máximo da primeira cobrança (R-2): um teto contra lançar dezenas de
+# linhas por engano.
+SUBSCRIPTION_MAX_BACKFILL_MONTHS = 12
+
+
+class SubscriptionCreate(BaseModel):
+    """`extra="forbid"`: campo desconhecido é 422, não descarte silencioso."""
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=1, max_length=100)
+    amount: Decimal = Field(..., gt=0, decimal_places=2, le=MAX_MONEY)
+    category_id: int
+    account_id: int
+    first_charge_date: datetime.date = Field(
+        ..., description="Primeira cobrança que o app lança; o dia dela é o dia da cobrança"
+    )
+
+    @field_validator("first_charge_date")
+    @classmethod
+    def check_first_charge_date(cls, value: datetime.date) -> datetime.date:
+        from app.installment_schedule import add_months
+
+        _check_calendar_year(value)
+        oldest = add_months(datetime.date.today(), -SUBSCRIPTION_MAX_BACKFILL_MONTHS)
+        if value < oldest:
+            raise ValueError(
+                f"A primeira cobrança pode ser de até {SUBSCRIPTION_MAX_BACKFILL_MONTHS} "
+                "meses atrás."
+            )
+        return value
+
+
+class SubscriptionUpdate(BaseModel):
+    """`PATCH`: só o que vale daqui para frente (R-4). `first_charge_date` e
+    `account_id` não entram, e mandá-los é 422. `ended_on: null` reativa."""
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(None, min_length=1, max_length=100)
+    amount: Optional[Decimal] = Field(None, gt=0, decimal_places=2, le=MAX_MONEY)
+    category_id: Optional[int] = None
+    ended_on: Optional[datetime.date] = None
+
+    @field_validator("ended_on")
+    @classmethod
+    def check_ended_on(cls, value: Optional[datetime.date]) -> Optional[datetime.date]:
+        return value if value is None else _check_calendar_year(value)
+
+    @model_validator(mode="after")
+    def check_no_explicit_null(self):
+        # `null` só faz sentido em `ended_on`; nos outros viraria NOT NULL no banco.
+        for name in ("title", "amount", "category_id"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} não pode ser nulo.")
+        return self
+
+
+class SubscriptionResponse(BaseModel):
+    id: int
+    title: str
+    amount: Decimal
+    category_id: int
+    account_id: int
+    first_charge_date: datetime.date
+    ended_on: Optional[datetime.date] = None
+    status: str = Field(..., description='"ativa" ou "encerrada"')
+    next_charge_date: Optional[datetime.date] = Field(
+        None, description="Primeira cobrança depois de hoje; nula se a assinatura já terá acabado"
+    )
+    category: CategoryRef
+
+
+class SubscriptionSummary(BaseModel):
+    active_count: int
+    monthly_amount: Decimal = Field(..., description="Soma exata das assinaturas ativas")
+
+
+class SubscriptionSyncResult(BaseModel):
+    created: int

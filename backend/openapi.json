@@ -151,29 +151,6 @@
       }
     },
     "/api/transactions": {
-      "get": {
-        "tags": [
-          "Transactions"
-        ],
-        "summary": "List Transactions",
-        "operationId": "list_transactions_api_transactions_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TransactionResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Transactions Api Transactions Get"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Transactions"
@@ -181,14 +158,14 @@
         "summary": "Create Transaction",
         "operationId": "create_transaction_api_transactions_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TransactionCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -197,6 +174,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransactionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "List Transactions",
+        "description": "Transações do dono, **da mais nova para a mais antiga** (`date` desc, `id` desc).\n\nCom `period` (`docs/periodos.md`, PER-8) devolve só o período, com a mesma\ngramática do Dashboard; valor inválido é 422. Sem `period` devolve tudo, como\nantes — a tela de Transações é quem manda o período.",
+        "operationId": "list_transactions_api_transactions_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = o histórico inteiro.",
+              "title": "Period"
+            },
+            "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = o histórico inteiro."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TransactionResponse"
+                  },
+                  "title": "Response List Transactions Api Transactions Get"
                 }
               }
             }
@@ -834,7 +865,28 @@
           "Dashboard"
         ],
         "summary": "Get Dashboard Summary",
+        "description": "Resumo do período escolhido (`docs/periodos.md`). Sem `period`, o mês corrente.",
         "operationId": "get_dashboard_summary_api_dashboard_summary_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = mês corrente.",
+              "title": "Period"
+            },
+            "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = mês corrente."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -842,6 +894,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -855,7 +917,28 @@
           "Reports"
         ],
         "summary": "Get Report Overview",
+        "description": "Relatório do período escolhido (`docs/periodos.md`). Sem `period`, o mês\ncorrente; `6m` é o recorte que esta rota tinha antes do filtro.",
         "operationId": "get_report_overview_api_reports_overview_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = mês corrente.",
+              "title": "Period"
+            },
+            "description": "YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = mês corrente."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -863,6 +946,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReportSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1191,6 +1284,223 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/summary": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get Subscriptions Summary",
+        "operationId": "get_subscriptions_summary_api_subscriptions_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/sync": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Sync Subscriptions",
+        "description": "Lança as cobranças vencidas de **todas as assinaturas do dono** (R-3).\n\nIdempotente. Se duas chamadas correm juntas, o `UNIQUE (subscription_id, date)`\nderruba a perdedora; ela refaz a leitura uma vez, já com o cursor da outra.",
+        "operationId": "sync_subscriptions_api_subscriptions_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionSyncResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "List Subscriptions",
+        "operationId": "list_subscriptions_api_subscriptions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubscriptionResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Subscriptions Api Subscriptions Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Create Subscription",
+        "description": "Cria a assinatura e lança as cobranças que já venceram (primeira cobrança\nno passado), numa transação de banco só.",
+        "operationId": "create_subscription_api_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/{subscription_id}": {
+      "patch": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Update Subscription",
+        "description": "Edição que vale daqui para frente (R-4).\n\nAs cobranças vencidas são lançadas **antes** de aplicar a mudança, com os dados\nantigos: reajustar o preço não pode reescrever uma cobrança que já venceu.",
+        "operationId": "update_subscription_api_subscriptions__subscription_id__patch",
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscription Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Delete Subscription",
+        "description": "Apaga a assinatura e **desvincula** as cobranças já lançadas (R-4): o dinheiro\nsaiu de verdade, então o extrato fica.\n\nObjeto por objeto: o filtro de dono da D-Tenant-3 só age em SELECT.",
+        "operationId": "delete_subscription_api_subscriptions__subscription_id__delete",
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscription Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/periods/range": {
+      "get": {
+        "tags": [
+          "Periods"
+        ],
+        "summary": "Get Period Range",
+        "description": "`min`: mês do lançamento mais antigo. `max`: o maior entre 12 meses à frente\ne o mês do último lançamento (a última parcela de um parcelamento é um).",
+        "operationId": "get_period_range_api_periods_range_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodRange"
                 }
               }
             }
@@ -1550,6 +1860,21 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Committed Amount"
           },
+          "active_subscriptions_count": {
+            "type": "integer",
+            "title": "Active Subscriptions Count"
+          },
+          "monthly_subscriptions_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Subscriptions Amount"
+          },
+          "monthly_recurring_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Recurring Amount",
+            "description": "Parcelamentos + assinaturas, somados no backend"
+          },
           "balance_change_pct": {
             "anyOf": [
               {
@@ -1582,6 +1907,18 @@
               }
             ],
             "title": "Savings Pct Of Revenue"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodInfo"
+          },
+          "projected_expenses": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Projected Expenses"
+          },
+          "is_projection": {
+            "type": "boolean",
+            "title": "Is Projection"
           }
         },
         "type": "object",
@@ -1594,7 +1931,13 @@
           "recent_transactions",
           "category_distribution",
           "active_installments_count",
-          "monthly_committed_amount"
+          "monthly_committed_amount",
+          "active_subscriptions_count",
+          "monthly_subscriptions_amount",
+          "monthly_recurring_amount",
+          "period",
+          "projected_expenses",
+          "is_projection"
         ],
         "title": "DashboardSummary"
       },
@@ -2494,6 +2837,10 @@
             "type": "string",
             "title": "Month"
           },
+          "month_key": {
+            "type": "string",
+            "title": "Month Key"
+          },
           "income": {
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -2508,6 +2855,7 @@
         "type": "object",
         "required": [
           "month",
+          "month_key",
           "income",
           "outcome"
         ],
@@ -2525,6 +2873,55 @@
           "email"
         ],
         "title": "Participant"
+      },
+      "PeriodInfo": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "start",
+          "end"
+        ],
+        "title": "PeriodInfo",
+        "description": "Período em vigor. `end` é exclusivo (`docs/periodos.md`, PER-2)."
+      },
+      "PeriodRange": {
+        "properties": {
+          "min_month": {
+            "type": "string",
+            "title": "Min Month"
+          },
+          "max_month": {
+            "type": "string",
+            "title": "Max Month"
+          },
+          "current_month": {
+            "type": "string",
+            "title": "Current Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min_month",
+          "max_month",
+          "current_month"
+        ],
+        "title": "PeriodRange"
       },
       "ReportSummary": {
         "properties": {
@@ -2555,6 +2952,18 @@
             },
             "type": "array",
             "title": "Top Categories"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodInfo"
+          },
+          "projected_expenses": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Projected Expenses"
+          },
+          "is_projection": {
+            "type": "boolean",
+            "title": "Is Projection"
           }
         },
         "type": "object",
@@ -2563,7 +2972,10 @@
           "total_expenses",
           "average_savings",
           "monthly_comparative",
-          "top_categories"
+          "top_categories",
+          "period",
+          "projected_expenses",
+          "is_projection"
         ],
         "title": "ReportSummary"
       },
@@ -2762,6 +3174,224 @@
         "title": "SharedExpenseUpdate",
         "description": "Edição do grupo — só por quem criou (D-Shared-8).\n\n`account_id`/`category_id` ficam de fora: IDs de relacionamento central são\nimutáveis via PATCH em toda a API (regra geral do dia 4)."
       },
+      "SubscriptionCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 9999999999.99,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Amount"
+          },
+          "category_id": {
+            "type": "integer",
+            "title": "Category Id"
+          },
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id"
+          },
+          "first_charge_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Charge Date",
+            "description": "Primeira cobrança que o app lança; o dia dela é o dia da cobrança"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "amount",
+          "category_id",
+          "account_id",
+          "first_charge_date"
+        ],
+        "title": "SubscriptionCreate",
+        "description": "`extra=\"forbid\"`: campo desconhecido é 422, não descarte silencioso."
+      },
+      "SubscriptionResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "category_id": {
+            "type": "integer",
+            "title": "Category Id"
+          },
+          "account_id": {
+            "type": "integer",
+            "title": "Account Id"
+          },
+          "first_charge_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Charge Date"
+          },
+          "ended_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended On"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "\"ativa\" ou \"encerrada\""
+          },
+          "next_charge_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Charge Date",
+            "description": "Primeira cobrança depois de hoje; nula se a assinatura já terá acabado"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategoryRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "amount",
+          "category_id",
+          "account_id",
+          "first_charge_date",
+          "status",
+          "category"
+        ],
+        "title": "SubscriptionResponse"
+      },
+      "SubscriptionSummary": {
+        "properties": {
+          "active_count": {
+            "type": "integer",
+            "title": "Active Count"
+          },
+          "monthly_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Amount",
+            "description": "Soma exata das assinaturas ativas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_count",
+          "monthly_amount"
+        ],
+        "title": "SubscriptionSummary"
+      },
+      "SubscriptionSyncResult": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created"
+        ],
+        "title": "SubscriptionSyncResult"
+      },
+      "SubscriptionUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 9999999999.99,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "ended_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SubscriptionUpdate",
+        "description": "`PATCH`: só o que vale daqui para frente (R-4). `first_charge_date` e\n`account_id` não entram, e mandá-los é 422. `ended_on: null` reativa."
+      },
       "TransactionCreate": {
         "properties": {
           "title": {
@@ -2891,6 +3521,17 @@
               }
             ],
             "title": "Installment Number"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
           },
           "installment": {
             "anyOf": [

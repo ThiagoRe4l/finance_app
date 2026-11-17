@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { api } from "@/lib/api.ts";
+import { SubscriptionSync } from "@/components/subscriptions/SubscriptionSync.tsx";
 import { GoogleSignIn } from "./GoogleSignIn.tsx";
 
 type SessionUser = { email: string };
@@ -48,5 +49,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <GoogleSignIn onSignedIn={() => refetch()} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <SubscriptionSync />
+      {children}
+    </>
+  );
 }

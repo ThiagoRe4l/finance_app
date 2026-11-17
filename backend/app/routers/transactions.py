@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
-from typing import List
+from typing import List, Optional
 
 from app.tenancy import owned_db, owner_id
 from app import models, schemas
+from app import period_aggregates as agg
 
 router = APIRouter(
     prefix="/transactions",
@@ -73,11 +74,31 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
     return db_transaction
 
 @router.get("", response_model=List[schemas.TransactionResponse])
-def list_transactions(db: Session = Depends(owned_db)):
-    return db.query(models.Transaction).options(
+def list_transactions(
+    period: Optional[str] = Query(
+        None,
+        description="YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = o histórico inteiro.",
+    ),
+    db: Session = Depends(owned_db),
+):
+    """Transações do dono, **da mais nova para a mais antiga** (`date` desc, `id` desc).
+
+    Com `period` (`docs/periodos.md`, PER-8) devolve só o período, com a mesma
+    gramática do Dashboard; valor inválido é 422. Sem `period` devolve tudo, como
+    antes — a tela de Transações é quem manda o período.
+    """
+    query = db.query(models.Transaction).options(
         joinedload(models.Transaction.installment),
         joinedload(models.Transaction.category)
-    ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()
+    )
+    if period is not None:
+        chosen = agg.resolve_period(db, period)
+        # `end` é exclusivo (PER-2).
+        query = query.filter(
+            models.Transaction.date >= chosen.start,
+            models.Transaction.date < chosen.end,
+        )
+    return query.order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).all()
 
 
 @router.patch("/{transaction_id}", response_model=schemas.TransactionResponse)

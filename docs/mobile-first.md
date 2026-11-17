@@ -509,7 +509,7 @@ semibold `tabular-nums`; a Inter não está no container — confere com o que o
 * **Transações recentes:** linha com `gap-3`; à esquerda `min-w-0 flex-1`, com `truncate` no
   título e na categoria; o valor com `shrink-0 whitespace-nowrap`. "Ver todas" continua `<a>`, com
   `inline-flex min-h-11 items-center lg:min-h-0`.
-* **Botão flutuante:** `<FloatingActionButton label="Nova transação">` no Dashboard (o componente
+* ⚠️ **Superado em 13/11/2026 (T-4, `docs/integracao-frontend.md`): o Dashboard não cria mais transação — botão flutuante, "Nova transação" do cabeçalho e a folga `pb-16` saíram.** Texto original: **Botão flutuante:** `<FloatingActionButton label="Nova transação">` no Dashboard (o componente
   da 2b), e o "Nova transação" do cabeçalho com `hidden lg:flex`. Folga embaixo: `pb-16 lg:pb-0` na
   última seção, a mesma conta dos 4rem da M-12 — no `Summary` e no `LoadingState`, porque o
   flutuante aparece também durante o carregamento (code-review da 3a).

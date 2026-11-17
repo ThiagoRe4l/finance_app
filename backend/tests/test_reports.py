@@ -81,7 +81,7 @@ def _tx(client, account_id, category_id, tx_type="SAÍDA", amount="100.00", date
 
 
 def _overview(client):
-    response = client.get("/api/reports/overview")
+    response = client.get("/api/reports/overview", params={"period": "6m"})
     assert response.status_code == 200, response.text
     return response.json()
 

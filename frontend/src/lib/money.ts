@@ -100,3 +100,40 @@ export function parseMoneyInput(text: string): string | null {
 
   return `${sign}${integer}.${cents}`;
 }
+
+/** `Numeric(12, 2)` no backend: 12 dígitos no total, 2 deles de centavos. */
+export const MAX_MONEY_DIGITS = 12;
+
+/**
+ * Máscara de valor "caixa registradora" (T-3): só os dígitos contam e entram
+ * pela direita — `4` → `R$ 0,04`, `40000` → `R$ 400,00`. Sem dígito, devolve
+ * `""` (o campo mostra o placeholder `R$ 0,00`).
+ *
+ * É string de ponta a ponta, sem `number`. O texto mascarado volta para o
+ * formato da API por `parseMoneyInput`, que já aceita `R$` e o ponto de milhar.
+ *
+ * Teto de {@link MAX_MONEY_DIGITS} dígitos: o dígito novo entra no fim, então
+ * cortar pelo começo ignora justamente o que passou do limite.
+ */
+export function maskMoney(text: string): string {
+  const digits = text
+    .replace(/\D/g, "")
+    .replace(/^0+/, "")
+    .slice(0, MAX_MONEY_DIGITS);
+  if (digits === "") {
+    return "";
+  }
+
+  const padded = digits.padStart(3, "0");
+  const integer = padded.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `R$ ${integer},${padded.slice(-2)}`;
+}
+
+/**
+ * Decimal canônico da API (`"1500.50"`) → texto mascarado, para preencher o
+ * campo na edição. Zero vira `""`.
+ */
+export function decimalToMask(decimal: string): string {
+  const [integer = "", fraction = ""] = decimal.split(".");
+  return maskMoney(integer + fraction.padEnd(2, "0").slice(0, 2));
+}

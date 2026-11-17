@@ -269,9 +269,7 @@ export function ImportInvoiceDialog({
                       </p>
                       <p
                         className={`shrink-0 whitespace-nowrap text-sm font-medium tabular-nums ${
-                          row.item.type === "ENTRADA"
-                            ? "text-[oklch(0.55_0.15_155)]"
-                            : ""
+                          row.item.type === "ENTRADA" ? "text-income" : ""
                         }`}
                       >
                         {row.item.type === "ENTRADA" ? "+" : "−"}

@@ -116,14 +116,14 @@ def test_savings_pct_of_revenue(client):
 
 
 def test_reports_overview_smoke(client):
-    """Regressão de acoplamento: /reports/overview delega para get_dashboard_summary,
+    """Regressão de acoplamento: /reports/overview usa as mesmas agregações do dashboard (`period_aggregates`),
     então qualquer exceção nova no dashboard derruba os relatórios junto."""
     account_id = _create_account(client, initial_balance=5000.0)
     _create_transaction(client, account_id, "SAÍDA", 100.0, _month_offset(1))
     _create_transaction(client, account_id, "ENTRADA", 1000.0, _month_offset(0))
     _create_transaction(client, account_id, "SAÍDA", 400.0, _month_offset(0))
 
-    response = client.get("/api/reports/overview")
+    response = client.get("/api/reports/overview", params={"period": "6m"})
     assert response.status_code == 200
     data = response.json()
 

@@ -1,5 +1,12 @@
+import { useState } from "react";
+
+import { PanelTitle } from "@/components/dashboard/PanelTitle";
 import { formatBRL } from "@/lib/money";
-import { toDistribution, type CategorySummary } from "@/lib/dashboard";
+import {
+  toDistribution,
+  topDistribution,
+  type CategorySummary,
+} from "@/lib/dashboard";
 
 /*
  * Apresentacional. O `percent` não vem da API — é derivado em
@@ -12,21 +19,27 @@ import { toDistribution, type CategorySummary } from "@/lib/dashboard";
 export function CategoryBars({
   categories,
   totalExpenses,
+  periodLabel,
 }: {
   categories: CategorySummary[];
   totalExpenses: string;
+  /** O período da distribuição, já por extenso (ex.: `Dezembro de 2026`). */
+  periodLabel: string;
 }) {
-  const rows = toDistribution(categories, totalExpenses);
+  const [expanded, setExpanded] = useState(false);
+  const all = toDistribution(categories, totalExpenses);
+  // Máx. 5 itens por bloco (Hick/Miller, docs/ux-leis.md Q4); o resto fica a um toque.
+  const { top, rest } = topDistribution(all);
+  const rows = expanded ? all : top;
 
   return (
-    <section className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-sm font-medium">Distribuição de Gastos</h2>
-        <span className="text-xs text-muted-foreground">Mês corrente</span>
+    <section className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+      <div className="mb-6">
+        <PanelTitle title="Distribuição de gastos" subtitle={periodLabel} />
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          Nenhuma despesa registrada neste mês.
+          Nenhuma despesa registrada neste período.
         </p>
       ) : (
         <div className="flex flex-col gap-6">
@@ -41,6 +54,9 @@ export function CategoryBars({
                 */}
                 <span className="tabular-nums text-muted-foreground">
                   {formatBRL(row.spent)}
+                  <span className="ml-2 text-xs">
+                    {Math.round(row.percent)}%
+                  </span>
                 </span>
               </div>
               <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
@@ -54,6 +70,16 @@ export function CategoryBars({
               </div>
             </div>
           ))}
+          {rest.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="min-h-11 lg:min-h-0 self-start rounded-lg px-2 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {expanded ? "Ver menos" : `Ver mais ${rest.length}`}
+            </button>
+          )}
         </div>
       )}
     </section>

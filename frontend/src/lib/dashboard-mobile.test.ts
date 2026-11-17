@@ -59,12 +59,12 @@ const CLIPPING = [
  * vazava do cartão em 4 colunas até ~1390 px). O espaçamento é o de antes.
  */
 const METRIC_GRID =
-  "grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 md:gap-6 mb-8".split(
+  "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8".split(
     " ",
   );
 
 for (const name of ["Summary", "LoadingState"]) {
-  test(`${name}: grade dos cartões em coluna única abaixo de sm, 4 colunas só em 2xl`, () => {
+  test(`${name}: grade dos cartões em coluna única abaixo de sm, 3 colunas só em xl (Q1: o herói ocupa a linha de cima)`, () => {
     const src = fn(read(DASHBOARD), name);
     const grid = tagAt(src, src.indexOf("<section"));
     assert.deepEqual(classesIn(grid), METRIC_GRID);
@@ -117,7 +117,7 @@ test("✅ MetricCard: o valor é um elemento só, com sinal e número juntos", (
   const cards = [...dashboard.matchAll(/<MetricCard\b/g)].map((m) =>
     tagAt(dashboard, m.index ?? 0),
   );
-  assert.equal(cards.length, 4, `${cards.length} <MetricCard>`);
+  assert.equal(cards.length, 3, `${cards.length} <MetricCard>`);
   for (const card of cards) {
     assert.match(card, /value=\{formatBRL\(data\.\w+\)\}/, card);
   }
@@ -170,8 +170,11 @@ test("recentes: o contêiner da esquerda tem min-w-0 flex-1", () => {
 test("recentes: o valor não encolhe nem quebra, e não é cortado", () => {
   const src = read(RECENT);
   const row = recentRow(src);
-  const at = src.indexOf("formatBRL(amount)", row.start);
-  assert.ok(at >= 0 && at < row.end, "sem formatBRL(amount) na linha");
+  const at = src.indexOf("formatBRL(Math.abs(amount))", row.start);
+  assert.ok(
+    at >= 0 && at < row.end,
+    "sem formatBRL(Math.abs(amount)) na linha",
+  );
   const chain = ancestors(src, at).filter((e) => e.start > row.start);
   // O filho da linha que leva o valor não encolhe; o valor não quebra.
   assertTokens(chain[0].tag, ["shrink-0"]);
@@ -182,55 +185,22 @@ test("recentes: o valor não encolhe nem quebra, e não é cortado", () => {
   for (const e of chain) assertNoTokens(e.tag, CLIPPING);
 });
 
-test('recentes: "Ver todas" continua <a> e tem 44 px abaixo de lg', () => {
+test('recentes: "Ver todas" é <Link> (sem recarregar a SPA, Q2) e tem 44 px abaixo de lg', () => {
   const src = read(RECENT);
   const at = src.search(/>\s*Ver todas\s*</);
   assert.ok(at >= 0, "sem Ver todas");
   const link = tagAt(src, src.lastIndexOf("<", at));
-  assert.match(link, /^<a\b/, `não é <a>: ${link}`);
-  assert.match(link, /href="\/transacoes"/);
+  assert.match(link, /^<Link\b/, `não é <Link>: ${link}`);
+  assert.match(link, /to="\/transacoes"/);
   assertTokens(link, ["inline-flex", "min-h-11", "items-center", "lg:min-h-0"]);
 });
 
 // ── Botão flutuante e folga ──────────────────────────────────────────────
-
-test("Dashboard usa o flutuante para abrir o formulário de criação", () => {
-  const src = read(DASHBOARD);
-  assert.ok(
-    src.includes(
-      'import { FloatingActionButton } from "@/components/shared/FloatingActionButton";',
-    ),
-    "sem o import do FloatingActionButton em routes/index.tsx",
-  );
-  const tags = [...src.matchAll(/<FloatingActionButton\b/g)];
-  assert.equal(tags.length, 1, `${tags.length} <FloatingActionButton>`);
-  const tag = tagAt(src, tags[0].index ?? 0);
-  assert.match(tag, /label="Nova transação"/);
-  assert.match(tag, /onClick=\{\(\) => setIsCreating\(true\)\}/);
-});
-
-test('"Nova transação" do cabeçalho só a partir de lg', () => {
-  const src = fn(read(DASHBOARD), "Index");
-  const at = src.search(/\/>\s*Nova transação\s*</);
-  assert.ok(at >= 0, "sem o botão Nova transação no cabeçalho");
-  // A visibilidade mora no contêiner da ação (M-13, 3b): ver
-  // `headerActionProblems` em `jsx-source.ts`.
-  assert.deepEqual(headerActionProblems(src, at), []);
-});
-
-test("a última seção tem folga embaixo abaixo de lg para o flutuante", () => {
-  // Mesma conta da M-12: o botão cobre 3rem acima do padding do `<main>`.
-  const src = fn(read(DASHBOARD), "Summary");
-  const last = tagAt(src, src.lastIndexOf("<section"));
-  assertTokens(last, ["pb-16", "lg:pb-0"]);
-});
-
-test("LoadingState: a última seção tem a mesma folga embaixo abaixo de lg", () => {
-  // O flutuante aparece também durante o carregamento e cobriria o esqueleto.
-  const src = fn(read(DASHBOARD), "LoadingState");
-  const last = tagAt(src, src.lastIndexOf("<section"));
-  assertTokens(last, ["pb-16", "lg:pb-0"]);
-});
+//
+// Removidos em 13/11/2026 (T-4): o Dashboard não cria mais transação, então o
+// flutuante, o "Nova transação" do cabeçalho e a folga embaixo que existia só
+// para o flutuante saíram. A ausência é testada em
+// `transaction-type-split.test.ts`.
 
 test('"Tentar novamente" do Dashboard com 44 px abaixo de lg', () => {
   // Paridade com o banner de Transações (M-12): é a única ação da tela com a

@@ -29,7 +29,7 @@ export const Route = createFileRoute("/categorias")({
 // Com barra: é coleção (`@router.get("/")`), e sem ela o FastAPI responde 307.
 const CATEGORIES_ENDPOINT = "/categories";
 
-const ALERT_COLOR = "oklch(0.6 0.2 25)";
+const ALERT_COLOR = "var(--expense-text)";
 
 function LoadingCards() {
   return (
@@ -111,7 +111,7 @@ function CategoryCard({
         com 44 px: no toque não há hover (M-14, o padrão da 2b). A partir de lg
         aparecem no hover, e `focus-within` mantém o acesso por teclado.
       */}
-      <div className="flex justify-end gap-1 -mt-2 -mr-2 mb-1 lg:hover-capable:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
+      <div className="flex justify-end gap-3 -mt-2 -mr-2 mb-1 lg:hover-capable:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={onEdit}

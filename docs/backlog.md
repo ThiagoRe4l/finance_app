@@ -358,3 +358,16 @@ mudança de layout passar hoje.
      L3045, L3228.
    * ⚠️ L2647–L2659 ("📐 Processo → Onde escrever") mandam registrar decisão "neste arquivo",
      em "🧩 Design Patterns" e "🔌 Status da Integração" — que agora são arquivos em `docs/`.
+
+### 📊 Módulos analíticos da proposta de design (13/11/2026)
+
+A proposta (canvas "Fisco — Proposta de design") traz quatro blocos sem dado hoje. Nenhum entrou
+na fatia de tema (`docs/tema.md`): cada um precisa de decisão de backend antes da tela.
+
+* **Projeção de sobra do mês** (entrada − saída − a vencer): soma de dinheiro; tem que vir
+  pronta do backend (`Decimal`), o front não soma.
+* **Saúde financeira:** taxa de poupança, reserva de emergência (em meses de gasto fixo) e renda
+  comprometida (parcelas + assinaturas ÷ renda). Define-se antes o que é "renda" e "gasto fixo".
+* **Metas:** modelo novo (valor alvo, prazo, aportes). Não existe hoje.
+* **Próximas cobranças:** lista de assinaturas e parcelas dos próximos dias; os dados existem
+  (assinaturas e parcelamentos), falta o endpoint que os junta por data.

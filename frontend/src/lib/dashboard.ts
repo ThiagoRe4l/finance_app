@@ -173,3 +173,24 @@ export function dashboardView(state: {
   if (state.hasData) return state.isError ? "stale-summary" : "summary";
   return state.isError ? "error" : "loading";
 }
+
+/**
+ * Quanto do que entrou já saiu, em % (`docs/ux-leis.md`, Q1/Q8). Divisão entre
+ * dois valores da API, sem somar dinheiro — o mesmo precedente de
+ * `toDistribution`. `null` sem entrada (nada a comparar); sem clamp: passar de
+ * 100 é informação, não erro.
+ */
+export function spendRatio(expenses: string, revenues: string): number | null {
+  const spent = parseMoney(expenses);
+  const income = parseMoney(revenues);
+  if (income <= 0) return null;
+  return (spent / income) * 100;
+}
+
+/** As `limit` maiores categorias e o resto (Hick/Miller, Q4). Não muta a entrada. */
+export function topDistribution<T>(
+  rows: readonly T[],
+  limit = 5,
+): { top: T[]; rest: T[] } {
+  return { top: rows.slice(0, limit), rest: rows.slice(limit) };
+}

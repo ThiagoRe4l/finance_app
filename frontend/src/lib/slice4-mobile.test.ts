@@ -15,8 +15,7 @@ const read = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 const CATEGORIES = read("../routes/categorias.tsx");
-const INSTALLMENTS = read("../routes/parcelamentos.tsx");
-const REPORTS = read("../routes/relatorios.tsx");
+const INSTALLMENTS = read("../components/installments/InstallmentsPanel.tsx");
 const CATEGORY_FORM = read("../components/categories/CategoryFormDialog.tsx");
 
 function hasTokens(source: string, tokens: string[], where: string) {
@@ -105,24 +104,7 @@ test("parcelamentos.tsx: 4 totais na grade medida do Dashboard, com o saldo comp
   );
 });
 
-for (const [name, source] of [["relatorios.tsx", REPORTS]] as const) {
-  test(`${name}: totais empilhados abaixo de xl, valor sem quebra`, () => {
-    // M-15: 3 colunas só a partir de xl (medido: vazava a 1024).
-    assert.doesNotMatch(
-      source,
-      /grid grid-cols-1 (md|lg):grid-cols-3 gap-6 mb-8/,
-    );
-    assert.ok(
-      (source.match(/grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8/g)?.length ??
-        0) >= 2,
-      "a grade dos totais e a do esqueleto",
-    );
-    assert.match(
-      source,
-      /text-2xl font-semibold tabular-nums whitespace-nowrap/,
-    );
-  });
-}
+// Os totais de Relatórios saíram com a tela (13/11/2026): o Dashboard já os traz.
 
 test("styles.css: variante hover-capable = hover de verdade, com ponteiro fino (M-15)", () => {
   const css = read("../styles.css");

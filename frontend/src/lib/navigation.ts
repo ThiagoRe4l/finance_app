@@ -6,12 +6,11 @@
  * mapa chave → ícone fica em `components/layout/nav-icons.ts`.
  */
 
-export type NavKey =
-  "inicio" | "transacoes" | "categorias" | "parcelamentos" | "relatorios";
+export type NavKey = "inicio" | "transacoes" | "categorias" | "recorrencias";
 
 export type NavItem = {
   key: NavKey;
-  to: "/" | "/transacoes" | "/categorias" | "/parcelamentos" | "/relatorios";
+  to: "/" | "/transacoes" | "/categorias" | "/recorrencias";
   /** Rótulo da Sidebar — o de antes da 1c, para ≥ 1024 px não mudar. */
   label: string;
   /** Rótulo da barra inferior: até 10 caracteres, cabe em ~64 px. */
@@ -33,16 +32,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
     shortLabel: "Categorias",
   },
   {
-    key: "parcelamentos",
-    to: "/parcelamentos",
-    label: "Parcelamentos",
-    shortLabel: "Parcelas",
-  },
-  {
-    key: "relatorios",
-    to: "/relatorios",
-    label: "Relatórios",
-    shortLabel: "Relatórios",
+    key: "recorrencias",
+    to: "/recorrencias",
+    label: "Recorrências",
+    // 10 caracteres, o limite da barra inferior: "Recorrências" não cabe.
+    shortLabel: "Recorrente",
   },
 ];
 

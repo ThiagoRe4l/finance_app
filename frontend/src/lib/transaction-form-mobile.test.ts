@@ -138,14 +138,20 @@ test("rodapé: Cancelar e Criar/Salvar com h-11 sm:h-9, empilhados com folga aba
   for (const b of buttons) assertTokens(b, ["h-11", "sm:h-9"]);
 });
 
-test("campos: descrição, valor, tipo, parcelamento e data com h-11 sm:h-9", () => {
+test("campos: descrição, valor, alternador de tipo, parcelamento e data com h-11 sm:h-9", () => {
   const src = read(FORM);
   assertTokens(tagWith(src, "Input", 'id="tx-title"'), ["h-11", "sm:h-9"]);
-  assertTokens(tagWith(src, "Input", 'id="tx-amount"'), ["h-11", "sm:h-9"]);
-  assertTokens(tagWith(src, "SelectTrigger", 'id="tx-type"'), [
+  // T-3: o valor é um MoneyInput; T-1: o "Tipo" virou o alternador Entrada/Saída.
+  assertTokens(tagWith(src, "MoneyInput", 'id="tx-amount"'), [
     "h-11",
     "sm:h-9",
   ]);
+  for (const value of ["ENTRADA", "SAÍDA"]) {
+    assertTokens(tagWith(src, "TabsTrigger", `value="${value}"`), [
+      "h-11",
+      "sm:h-9",
+    ]);
+  }
   assertTokens(tagWith(src, "SelectTrigger", 'id="tx-installment"'), [
     "h-11",
     "sm:h-9",
@@ -233,12 +239,15 @@ test("foco: sem autoFocus na descrição; onOpenAutoFocus decide pelo tipo de po
   const content = tagWith(src, "DialogContent", "className");
   assert.match(content, /\bonOpenAutoFocus=\{/);
   assert.match(content, /\.preventDefault\(\)/);
-  // A ordem dos ramos importa: toque foca o diálogo, mouse foca a descrição.
+  // A ordem dos ramos importa: toque foca o diálogo, mouse foca o valor.
   assert.match(
     content,
-    /if \(window\.matchMedia\("\(pointer: coarse\)"\)\.matches\) \{[^}]*\bcurrentTarget\b[^}]*\.focus\(\)[^}]*\} else \{[^}]*titleRef\.current\?\.focus\(\)/,
+    /initialFocusTarget\(\{[^}]*pointer: coarse[^}]*\}\);[^]*?\bcurrentTarget\b[^}]*\.focus\(\)[^}]*\} else \{[^}]*amountRef\.current\?\.focus\(\)/,
   );
-  assert.match(tagWith(src, "Input", 'id="tx-title"'), /\bref=\{titleRef\}/);
+  assert.match(
+    tagWith(src, "MoneyInput", 'id="tx-amount"'),
+    /\bref=\{amountRef\}/,
+  );
 });
 
 // ── Exclusão: centrada, com margem lateral ──────────────────────────────
@@ -275,11 +284,8 @@ test("✅ components/ui/ não muda: as classes base do Dialog e do AlertDialog s
   );
 });
 
-test("✅ Dashboard: routes/index.tsx continua abrindo o mesmo formulário, sem mudança", () => {
-  // Regressão: já passa. O 2a muda o componente; a rota não é tocada (M-12).
-  assert.ok(
-    read("../routes/index.tsx").includes(
-      "<TransactionFormDialog open={isCreating} onOpenChange={setIsCreating} />",
-    ),
-  );
+test("Dashboard: routes/index.tsx não abre mais o formulário (T-4, invertido em 13/11/2026)", () => {
+  // Antes: regressão "continua abrindo o mesmo formulário". A criação passou a
+  // existir só em Transações; `transaction-type-split.test.ts` cobre o resto.
+  assert.ok(!read("../routes/index.tsx").includes("<TransactionFormDialog"));
 });

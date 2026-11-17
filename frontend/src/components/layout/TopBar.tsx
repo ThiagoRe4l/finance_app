@@ -8,15 +8,17 @@ import { UserMenu } from "@/components/auth/UserMenu.tsx";
  */
 export function TopBar() {
   return (
-    <header className="fixed top-0 inset-x-0 z-40 lg:hidden border-b border-border bg-background pt-[env(safe-area-inset-top)]">
+    <header className="fixed top-0 inset-x-0 z-40 lg:hidden border-b border-sidebar-border bg-sidebar text-sidebar-foreground pt-[env(safe-area-inset-top)]">
       <div className="flex h-[var(--app-topbar-height)] items-center justify-between gap-4 px-4">
         <Link to="/" className="flex min-h-11 shrink-0 items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-semibold text-xs">
+          <div className="h-7 w-7 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <span className="text-sidebar-primary-foreground font-display font-semibold text-xs">
               F
             </span>
           </div>
-          <span className="tracking-tight font-medium text-primary">Fisco</span>
+          <span className="tracking-tight font-display font-semibold text-sidebar-foreground">
+            Fisco
+          </span>
         </Link>
         <UserMenu variant="topbar" />
       </div>

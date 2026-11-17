@@ -39,7 +39,7 @@ const NAV_IMPORT =
 
 test("Sidebar: hidden lg:flex no lugar de hidden md:flex, resto do <aside> igual", () => {
   const before =
-    "hidden md:flex w-64 shrink-0 border-r border-border bg-background flex-col gap-12 p-8 sticky top-0 h-dvh";
+    "hidden md:flex w-64 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex-col gap-12 p-8 sticky top-0 h-dvh";
   const expected = before.replace("md:flex", "lg:flex").split(" ").sort();
   assert.deepEqual(classesOf(read(SIDEBAR), "aside").sort(), expected);
 });
@@ -55,7 +55,7 @@ test("✅ Sidebar: Link, activeOptions exact e <UserMenu /> sem prop, como hoje"
   const src = read(SIDEBAR);
   assert.ok(
     src.includes(
-      'className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary/60 data-[status=active]:bg-secondary data-[status=active]:text-primary data-[status=active]:font-medium"',
+      'className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:font-medium"',
     ),
     "classes do Link da Sidebar mudaram",
   );

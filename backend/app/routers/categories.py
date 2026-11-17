@@ -34,7 +34,11 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(owne
     db.refresh(new_category)
     return new_category
 
-def _aggregated_rows(db: Session, category_id: int | None = None):
+def _aggregated_rows(
+    db: Session,
+    category_id: int | None = None,
+    bounds: tuple | None = None,
+):
     """Categorias com `spent` e `txs_count` resolvidos no banco.
 
     Uma query agregada só, via FK. A versão anterior comparava strings e rodava
@@ -64,7 +68,9 @@ def _aggregated_rows(db: Session, category_id: int | None = None):
     categoria sumiria da listagem inteira, e junto do `category_distribution` do
     dashboard, que reusa `list_categories`.
     """
-    month_start, month_end = current_month_bounds()
+    # `bounds` (início, fim exclusivo) vem do filtro de período do Dashboard; sem
+    # ele o recorte é o mês corrente, como sempre.
+    month_start, month_end = bounds or current_month_bounds()
 
     query = db.query(
         models.Category,

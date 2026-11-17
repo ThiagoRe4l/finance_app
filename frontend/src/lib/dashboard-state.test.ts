@@ -85,13 +85,24 @@ test("E: os três cards com percentual usam toneFromDelta com a polaridade certa
   for (const [field, polarity] of [
     ["balance_change_pct", "higher-is-better"],
     ["expenses_change_pct", "lower-is-better"],
-    ["savings_pct_of_revenue", "higher-is-better"],
   ]) {
     const re = new RegExp(
       `tone=\\{\\s*toneFromDelta\\(\\s*data\\.${field},\\s*"${polarity}",?\\s*\\)\\s*\\}`,
     );
     assert.match(index, re, `${field} sem toneFromDelta(..., "${polarity}")`);
   }
+});
+
+test("E: o herói de economia usa toneFromDelta com a polaridade certa", () => {
+  const hero = readFileSync(
+    new URL("../components/dashboard/SavingsHero.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    hero,
+    /toneFromDelta\(\s*savingsPct,\s*"higher-is-better",?\s*\)/,
+  );
+  assert.match(index, /savingsPct=\{data\.savings_pct_of_revenue\}/);
 });
 
 test("F: a rota decide o que mostrar por dashboardView, não por isError primeiro", () => {
@@ -104,5 +115,8 @@ test("F: no estado stale-summary o resumo é renderizado junto do aviso", () => 
   assert.ok(at >= 0, "a rota não trata stale-summary");
   const branch = index.slice(at, at + 600);
   assert.match(branch, /<ErrorBanner/);
-  assert.match(branch, /<Summary/);
+  // O corpo (`body`) é o `<Summary>`, ou a mensagem de período sem dados
+  // quando não há nada a mostrar (docs/periodos.md).
+  assert.match(branch, /\{body\}/);
+  assert.match(index, /const body = [\s\S]*?<Summary data=\{data\} \/>/);
 });

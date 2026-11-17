@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import datetime
@@ -7,9 +9,10 @@ from typing import List
 
 from app.tenancy import owned_db
 from app import models, schemas
-from app.routers.categories import list_categories
-from app.periods import current_month_bounds, month_bounds
-from app import installment_metrics
+from app.routers.categories import _aggregated_rows, _to_response
+from app.periods import month_bounds, shift_month
+from app import period_aggregates as agg
+from app import installment_metrics, subscription_metrics
 from app import account_balance
 
 router = APIRouter(
@@ -26,110 +29,77 @@ ZERO = Decimal("0.00")
 
 
 @router.get("/summary", response_model=schemas.DashboardSummary)
-def get_dashboard_summary(db: Session = Depends(owned_db)):
-    # 1. Saldo Total
-    #
-    # `SUM(initial_balance) + SUM(ENTRADA) − SUM(SAÍDA)`. Deixou de ser
-    # `SUM(current_balance)` porque a coluna não existe mais — o saldo é
-    # derivado do ledger.
-    #
-    # O `CASE` de sinal vem de `app/account_balance.py`, o mesmo que
-    # `GET /accounts` usa: são duas agregações independentes, e é assim que
-    # ENTRADA/SAÍDA não inverte de um lado só. A igualdade entre os dois
-    # endpoints é travada por
-    # `test_total_balance_matches_the_sum_of_the_accounts`.
-    total_balance = account_balance.total_balance(db)
-
-
-    # 2. Receitas e Despesas do mês atual
-    #
-    # Intervalo semiaberto, o mesmo do laço abaixo e o mesmo de
-    # `_aggregated_rows`. Antes daqui só havia o piso (`>= first_day`), sem teto:
-    # um lançamento datado no futuro — parcela agendada, boleto a vencer —
-    # contava neste total e não contava na barra do mesmo mês do `monthly_flow`,
-    # dois números divergentes lado a lado na tela.
+def get_dashboard_summary(
+    period: Optional[str] = Query(
+        None, description="YYYY-MM, YYYY, YYYY-MM..YYYY-MM, 3m, 6m, 12m ou all. Ausente = mês corrente."
+    ),
+    db: Session = Depends(owned_db),
+):
+    """Resumo do período escolhido (`docs/periodos.md`). Sem `period`, o mês corrente."""
+    chosen = agg.resolve_period(db, period)
     today = datetime.date.today()
-    first_day, next_month = current_month_bounds()
 
-    total_revenues = db.query(func.sum(models.Transaction.amount)).filter(
-        models.Transaction.type == "ENTRADA",
-        models.Transaction.date >= first_day,
-        models.Transaction.date < next_month
-    ).scalar() or ZERO
-    
-    total_expenses = db.query(func.sum(models.Transaction.amount)).filter(
-        models.Transaction.type == "SAÍDA",
-        models.Transaction.date >= first_day,
-        models.Transaction.date < next_month
-    ).scalar() or ZERO
-    
+    # 1. Saldo do período (PER-5). O `CASE` de sinal vem de `app/account_balance.py`,
+    # o mesmo que `GET /accounts` usa; a igualdade entre os dois endpoints é travada
+    # por `test_total_balance_matches_the_sum_of_the_accounts`.
+    total_balance = agg.balance_for_period(db, chosen)
+
+    # 2. Receitas e despesas do período. Intervalo semiaberto, o mesmo do gráfico.
+    # `expenses` já inclui a assinatura projetada (PER-4); `projected` é só essa parte.
+    totals = agg.period_totals(db, chosen.start, chosen.end)
+    total_revenues = totals.revenues
+    total_expenses = totals.expenses
     total_savings = total_revenues - total_expenses
-    
-    # 3. Fluxo Mensal (últimos 6 meses)
-    monthly_flow = []
-    # Usaremos uma lista fixa de nomes de meses para simplificar o pareamento com o front
-    month_names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-    
-    for i in range(5, -1, -1):
-        # Cálculo aproximado dos últimos 6 meses
-        target_month = today.month - i
-        target_year = today.year
-        if target_month <= 0:
-            target_month += 12
-            target_year -= 1
-            
-        m_start, m_end = month_bounds(target_year, target_month)
-            
-        inc = db.query(func.sum(models.Transaction.amount)).filter(
-            models.Transaction.type == "ENTRADA",
-            models.Transaction.date >= m_start,
-            models.Transaction.date < m_end
-        ).scalar() or ZERO
-        
-        out = db.query(func.sum(models.Transaction.amount)).filter(
-            models.Transaction.type == "SAÍDA",
-            models.Transaction.date >= m_start,
-            models.Transaction.date < m_end
-        ).scalar() or ZERO
-        
-        monthly_flow.append(schemas.MonthlyFlow(
-            month=month_names[target_month-1], 
-            income=inc, 
-            outcome=out
-        ))
-        
-    # 3.1. Variações percentuais exibidas nos cards do dashboard
-    previous_month = monthly_flow[-2]
 
+    # 3. Fluxo mensal: contexto, não recorte (PER-3).
+    monthly_flow = agg.monthly_flow(db, chosen.chart)
+
+    # 3.1. Variações percentuais: só fazem sentido contra o mês anterior, então só
+    # existem quando o período é um mês.
     expenses_change_pct = None
-    if previous_month.outcome:
-        expenses_change_pct = float((total_expenses - previous_month.outcome) / previous_month.outcome * 100)
-
-    # Saldo ao fim do mês anterior, calculado direto (S-1). Era `saldo − economia
-    # do mês`, o que deixou de bater: o saldo agora para em hoje, e a economia do
-    # mês inclui os lançamentos futuros deste mês.
-    balance_prev_month_end = account_balance.total_balance(
-        db, until=first_day - datetime.timedelta(days=1)
-    )
     balance_change_pct = None
-    if balance_prev_month_end:
-        # abs() no denominador: com saldo anterior negativo, a divisão direta inverteria
-        # o sinal e uma economia positiva apareceria como variação negativa.
-        balance_change_pct = float(total_savings / abs(balance_prev_month_end) * 100)
+    if chosen.kind == "month":
+        previous_month = monthly_flow[-2]
+        if previous_month.outcome:
+            expenses_change_pct = float(
+                (total_expenses - previous_month.outcome) / previous_month.outcome * 100
+            )
+        # Saldo ao fim do mês anterior, calculado direto (S-1). `abs()` no
+        # denominador: com saldo anterior negativo, a divisão direta inverteria o
+        # sinal e uma economia positiva apareceria como variação negativa.
+        balance_prev_month_end = account_balance.total_balance(
+            db, until=chosen.start - datetime.timedelta(days=1)
+        )
+        if balance_prev_month_end:
+            balance_change_pct = float(total_savings / abs(balance_prev_month_end) * 100)
 
     savings_pct_of_revenue = None
     if total_revenues:
         savings_pct_of_revenue = float(total_savings / total_revenues * 100)
 
-    # 4. Transações Recentes
+    # 4. Transações do período.
     recent_txs = db.query(models.Transaction).options(
         joinedload(models.Transaction.installment),
         joinedload(models.Transaction.category)
+    ).filter(
+        models.Transaction.date >= chosen.start,
+        models.Transaction.date < chosen.end,
     ).order_by(models.Transaction.date.desc(), models.Transaction.id.desc()).limit(7).all()
-    
-    # 5. Distribuição de Categorias
-    categories_dist = list_categories(db)
-    
+
+    # 5. Distribuição de categorias no período, com a assinatura projetada.
+    projected_by_category = {}
+    for charge in agg.projected_charges(db, chosen.start, chosen.end):
+        projected_by_category[charge.category_id] = (
+            projected_by_category.get(charge.category_id, ZERO) + charge.amount
+        )
+    categories_dist = []
+    for row in _aggregated_rows(db, bounds=(chosen.start, chosen.end)):
+        response = _to_response(row)
+        extra = projected_by_category.get(response.id)
+        if extra:
+            response = response.model_copy(update={"spent": response.spent + extra})
+        categories_dist.append(response)
+
     # 6. Parcelamentos — só os que ainda têm parcela a pagar.
     #
     # A regra de "ativo" vive em `app/installment_metrics.py`, compartilhada com
@@ -140,6 +110,11 @@ def get_dashboard_summary(db: Session = Depends(owned_db)):
     # devolvendo o histórico completo, quitados incluídos.
     active_installments = installment_metrics.active_installments(db)
     committed = installment_metrics.monthly_committed(active_installments)
+
+    # 7. Assinaturas (R-7). Os campos de parcelamento acima não mudam de sentido;
+    # o total das duas coisas é somado aqui, em `Decimal`, e não no front.
+    active_subs = subscription_metrics.active_subscriptions(db)
+    subscriptions_amount = subscription_metrics.monthly_amount(active_subs)
     
     return schemas.DashboardSummary(
         total_balance=total_balance,
@@ -151,7 +126,13 @@ def get_dashboard_summary(db: Session = Depends(owned_db)):
         category_distribution=categories_dist,
         active_installments_count=len(active_installments),
         monthly_committed_amount=committed,
+        active_subscriptions_count=len(active_subs),
+        monthly_subscriptions_amount=subscriptions_amount,
+        monthly_recurring_amount=committed + subscriptions_amount,
         balance_change_pct=balance_change_pct,
         expenses_change_pct=expenses_change_pct,
-        savings_pct_of_revenue=savings_pct_of_revenue
+        savings_pct_of_revenue=savings_pct_of_revenue,
+        period=agg.period_info(chosen),
+        projected_expenses=totals.projected,
+        is_projection=agg.is_projection(chosen),
     )

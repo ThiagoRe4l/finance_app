@@ -182,6 +182,16 @@ def _build_dataset(client, share_with=None):
         "investment_id": investment,
     }
 
+    # Assinaturas (R-1, 13/11/2026). Condicional pelo mesmo motivo da fatia 4 abaixo:
+    # se a rota existir e a assinatura não for criada aqui, `{subscription_id}` fica
+    # fora de `ids` e o teste das rotas com id falha por parâmetro desconhecido. A
+    # primeira cobrança é hoje, então o POST já lança uma SAÍDA no ledger de A.
+    if _has_route("POST", "/api/subscriptions"):
+        ids["subscription_id"] = _created(client.post("/api/subscriptions", json={
+            "title": f"{SENTINEL} assinatura", "amount": "888888.88", "category_id": category,
+            "account_id": account, "first_charge_date": today,
+        }))
+
     # Fatia 4. Condicional porque a rota ainda não existe na fatia 2 — e isso
     # não abre buraco: se a rota existir e o grupo não for criado aqui,
     # `{shared_expense_id}` fica fora de `ids` e o teste das rotas com id
@@ -271,6 +281,7 @@ _ID_ROUTE_BODIES = {
     ("PATCH", "/api/categories/{category_id}"): {"name": "INVASAO"},
     ("PATCH", "/api/installments/{installment_id}"): {"title": "INVASAO"},
     ("PATCH", "/api/shared-expenses/{shared_expense_id}"): {"title": "INVASAO"},
+    ("PATCH", "/api/subscriptions/{subscription_id}"): {"title": "INVASAO"},
     ("POST", "/api/investments/{investment_id}/history"): {
         "date": datetime.date.today().isoformat(), "balance": "1.00",
     },
@@ -344,10 +355,16 @@ def _bia_resources(bia):
         "title": "Saída B", "type": "SAÍDA", "amount": "10.00", "date": today,
         "category_id": category, "account_id": account,
     }))
-    return {
+    resources = {
         "account_id": account, "category_id": category,
         "installment_id": installment, "transaction_id": transaction,
     }
+    if _has_route("POST", "/api/subscriptions"):
+        resources["subscription_id"] = _created(bia.post("/api/subscriptions", json={
+            "title": "Assinatura B", "amount": "10.00", "category_id": category,
+            "account_id": account, "first_charge_date": today,
+        }))
+    return resources
 
 
 def _body_cases(own, today):
@@ -381,8 +398,14 @@ def _body_cases(own, today):
             "type": "SAÍDA", "category_id": own["category_id"],
         }],
     }
+    subscription_body = {
+        "title": "Tentativa", "amount": "10.00", "category_id": own["category_id"],
+        "account_id": own["account_id"], "first_charge_date": today,
+    }
     tx_path = f"/api/transactions/{own['transaction_id']}"
     inst_path = f"/api/installments/{own['installment_id']}"
+    # `.get`: `test_every_body_id_field_is_covered_by_the_sweep` chama com ids zerados.
+    sub_path = f"/api/subscriptions/{own.get('subscription_id', 0)}"
 
     return {
         ("POST", "/api/transactions", "account_id"): ("/api/transactions", transaction_body, 404),
@@ -395,6 +418,9 @@ def _body_cases(own, today):
         ("POST", "/api/installments", "account_id"): ("/api/installments", installment_body, 404),
         ("POST", "/api/installments", "category_id"): ("/api/installments", installment_body, 404),
         ("PATCH", "/api/installments/{installment_id}", "category_id"): (inst_path, {}, 404),
+        ("POST", "/api/subscriptions", "account_id"): ("/api/subscriptions", subscription_body, 404),
+        ("POST", "/api/subscriptions", "category_id"): ("/api/subscriptions", subscription_body, 404),
+        ("PATCH", "/api/subscriptions/{subscription_id}", "category_id"): (sub_path, {}, 404),
         ("POST", "/api/shared-expenses", "account_id"): ("/api/shared-expenses", shared_body, 404),
         ("POST", "/api/shared-expenses", "category_id"): ("/api/shared-expenses", shared_body, 404),
         ("POST", "/api/imports/invoice/confirm", "account_id"): (

@@ -38,7 +38,7 @@ def test_report_window_starts_in_august_of_the_previous_year(time_machine, clien
     create_transaction(client, default_account, cat, "SAÍDA", 7.0, date="2026-07-31")
     create_transaction(client, default_account, cat, "SAÍDA", 11.0, date="2026-08-01")
 
-    overview = client.get("/api/reports/overview").json()
+    overview = client.get("/api/reports/overview", params={"period": "6m"}).json()
     assert money(overview["total_expenses"]) == Decimal("11.00")
 
 

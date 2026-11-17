@@ -24,7 +24,8 @@
 
 import { z } from "zod";
 
-import { parseMoneyInput } from "./money.ts";
+import type { AmountMode, InstallmentFormInput } from "./installment-form.ts";
+import { formatBRL, parseMoneyInput } from "./money.ts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -42,6 +43,44 @@ export interface TransactionFormInput {
   unlink_installment?: boolean;
   /** Ignorado na edição — ver o schema. */
   account_id?: number;
+}
+
+/**
+ * Valor do seletor de parcelamento para "Criar novo parcelamento" (T-2).
+ * Nunca é um id: o `transactionCreateSchema` não o aceita, porque esse caminho
+ * não cria transação — vai para `POST /installments`.
+ */
+export const NEW_INSTALLMENT = "__new__";
+
+/** O que "Criar novo parcelamento" acrescenta ao formulário da saída. */
+export interface InlineInstallmentFields {
+  amount_mode: AmountMode;
+  current_installment: string;
+  total_installments: string;
+}
+
+/**
+ * Entrada de `installmentCreateSchema` a partir da saída que o usuário está
+ * preenchendo (T-2): descrição, categoria e valor são os da transação, e a data
+ * é o vencimento da parcela atual. O `POST /installments` grava as parcelas
+ * como transações (P-1) — por isso é a **única** chamada, e o front não divide
+ * dinheiro.
+ */
+export function inlineInstallmentInput(
+  values: TransactionFormInput,
+  fields: InlineInstallmentFields,
+  accountId: number | undefined,
+): InstallmentFormInput {
+  return {
+    title: values.title,
+    category_id: values.category_id,
+    amount_mode: fields.amount_mode,
+    amount: values.amount,
+    current_installment: fields.current_installment,
+    total_installments: fields.total_installments,
+    current_due_date: values.date,
+    account_id: accountId,
+  };
 }
 
 const amountField = z
@@ -102,6 +141,15 @@ export const transactionCreateSchema = z
         raw === undefined || raw === "" ? undefined : Number(raw),
       ),
   })
+  .refine(
+    (data) => !(data.type === "ENTRADA" && data.installment_id !== undefined),
+    {
+      // Decisão de produto (T-1): entrada não se parcela. A tela nem mostra o
+      // campo; a regra vive aqui para não depender só do JSX.
+      message: "Uma entrada não pode ser parcelada.",
+      path: ["installment_id"],
+    },
+  )
   .refine((data) => !(data.is_fixed && data.installment_id !== undefined), {
     // Espelha `check_fixed_and_installment_exclusive`, que devolve 422. O
     // formulário também desabilita um controle quando o outro está ativo, mas
@@ -133,3 +181,40 @@ export const transactionEditSchema = z
 
 export type TransactionCreatePayload = z.infer<typeof transactionCreateSchema>;
 export type TransactionEditPayload = z.infer<typeof transactionEditSchema>;
+
+/** Final do fluxo (Q5): diz o que foi salvo, com o valor em pt-BR. */
+export function savedToastMessage({
+  type,
+  amount,
+  isEditing,
+}: {
+  type: "ENTRADA" | "SAÍDA";
+  amount: string;
+  isEditing: boolean;
+}): string {
+  if (isEditing) return "Transação atualizada.";
+  return `${type === "ENTRADA" ? "Entrada" : "Saída"} de ${formatBRL(amount)} salva.`;
+}
+
+/** "Mais opções" abre sozinho quando o raro já está em uso (M2). */
+export function shouldOpenMoreOptions(state: {
+  isEditing: boolean;
+  is_fixed?: boolean;
+  installment_id?: string;
+  linkedToInstallment?: boolean;
+}): boolean {
+  return (
+    state.is_fixed === true ||
+    (state.installment_id ?? "") !== "" ||
+    state.linkedToInstallment === true
+  );
+}
+
+/** Foco ao abrir (M1): no valor com ponteiro fino; no toque, no diálogo (M-12). */
+export function initialFocusTarget({
+  coarsePointer,
+}: {
+  coarsePointer: boolean;
+}): "amount" | "dialog" {
+  return coarsePointer ? "dialog" : "amount";
+}
