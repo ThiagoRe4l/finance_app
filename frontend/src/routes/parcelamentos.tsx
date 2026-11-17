@@ -194,7 +194,7 @@ function InstallmentCard({
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground wrap-anywhere">
               {installment.category.name} · termina em {installment.end_date}
             </p>
           </div>
@@ -314,7 +314,7 @@ function ParcelamentosPage() {
         action={
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            className="flex w-full justify-center min-h-11 md:w-auto lg:min-h-0 items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
           >
             <Plus className="h-4 w-4" /> Novo parcelamento
           </button>

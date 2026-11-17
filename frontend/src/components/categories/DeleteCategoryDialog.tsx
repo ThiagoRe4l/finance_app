@@ -40,13 +40,17 @@ export function DeleteCategoryDialog({
 }) {
   const queryClient = useQueryClient();
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  // A última categoria aberta fica guardada: durante a animação de fechar,
+  // `category` já é undefined e o título piscaria `Excluir "undefined"?`.
+  const [shown, setShown] = useState(category);
 
   useEffect(() => {
+    if (category) setShown(category);
     if (category) setBlockedReason(null);
   }, [category]);
 
   const mutation = useMutation({
-    mutationFn: () => api.delete(`/categories/${category!.id}`),
+    mutationFn: () => api.delete(`/categories/${shown!.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -68,12 +72,10 @@ export function DeleteCategoryDialog({
 
   return (
     <AlertDialog open={category !== undefined} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {isBlocked
-              ? "Não é possível excluir"
-              : `Excluir "${category?.name}"?`}
+          <AlertDialogTitle className="wrap-anywhere">
+            {isBlocked ? "Não é possível excluir" : `Excluir "${shown?.name}"?`}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {isBlocked
@@ -82,7 +84,10 @@ export function DeleteCategoryDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={mutation.isPending}>
+          <AlertDialogCancel
+            disabled={mutation.isPending}
+            className="h-11 sm:h-9"
+          >
             {isBlocked ? "Entendi" : "Cancelar"}
           </AlertDialogCancel>
           {/*
@@ -97,7 +102,7 @@ export function DeleteCategoryDialog({
                 mutation.mutate();
               }}
               disabled={mutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-11 sm:h-9 bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {mutation.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { resolveCategoryIcon } from "@/lib/category-icons";
 import type { CategorySummary } from "@/lib/dashboard";
 
@@ -45,19 +46,37 @@ export function CategorySelect({
       onValueChange={onValueChange}
       disabled={disabled || categories.isPending}
     >
-      <SelectTrigger id={id} className={triggerClassName}>
+      {/*
+        `min-w-0`: o gatilho é item de grade, e sem isto o nome longo
+        selecionado o alarga além da coluna (mediu 407 px a 360, M-16). A seta
+        é filha direta do gatilho, em `ui/`: sem `shrink-0` ela é espremida.
+      */}
+      <SelectTrigger
+        id={id}
+        className={cn("min-w-0 [&>svg]:shrink-0", triggerClassName)}
+      >
         <SelectValue
           placeholder={categories.isPending ? "Carregando..." : "Selecione"}
         />
       </SelectTrigger>
-      <SelectContent>
+      {/*
+        O Radix dá `min-width: max-content` ao invólucro da lista: sem este
+        limite, um nome longo a alarga além da tela (M-16).
+      */}
+      <SelectContent className="max-w-(--radix-select-content-available-width)">
         {(categories.data ?? []).map((category) => {
           const Icon = resolveCategoryIcon(category.icon_name);
           return (
             <SelectItem key={category.id} value={String(category.id)}>
-              <span className="flex items-center gap-2">
-                <Icon className="h-4 w-4" style={{ color: category.color }} />
-                {category.name}
+              <span className="flex min-w-0 wrap-anywhere items-center gap-2">
+                <Icon
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: category.color }}
+                />
+                {/* Reticências só no gatilho; na lista, o nome quebra. */}
+                <span className="min-w-0 wrap-anywhere in-[[role=combobox]]:truncate">
+                  {category.name}
+                </span>
               </span>
             </SelectItem>
           );

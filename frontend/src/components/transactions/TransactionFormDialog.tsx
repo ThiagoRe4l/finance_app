@@ -365,15 +365,20 @@ export function TransactionFormDialog({
                   }
                   disabled={values.is_fixed}
                 >
-                  <SelectTrigger id="tx-installment" className="h-11 sm:h-9">
+                  <SelectTrigger
+                    id="tx-installment"
+                    className="h-11 min-w-0 sm:h-9 [&>svg]:shrink-0"
+                  >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-w-(--radix-select-content-available-width)">
                     <SelectItem value={NONE}>Nenhum</SelectItem>
                     {activeInstallments.map((it) => (
                       <SelectItem key={it.id} value={String(it.id)}>
-                        {it.title} — {it.current_installment}/
-                        {it.total_installments}
+                        <span className="wrap-anywhere in-[[role=combobox]]:block in-[[role=combobox]]:truncate">
+                          {it.title} — {it.current_installment}/
+                          {it.total_installments}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

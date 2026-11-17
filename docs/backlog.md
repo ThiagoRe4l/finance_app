@@ -18,6 +18,8 @@ decisão registrada, teste vermelho, implementação.
 | ✅ Resolvido em 12/11/2026: extraídos para `lib/jsx-source.ts` (com teste próprio); `elements` ignora genérico TS e a prop do `<PageHeader>` é lida só no nível da tag (`propValue`). Era: Auxiliares de leitura de JSX copiados em 5 arquivos de teste; extrair para `lib/jsx-source.ts`; heurística frágil com genéricos TS e apóstrofos; o bloco que confere o botão dentro do `<PageHeader>` está copiado em `dashboard-mobile.test.ts` e `transactions-list-mobile.test.ts`, e o `header.includes` procura na tag inteira, inclusive dentro da prop `action` (code-review da 3a, 27/10/2026, e da 3b, 09/11/2026; fora da reforma) | — |
 | ✅ Corrigido em 11/11/2026: `refetch` que falha trocava o Dashboard já carregado pelo banner de erro | aqui, "Banner de erro sobre o Dashboard já carregado" |
 | Revisão de 12/11/2026, não corrigido: "comprometido/mês" usa a parcela regular, 1 centavo abaixo da 1ª parcela quando o total não divide exato; valor sem teto pode estourar `Numeric(12,2)` (500 no Postgres); a sugestão de categoria da importação lê o histórico inteiro | `docs/design-patterns.md` (P-4) e `docs/importacao-fatura.md` |
+| Constantes compartilhadas para as classes do AlertDialog de exclusão (3 cópias) e para o limite de largura do `SelectContent` (2 cópias) | aqui, "Constantes compartilhadas de diálogo e seletor" |
+| Tabela de Transações a 1024 px: valor de seis dígitos quebra depois do sinal (célula de 90 px) | aqui, "Valor da tabela de Transações a 1024 px" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -358,3 +360,19 @@ mudança de layout passar hoje.
      L3045, L3228.
    * ⚠️ L2647–L2659 ("📐 Processo → Onde escrever") mandam registrar decisão "neste arquivo",
      em "🧩 Design Patterns" e "🔌 Status da Integração" — que agora são arquivos em `docs/`.
+
+## 🧭 Constantes compartilhadas de diálogo e seletor (registrado em 13/11/2026)
+
+**Não decidido; fora da 4c (M-16, review).** Constantes compartilhadas para as classes do
+`AlertDialog` de exclusão (3 cópias: categoria, transação e parcelamento) e para o limite de
+largura do `SelectContent` (2 cópias: `CategorySelect` e a lista de parcelamentos do formulário de
+transação), no padrão do `SHEET_DIALOG_CLASS` (`components/shared/sheet-dialog.ts`). **Motivo:** o
+próximo ajuste de margem, altura ou breakpoint teria que ser feito em cada cópia, e elas divergem.
+
+## 🧭 Valor da tabela de Transações a 1024 px (registrado em 17/11/2026)
+
+**Não decidido; anterior à 4c, achado no review final dela (M-16).** Medido no Playwright: a
+1024 px a célula de valor (`col-span-2`) tem 90 px, e "-R$ 100.000,00" e "-R$ 1.230,00" quebram
+em duas linhas, com o sinal separado do número — o que a M-13 proíbe. A 1280 px a célula tem
+133 px e cabe. Só `whitespace-nowrap` faria o valor invadir a coluna de ações; a correção pede
+redistribuir as colunas (`grid-cols-12`) a partir de `lg`, e isso muda o desktop.

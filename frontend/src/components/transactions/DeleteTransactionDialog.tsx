@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -32,9 +33,16 @@ export function DeleteTransactionDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  // A última transação aberta fica guardada: durante a animação de fechar,
+  // `transaction` já é undefined e o título piscaria `Excluir ""?`, com o
+  // valor em R$ 0,00 (o mesmo dos diálogos de categoria e de parcelamento).
+  const [shown, setShown] = useState(transaction);
+  useEffect(() => {
+    if (transaction) setShown(transaction);
+  }, [transaction]);
 
   const mutation = useMutation({
-    mutationFn: () => api.delete(`/transactions/${transaction!.id}`),
+    mutationFn: () => api.delete(`/transactions/${shown!.id}`),
     onSuccess: () => {
       // `["installments"]` fora pelo mesmo motivo do formulário: excluir uma
       // transação vinculada não altera o parcelamento — o `SET NULL` é do lado
@@ -53,14 +61,16 @@ export function DeleteTransactionDialog({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const amount = transaction ? signedAmount(transaction) : 0;
+  const amount = shown ? signedAmount(shown) : 0;
 
   return (
     <AlertDialog open={transaction !== undefined} onOpenChange={onOpenChange}>
       {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir "{transaction?.title}"?</AlertDialogTitle>
+          <AlertDialogTitle className="wrap-anywhere">
+            Excluir "{shown?.title}"?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {/*
               O estorno não é detalhe de implementação: é a consequência visível

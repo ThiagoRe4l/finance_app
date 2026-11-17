@@ -198,9 +198,9 @@ function TopCategories({
         <div className="space-y-4">
           {rows.map((row) => (
             <div key={row.name}>
-              <div className="flex justify-between text-sm mb-2">
-                <span>{row.name}</span>
-                <span className="tabular-nums text-muted-foreground">
+              <div className="flex justify-between gap-3 text-sm mb-2">
+                <span className="min-w-0 wrap-anywhere">{row.name}</span>
+                <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
                   {formatBRL(row.value)}
                 </span>
               </div>

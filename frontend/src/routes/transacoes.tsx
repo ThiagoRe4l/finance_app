@@ -176,8 +176,10 @@ function TransactionRow({
       <div className="col-span-1 text-sm text-muted-foreground tabular-nums">
         {formatShortDate(transaction.date)}
       </div>
-      <div className="col-span-4 text-sm font-medium">{transaction.title}</div>
-      <div className="col-span-2 text-sm text-muted-foreground">
+      <div className="col-span-4 min-w-0 wrap-anywhere text-sm font-medium">
+        {transaction.title}
+      </div>
+      <div className="col-span-2 min-w-0 wrap-anywhere text-sm text-muted-foreground">
         {transaction.category.name}
       </div>
       <div className="col-span-2">
