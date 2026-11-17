@@ -56,7 +56,9 @@ export function DeleteInstallmentDialog({
       {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir "{shown?.title}"?</AlertDialogTitle>
+          <AlertDialogTitle className="wrap-anywhere">
+            Excluir "{shown?.title}"?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             Esta ação não pode ser desfeita. As parcelas geradas por este
             parcelamento saem das transações e dos totais, e o saldo da conta é

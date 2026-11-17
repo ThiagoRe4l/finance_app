@@ -178,7 +178,7 @@ function InstallmentCard({
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground wrap-anywhere">
               {installment.category.name} · termina em {installment.end_date}
             </p>
           </div>

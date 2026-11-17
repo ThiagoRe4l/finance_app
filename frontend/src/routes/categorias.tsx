@@ -105,7 +105,7 @@ function CategoryCard({
   const Icon = resolveCategoryIcon(category.icon_name);
 
   return (
-    <div className="group bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
+    <div className="group min-w-0 bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
       {/*
         Editar/excluir no canto do card. Abaixo de lg ficam sempre visíveis,
         com 44 px: no toque não há hover (M-14, o padrão da 2b). A partir de lg
@@ -129,18 +129,23 @@ function CategoryCard({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center gap-3">
+      {/*
+        Nome longo sem espaço (até 50 letras): `min-w-0` deixa o grupo e o
+        invólucro encolherem e `wrap-anywhere` quebra a palavra; o que fica ao
+        lado não encolhe (M-16).
+      */}
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="flex min-w-0 items-center gap-3">
           <div
-            className="h-10 w-10 rounded-lg flex items-center justify-center"
+            className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center"
             style={{
               backgroundColor: `color-mix(in oklab, ${category.color} 15%, transparent)`,
             }}
           >
             <Icon className="h-5 w-5" style={{ color: category.color }} />
           </div>
-          <div>
-            <p className="text-sm font-medium">{category.name}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium wrap-anywhere">{category.name}</p>
             <p className="text-xs text-muted-foreground">
               {category.txs_count}{" "}
               {category.txs_count === 1 ? "transação" : "transações"}
@@ -154,14 +159,16 @@ function CategoryCard({
         */}
         {progress.hasBudget ? (
           <span
-            className={`text-xs font-medium tabular-nums ${
+            className={`shrink-0 text-xs font-medium tabular-nums ${
               progress.isAlert ? "text-destructive" : "text-muted-foreground"
             }`}
           >
             {progress.percent!.toFixed(0)}%
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground">sem orçamento</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            sem orçamento
+          </span>
         )}
       </div>
 
@@ -181,16 +188,17 @@ function CategoryCard({
         </div>
       </div>
 
-      <div className="flex items-baseline justify-between">
-        <span className="text-xl font-semibold tabular-nums">
+      {/* A 320 px, gasto + "de R$ …" não cabem numa linha: o segundo desce. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <span className="text-xl font-semibold tabular-nums whitespace-nowrap">
           {formatBRL(progress.spent)}
         </span>
         {progress.hasBudget ? (
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
             de {formatBRL(progress.budget)}
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground">
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
             sem orçamento definido
           </span>
         )}
@@ -218,7 +226,7 @@ function CategoriasPage() {
         action={
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            className="flex w-full justify-center min-h-11 md:w-auto lg:min-h-0 items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
           >
             <Plus className="h-4 w-4" /> Nova categoria
           </button>

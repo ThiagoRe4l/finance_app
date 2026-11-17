@@ -45,14 +45,16 @@ export function CategoryBars({
         <div className="flex flex-col gap-6">
           {rows.map((row) => (
             <div key={row.id} className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-foreground">{row.name}</span>
+              <div className="flex justify-between gap-3 text-sm">
+                <span className="min-w-0 wrap-anywhere text-foreground">
+                  {row.name}
+                </span>
                 {/*
                   O mock usava `value.toLocaleString("pt-BR")`. Com a string da
                   API isso vira no-op silencioso — `String.prototype.toLocaleString`
                   ignora os argumentos e devolve "2100.00" cru na tela.
                 */}
-                <span className="tabular-nums text-muted-foreground">
+                <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
                   {formatBRL(row.spent)}
                   <span className="ml-2 text-xs">
                     {Math.round(row.percent)}%

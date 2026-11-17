@@ -170,7 +170,8 @@ test("categoria: o CategorySelect repassa a classe ao gatilho, e o formulário p
   assert.match(select, /\btriggerClassName\?:\s*string/);
   assert.match(
     tagWith(select, "SelectTrigger", "id={id}"),
-    /className=\{triggerClassName\}/,
+    // Desde a 4c com `min-w-0` na frente (M-16).
+    /className=\{cn\("[^"]*\bmin-w-0\b[^"]*", triggerClassName\)\}/,
   );
   assert.ok(
     tagWith(read(FORM), "CategorySelect", 'id="tx-category"').includes(

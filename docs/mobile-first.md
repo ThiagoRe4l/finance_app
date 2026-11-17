@@ -627,6 +627,86 @@ computada no Playwright, com contexto de toque (`hasTouch`, `isMobile`) e sem, a
 
 **Sem impacto no contrato com o backend.**
 
+### M-16: fatia 4c — nome longo sem quebra e diálogo de exclusão (decidido em 13/11/2026)
+
+**Decidido antes da implementação**, a partir da auditoria Playwright de 13/11/2026
+(`.git/relatorio-auditoria-mobile.txt`, fora do repo), com dados de pior caso num banco à parte.
+
+**Medido:** (A) um nome de categoria de 50 letras sem espaço faz `/categorias` e `/relatorios`
+transbordarem a 320, 360 e 390 px (`scrollWidth` 490–501), e a barra inferior sai da tela (base em
+1006–1225 contra 800 de altura visível), o mecanismo da M-11; (B) por consequência, os diálogos
+de Categorias medem 474–490 px e saem da tela; (C) "Excluir categoria" sem margem lateral, sem
+cantos e com botões de 36 px; (D) "Nova categoria" e "Novo parcelamento" com 36 px de altura. A
+320 a linha do gasto do cartão também não cabe: "R$ 100.000,00" + "de R$ 100.000,00" = 234 px
+contra 222 úteis.
+
+**Padrão para nome e título longos:** o contêiner é `min-w-0` (item de flex encolhe), o texto é
+`wrap-anywhere` (entra no cálculo da largura mínima, ao contrário de `break-words`), o que fica ao
+lado é `shrink-0`, e dinheiro é `whitespace-nowrap` (M-13). Nome não é truncado onde é o
+conteúdo principal; `truncate` fica onde já estava (recentes do Dashboard, chip de Transações).
+
+* **Categorias (cartão):** o cartão com `min-w-0`; o grupo ícone + nome e o invólucro do nome com
+  `min-w-0`; o ícone de 40 px com `shrink-0`; o nome com `wrap-anywhere`; o percentual e "sem
+  orçamento" com `shrink-0`. A linha do gasto ganha `flex-wrap gap-x-2` (o "de R$ …" desce quando
+  não cabe), com o gasto `whitespace-nowrap` e "de R$ …" / "sem orçamento definido" `shrink-0`.
+* **Relatórios ("Maiores categorias") e Dashboard (distribuição por categoria):** a linha
+  `justify-between` ganha `gap-3`; o nome, `min-w-0 wrap-anywhere`; o valor,
+  `shrink-0 whitespace-nowrap`.
+* **Exclusão de categoria:** o padrão do `DeleteTransactionDialog`/`DeleteInstallmentDialog`
+  (`max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg`, botões `h-11 sm:h-9`); o título com o nome
+  quebra (`wrap-anywhere`). O comportamento bloqueado da M-14 fica.
+* **Cabeçalho:** "Nova categoria" e "Novo parcelamento" com
+  `w-full justify-center min-h-11 md:w-auto lg:min-h-0` no próprio botão, **sem
+  `actionClassName`** (os testes ✅ da 3b exigem).
+
+**Varredura de onde nome de categoria e título aparecem** (grep por `.name`, `.title` e o chip):
+protegidos e fora da 4c — o cartão de Transações (`min-w-0 flex-1`, `line-clamp-2
+wrap-anywhere`), o chip de categoria de Transações (`min-w-0 truncate`), os recentes do
+Dashboard (`truncate`, 3a), o título do cartão de parcelamento (`min-w-0 wrap-anywhere`, M-14) e
+a importação de fatura (`line-clamp-2 wrap-anywhere`). **Sem proteção e dentro da 4c:**
+
+* `routes/parcelamentos.tsx`, a linha "Categoria · termina em …" (`wrap-anywhere`); a auditoria
+  não pegou porque os parcelamentos semeados estavam numa categoria de nome curto;
+* `components/dashboard/CategoryBars.tsx` (acima); `/` não estava na auditoria;
+* os títulos de "Excluir transação" e "Excluir parcelamento" (`wrap-anywhere`), o mesmo caso do
+  de categoria;
+* a tabela de Transações, a partir de `lg`: as células de título e categoria (`min-w-0
+  wrap-anywhere`); com `grid-cols-12`, a palavra longa invade a coluna vizinha;
+* o `CategorySelect` (o item da lista com `min-w-0 wrap-anywhere`, o ícone `shrink-0`) e a lista
+  de parcelamentos do formulário de transação (o título num `<span className="wrap-anywhere">`):
+  o conteúdo do `Select` é `fixed` e se ajusta ao conteúdo; sem ponto de quebra, uma palavra
+  longa o alarga além da tela. O gatilho continua com o `line-clamp-1` do `ui/select`.
+  **Medido na prova (13/11/2026):** só o `wrap-anywhere` não bastou — o Radix põe
+  `min-width: max-content` no invólucro, e as listas mediram 415 e 805 px a 360. Os dois
+  `SelectContent` ganham `max-w-(--radix-select-content-available-width)` (a largura disponível
+  que o próprio Radix calcula); depois, 340 px, dentro da tela.
+  **O gatilho, medido depois (13/11/2026, review da 4c):** com a categoria de nome longo
+  selecionada, o gatilho cresceu para 407 px a 360 (é item de grade com mínimo automático) e o
+  nome saía cortado pela borda da folha, sem reticências, levando a seta junto. O gatilho ganha
+  `min-w-0` dentro do próprio `CategorySelect` (`cn("min-w-0", triggerClassName)`, vale para os
+  três formulários que o usam) e o nome fica num `<span>` com `in-[[role=combobox]]:truncate`:
+  reticências só no gatilho, e na lista o nome continua quebrando. Depois: gatilho de 294 px, nome
+  com reticências e a seta à vista.
+* **Do review da 4c, também:** "Excluir categoria" guarda a última categoria aberta (`shown`, como
+  o de parcelamento), senão o título piscava `Excluir "undefined"?` ao fechar; a linha do nome do
+  cartão ganha `gap-3`; na linha do gasto, "de R$ …" e "sem orçamento definido" ganham `ml-auto`
+  (quando descem sozinhos, ficam à direita) e a linha ganha `gap-y-1`.
+* **Do review final da 4c (medido a 360 px, 17/11/2026):** o gatilho da lista de parcelamentos do
+  formulário de transação crescia para 797 px com o título longo selecionado (o mesmo mecanismo do
+  de categoria): ganha `min-w-0`, e o título, `in-[[role=combobox]]:block` e
+  `in-[[role=combobox]]:truncate` (reticências só no gatilho). A seta dos dois gatilhos era
+  espremida para 6–11 px — ela é filha direta do gatilho, em `ui/` — e ganha `[&>svg]:shrink-0`
+  pelo ponto de uso; depois, 16 px. "Excluir transação" passa a guardar a última transação aberta
+  (`shown`), como os outros dois diálogos: o título piscava `Excluir ""?` e o valor R$ 0,00 ao
+  fechar. **Fora da 4c, no backlog:** o valor da tabela de Transações quebra depois do sinal a
+  1024 px (célula de 90 px).
+
+**Prova:** `lib/slice4c-mobile.test.ts` (um teste por asserção) e a mesma auditoria Playwright,
+com o mesmo banco e os mesmos dados, sobre uma cópia do working tree, acrescentando `/` e
+`/transacoes`, a 320, 360, 390, 768 e 1280 px. Critério: `scrollWidth === clientWidth` em todas
+as telas e os diálogos dentro da tela, com os números crus no relatório. **Sem impacto no
+contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,
@@ -642,6 +722,7 @@ eslint e `npm test` rodam no container; **`vite build` não roda** (o `node_modu
 | 2 | Transações (M-12), em dois commits: **2a**, formulário de transação responsivo (M-3), que o Dashboard também usa, e margem lateral na exclusão; **2b**, cartões, ações visíveis com 44 px, busca com 16 px, botão flutuante |
 | 3 | Dashboard (M-13), em dois commits: **3a**, cartões de métrica em coluna única abaixo de `sm`, recentes com truncamento, "Ver todas" com 44 px, botão flutuante (o componente da 2b); **3b**, `PageHeader` com `actionClassName`, o Dashboard adotando o `PageHeader` e o `<div>` vazio da ação no celular (M-12) |
 | 4 | Categorias e Parcelamentos (M-14): ações visíveis, card de parcelamento empilhado, os dois formulários responsivos — o de parcelamento saiu junto da issue #4 |
+| 4c | Nome longo sem quebra e exclusão de categoria (M-16): `min-w-0`/`wrap-anywhere` onde o nome é conteúdo, "Excluir categoria" no padrão dos outros diálogos, botões do cabeçalho de Categorias e Parcelamentos com 44 px |
 | 5 | Relatórios: totais (M-14; o Comparativo saiu para a 1d, M-11) |
 
 ---

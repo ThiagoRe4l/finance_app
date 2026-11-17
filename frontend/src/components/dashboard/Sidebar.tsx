@@ -3,16 +3,13 @@ import { Link } from "@tanstack/react-router";
 import { UserMenu } from "@/components/auth/UserMenu.tsx";
 import { NAV_ICONS } from "@/components/layout/nav-icons";
 import { NAV_ITEMS } from "@/lib/navigation";
+import { BrandMark } from "@/components/shared/BrandMark";
 
 export function Sidebar() {
   return (
     <aside className="hidden lg:flex w-64 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex-col gap-12 p-8 sticky top-0 h-dvh">
       <Link to="/" className="flex items-center gap-2">
-        <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
-          <span className="text-sidebar-primary-foreground font-display font-semibold text-sm">
-            F
-          </span>
-        </div>
+        <BrandMark className="h-8 w-8 shrink-0" />
         <span className="text-lg tracking-tight font-display font-semibold text-sidebar-foreground">
           Fisco
         </span>
