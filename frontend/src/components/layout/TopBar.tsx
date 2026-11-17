@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { UserMenu } from "@/components/auth/UserMenu.tsx";
+import { BrandMark } from "@/components/shared/BrandMark";
 
 /**
  * Barra superior fina, só abaixo de `lg`: marca e conta/logout
@@ -11,11 +12,7 @@ export function TopBar() {
     <header className="fixed top-0 inset-x-0 z-40 lg:hidden border-b border-border bg-background pt-[env(safe-area-inset-top)]">
       <div className="flex h-[var(--app-topbar-height)] items-center justify-between gap-4 px-4">
         <Link to="/" className="flex min-h-11 shrink-0 items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-semibold text-xs">
-              F
-            </span>
-          </div>
+          <BrandMark className="h-7 w-7 shrink-0" />
           <span className="tracking-tight font-medium text-primary">Fisco</span>
         </Link>
         <UserMenu variant="topbar" />
