@@ -99,6 +99,17 @@ o vermelho e implementa até o verde, num commit próprio.
   backend, e uma prévia divergente engana.
 * **Descartado:** reescrever o Tipo, os seletores ou o calendário — já são os do canvas.
 
+**D-Cad-10: fatia C6 — login.**
+
+* **A tela do canvas:** fundo papel pautado (linhas de 40 px em `--border`, só CSS), a marca,
+  "Fisco" em Fraunces grande, a frase "Seu caderno de contas, em ordem." e, embaixo, o texto de
+  hoje ("Organizador financeiro pessoal. O acesso é restrito."). O botão do Google continua o
+  oficial, renderizado pelo GSI (D-Auth-1), dentro de um cartão branco; o erro vira um aviso com
+  ícone (`role="alert"` continua) e o texto vindo do backend, sem mudança.
+* **Mobile-first:** no celular o conteúdo fica no alto e o cartão do botão desce para perto do
+  polegar (`mt-auto`); a partir de `sm`, tudo centrado numa coluna de `max-w-sm`. `min-h-dvh`
+  continua (P5). Sem mudança de autenticação, sessão ou allowlist.
+
 ### Fatias do Caderno
 
 Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.
