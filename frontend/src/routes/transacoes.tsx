@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
-import { formatShortDate } from "@/lib/date";
+import { formatShortDate, toISODate } from "@/lib/date";
+import { groupByDay } from "@/lib/day-groups";
 import {
   deriveTransactionLabel,
   directionOf,
@@ -429,6 +430,8 @@ function TransacoesPage() {
         t.title.toLowerCase().includes(term) ||
         t.category.name.toLowerCase().includes(term)),
   );
+  // Por dia, com o rótulo do canvas; sem total do dia (D-Cad-7, backlog).
+  const groups = groupByDay(visible, toISODate(new Date()));
 
   return (
     <AppShell>
@@ -546,13 +549,23 @@ function TransacoesPage() {
                 {isPending ? (
                   <LoadingCards />
                 ) : (
-                  visible.map((transaction) => (
-                    <TransactionCard
-                      key={transaction.id}
-                      transaction={transaction}
-                      onEdit={() => setEditing(transaction)}
-                      onDelete={() => setDeleting(transaction)}
-                    />
+                  groups.map((group) => (
+                    // Um dia por item, com o rótulo do dia (D-Cad-7).
+                    <li key={group.key}>
+                      <h3 className="mb-2 px-1 font-display text-base">
+                        {group.label}
+                      </h3>
+                      <ul className="flex flex-col gap-3">
+                        {group.items.map((transaction) => (
+                          <TransactionCard
+                            key={transaction.id}
+                            transaction={transaction}
+                            onEdit={() => setEditing(transaction)}
+                            onDelete={() => setDeleting(transaction)}
+                          />
+                        ))}
+                      </ul>
+                    </li>
                   ))
                 )}
               </ul>
@@ -561,13 +574,20 @@ function TransacoesPage() {
                 {isPending ? (
                   <LoadingRows />
                 ) : (
-                  visible.map((transaction) => (
-                    <TransactionRow
-                      key={transaction.id}
-                      transaction={transaction}
-                      onEdit={() => setEditing(transaction)}
-                      onDelete={() => setDeleting(transaction)}
-                    />
+                  groups.map((group) => (
+                    <div key={group.key}>
+                      <div className="border-b border-border bg-background/60 px-6 pt-4 pb-2 font-display text-base">
+                        {group.label}
+                      </div>
+                      {group.items.map((transaction) => (
+                        <TransactionRow
+                          key={transaction.id}
+                          transaction={transaction}
+                          onEdit={() => setEditing(transaction)}
+                          onDelete={() => setDeleting(transaction)}
+                        />
+                      ))}
+                    </div>
                   ))
                 )}
               </div>

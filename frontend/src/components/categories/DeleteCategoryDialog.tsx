@@ -74,7 +74,7 @@ export function DeleteCategoryDialog({
     <AlertDialog open={category !== undefined} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle className="wrap-anywhere">
+          <AlertDialogTitle className="font-display text-xl font-medium wrap-anywhere">
             {isBlocked ? "Não é possível excluir" : `Excluir "${shown?.name}"?`}
           </AlertDialogTitle>
           <AlertDialogDescription>

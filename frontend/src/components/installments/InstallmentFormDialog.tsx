@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CategorySelect } from "@/components/shared/CategorySelect";
+import { Leader } from "@/components/shared/Leader";
 import { MoneyInput } from "@/components/shared/MoneyInput";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/money";
@@ -139,27 +140,48 @@ function SchedulePreviewBox({
     first !== undefined && first.amount !== data.installment_amount;
 
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-      <dt className="text-muted-foreground">Parcela</dt>
-      <dd className="text-right font-medium tabular-nums whitespace-nowrap">
-        {formatBRL(data.installment_amount)}
-      </dd>
+    // Linhas de extrato do Caderno (D-Cad-9): nome, pontilhado e valor. O
+    // `<div>` dentro do `<dl>` agrupa cada par e é válido em HTML.
+    <dl className="flex flex-col gap-2 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <dt className="shrink-0 text-muted-foreground">Parcela</dt>
+        <Leader />
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
+          {formatBRL(data.installment_amount)}
+        </dd>
+      </div>
       {firstDiffers && (
-        <>
-          <dt className="text-muted-foreground">Parcela {first.number}</dt>
-          <dd className="text-right tabular-nums whitespace-nowrap">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <dt className="shrink-0 text-muted-foreground">
+            Parcela {first.number}
+          </dt>
+          <Leader />
+          <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
             {formatBRL(first.amount)}
           </dd>
-        </>
+        </div>
       )}
-      <dt className="text-muted-foreground">Valor total</dt>
-      <dd className="text-right font-medium tabular-nums whitespace-nowrap">
-        {formatBRL(data.total_amount)}
-      </dd>
-      <dt className="text-muted-foreground">Termina em</dt>
-      <dd className="text-right font-medium">{data.end_date}</dd>
-      <dt className="text-muted-foreground">Parcelas a lançar</dt>
-      <dd className="text-right tabular-nums">{data.installments.length}</dd>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <dt className="shrink-0 text-muted-foreground">Valor total</dt>
+        <Leader />
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
+          {formatBRL(data.total_amount)}
+        </dd>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <dt className="shrink-0 text-muted-foreground">Termina em</dt>
+        <Leader />
+        <dd className="ml-auto shrink-0 font-display text-base">
+          {data.end_date}
+        </dd>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <dt className="shrink-0 text-muted-foreground">Parcelas a lançar</dt>
+        <Leader />
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums">
+          {data.installments.length}
+        </dd>
+      </div>
     </dl>
   );
 }
@@ -303,7 +325,7 @@ export function InstallmentFormDialog({
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-display text-2xl font-medium">
               {isEditing ? "Editar parcelamento" : "Novo parcelamento"}
             </DialogTitle>
             <DialogDescription>

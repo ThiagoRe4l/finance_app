@@ -20,6 +20,7 @@ decisão registrada, teste vermelho, implementação.
 | Revisão de 12/11/2026, não corrigido: "comprometido/mês" usa a parcela regular, 1 centavo abaixo da 1ª parcela quando o total não divide exato; valor sem teto pode estourar `Numeric(12,2)` (500 no Postgres); a sugestão de categoria da importação lê o histórico inteiro | `docs/design-patterns.md` (P-4) e `docs/importacao-fatura.md` |
 | Constantes compartilhadas para as classes do AlertDialog de exclusão (3 cópias) e para o limite de largura do `SelectContent` (2 cópias) | aqui, "Constantes compartilhadas de diálogo e seletor" |
 | Tabela de Transações a 1024 px: valor de seis dígitos quebra depois do sinal (célula de 90 px) | aqui, "Valor da tabela de Transações a 1024 px" |
+| Fragilidades do `favicon.test.ts` e as duas cópias do desenho da marca | aqui, "Testes do favicon e da marca" |
 
 ### 0. "Fixas vs Variáveis" no Dashboard — removido, não implementado
 
@@ -389,3 +390,23 @@ próximo ajuste de margem, altura ou breakpoint teria que ser feito em cada cóp
 em duas linhas, com o sinal separado do número — o que a M-13 proíbe. A 1280 px a célula tem
 133 px e cabe. Só `whitespace-nowrap` faria o valor invadir a coluna de ações; a correção pede
 redistribuir as colunas (`grid-cols-12`) a partir de `lg`, e isso muda o desktop.
+
+## 🧭 Total do dia nos grupos de Transações (registrado em 18/11/2026)
+
+**Não decidido; fora do Caderno (`docs/tema.md`, fatia C3).** O canvas do Caderno mostra, no
+cabeçalho de cada dia, o total líquido do dia ("−R$ 364,40"). É soma de dinheiro, que o front não
+faz (`docs/design-patterns.md`, "Dinheiro é `Decimal`"): só entra com o total vindo da API, por
+dia e por dono — endpoint ou campo novo, com decisão de backend própria. Até lá, o grupo mostra só
+a data.
+
+## 🧭 Testes do favicon e da marca (registrado em 18/11/2026)
+
+**Não decidido; achados do último code-review do favicon (M-17), sem novo ciclo por decisão do
+usuário.** Nenhum é defeito do código ou dos ícones; são limites de `lib/favicon.test.ts`:
+a comparação do desenho não lê o `viewBox` do `BrandMark` nem atributos `url(…)`/`{…}` além do
+`fill` do quadrado; a busca de `c2pa`/`caBX` é por bytes e pode dar falso vermelho num PNG
+regerado (o certo é percorrer os chunks); o `headLinks` não pega `<link>` de ícone duplicado e
+corta o bloco no primeiro `],`; os testes da árvore do `CLAUDE.md` e da seção M-17 prendem o
+`npm test` a texto de documentação. **Alternativa de fundo:** gerar uma cópia do desenho a partir
+da outra (por exemplo, `favicon.svg?raw` no `BrandMark`), o que tiraria a duplicação em vez de
+vigiá-la.

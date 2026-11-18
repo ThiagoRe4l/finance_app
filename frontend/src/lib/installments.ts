@@ -89,3 +89,29 @@ export function canAdvance(
     installment.current_installment <= installment.total_installments
   );
 }
+
+export type TrackState = "paid" | "current" | "due";
+
+/**
+ * A trilha de parcelas do cartão (Caderno, `docs/tema.md`, D-Cad-8): um estado
+ * por parcela, com a mesma regra de `installmentProgress` — pagas = atual − 1,
+ * quitado = atual > total (todas pagas, nenhuma atual).
+ *
+ * `null` acima de 36 parcelas ou com total inválido: segmento estreito demais
+ * não se lê, e o cartão fica com a barra contínua.
+ */
+export const TRACK_MAX = 36;
+
+export function installmentTrack(
+  currentInstallment: number,
+  totalInstallments: number,
+): TrackState[] | null {
+  if (totalInstallments <= 0 || totalInstallments > TRACK_MAX) return null;
+  const { paidCount, isPaidOff } = installmentProgress(
+    currentInstallment,
+    totalInstallments,
+  );
+  return Array.from({ length: totalInstallments }, (_, i) =>
+    i < paidCount ? "paid" : i === paidCount && !isPaidOff ? "current" : "due",
+  );
+}

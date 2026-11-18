@@ -22,7 +22,7 @@ export function Sidebar() {
               key={to}
               to={to}
               activeOptions={{ exact: true }}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:font-medium"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:font-medium data-[status=active]:shadow-[inset_0_0_0_1px_var(--sidebar-border)]"
             >
               <Icon className="h-4 w-4" />
               {label}

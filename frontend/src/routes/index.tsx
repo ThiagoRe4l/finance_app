@@ -71,19 +71,8 @@ interface DashboardSummary {
 function LoadingState() {
   return (
     <>
-      <Skeleton className="mb-4 md:mb-6 h-44 rounded-2xl" />
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div
-            key={i}
-            className="bg-card p-6 rounded-2xl border border-border shadow-sm"
-          >
-            <Skeleton className="h-3 w-24 mb-3" />
-            <Skeleton className="h-7 w-32" />
-            <Skeleton className="h-3 w-28 mt-3" />
-          </div>
-        ))}
-      </section>
+      {/* O herói já traz Entradas, Saídas e Saldo atual (D-Cad-6). */}
+      <Skeleton className="mb-4 md:mb-6 h-80 md:h-56 rounded-2xl" />
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <Skeleton className="lg:col-span-2 h-80 rounded-2xl" />
         <Skeleton className="h-80 rounded-2xl" />
@@ -150,19 +139,21 @@ function Summary({ data }: { data: DashboardSummary }) {
         revenues={data.total_revenues}
         expenses={data.total_expenses}
         savingsPct={data.savings_pct_of_revenue}
-      />
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8">
+      >
         {/*
+          Linhas de extrato do Caderno (docs/tema.md, D-Cad-6).
           `tone` = julgamento (cor), `trend` = direção real (seta). São passados
           de forma independente: acoplar os dois foi o que fez "+325,8%" em
           Despesas exibir seta para baixo.
         */}
         <MetricCard
+          variant="ledger"
           label="Entradas"
           value={formatBRL(data.total_revenues)}
           tone="neutral"
         />
         <MetricCard
+          variant="ledger"
           label="Saídas"
           value={formatBRL(data.total_expenses)}
           delta={expensesDelta ?? undefined}
@@ -171,18 +162,17 @@ function Summary({ data }: { data: DashboardSummary }) {
           tone={toneFromDelta(data.expenses_change_pct, "lower-is-better")}
           trend={trendFromDelta(data.expenses_change_pct)}
         />
-        <div className="sm:col-span-2 xl:col-span-1">
-          <MetricCard
-            label="Saldo atual"
-            value={formatBRL(data.total_balance)}
-            delta={balanceDelta ?? undefined}
-            tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
-            trend={trendFromDelta(data.balance_change_pct)}
-          />
-        </div>
-      </section>
+        <MetricCard
+          variant="ledger"
+          label="Saldo atual"
+          value={formatBRL(data.total_balance)}
+          delta={balanceDelta ?? undefined}
+          tone={toneFromDelta(data.balance_change_pct, "higher-is-better")}
+          trend={trendFromDelta(data.balance_change_pct)}
+        />
+      </SavingsHero>
       {data.projected_expenses !== "0.00" && (
-        <p className="mb-8 -mt-4 text-xs text-muted-foreground">
+        <p className="mb-6 text-xs text-muted-foreground">
           As saídas incluem {formatBRL(data.projected_expenses)} previstos em
           cobranças de assinatura que ainda não aconteceram.
         </p>

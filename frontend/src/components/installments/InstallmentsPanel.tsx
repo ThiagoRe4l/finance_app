@@ -18,6 +18,7 @@ import { formatBRL } from "@/lib/money";
 import {
   canAdvance,
   installmentProgress,
+  installmentTrack,
   type Installment,
   type InstallmentsSummary,
 } from "@/lib/installments";
@@ -129,6 +130,10 @@ function InstallmentCard({
     installment.current_installment,
     installment.total_installments,
   );
+  const track = installmentTrack(
+    installment.current_installment,
+    installment.total_installments,
+  );
 
   /*
    * Avançar parcela é ação própria, fora do formulário: é a mais frequente da
@@ -163,7 +168,7 @@ function InstallmentCard({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="min-w-0 text-sm font-medium wrap-anywhere">
+              <p className="min-w-0 font-display text-lg font-medium wrap-anywhere">
                 {installment.title}
               </p>
               {/*
@@ -190,14 +195,14 @@ function InstallmentCard({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-8">
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Parcela</p>
-            <p className="text-sm font-medium tabular-nums">
+            <p className="font-display text-base tabular-nums whitespace-nowrap">
               {formatBRL(installment.installment_amount)}
             </p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Restante</p>
             {/* Vem pronto do backend — o front não recalcula. */}
-            <p className="text-sm font-medium tabular-nums">
+            <p className="font-display text-base tabular-nums whitespace-nowrap">
               {formatBRL(installment.remaining_amount)}
             </p>
           </div>
@@ -254,12 +259,37 @@ function InstallmentCard({
           </span>
           <span>{progress.percent.toFixed(0)}% pago</span>
         </div>
-        <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+        {/*
+          Trilha de parcelas do Caderno (D-Cad-8): um segmento por parcela.
+          Acima de 36 parcelas a trilha não se lê, e fica a barra contínua.
+        */}
+        {track === null ? (
+          <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand rounded-full transition-all"
+              style={{ width: `${progress.percent}%` }}
+            />
+          </div>
+        ) : (
           <div
-            className="h-full bg-brand rounded-full transition-all"
-            style={{ width: `${progress.percent}%` }}
-          />
-        </div>
+            role="img"
+            aria-label={`Parcela ${installment.current_installment} de ${installment.total_installments}, ${progress.paidCount} pagas`}
+            className="flex w-full gap-1"
+          >
+            {track.map((state, i) => (
+              <span
+                key={i}
+                className={`h-2 flex-1 rounded-full ${
+                  state === "paid"
+                    ? "bg-primary"
+                    : state === "current"
+                      ? "bg-primary/40"
+                      : "bg-secondary"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

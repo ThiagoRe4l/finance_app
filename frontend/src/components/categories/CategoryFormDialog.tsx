@@ -72,6 +72,7 @@ export function CategoryFormDialog({
   const queryClient = useQueryClient();
   const nameRef = useRef<HTMLInputElement>(null);
   const [values, setValues] = useState<CategoryFormInput>(EMPTY);
+  const PreviewIcon = resolveCategoryIcon(values.icon_name);
   const [errors, setErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
@@ -160,7 +161,7 @@ export function CategoryFormDialog({
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-display text-2xl font-medium">
               {isEditing ? "Editar categoria" : "Nova categoria"}
             </DialogTitle>
             <DialogDescription>
@@ -169,6 +170,41 @@ export function CategoryFormDialog({
           </DialogHeader>
 
           <div className="grid gap-5 py-6 min-h-0 flex-1 overflow-y-auto -mx-1 px-1">
+            {/*
+              Prévia do cartão (Caderno, D-Cad-9): repete o que os campos já
+              dizem, então fica fora da árvore de acessibilidade. O orçamento
+              aparece como foi digitado, sem conta.
+            */}
+            <div
+              aria-hidden="true"
+              className="flex min-w-0 items-center gap-3 rounded-xl border border-dashed border-input bg-card p-3"
+            >
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{
+                  backgroundColor: `color-mix(in oklab, ${values.color} 15%, transparent)`,
+                }}
+              >
+                <PreviewIcon
+                  className="h-5 w-5"
+                  style={{ color: values.color }}
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-lg wrap-anywhere">
+                  {values.name || "Nova categoria"}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {values.budget
+                    ? `Orçamento de ${values.budget}`
+                    : "Sem orçamento definido"}
+                </span>
+              </span>
+              <span className="shrink-0 text-[11px] uppercase tracking-wider text-muted-foreground">
+                Prévia
+              </span>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="category-name">Nome</Label>
               <Input
