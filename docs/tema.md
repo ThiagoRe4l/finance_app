@@ -33,6 +33,28 @@ invisível.
 **D-Cad-5: contraste testado, não visto** — a D-Tema-6 continua, com os pares revistos em
 `lib/theme.test.ts`.
 
+**Aprovação dos testes das fatias C2 a C6 delegada pelo usuário em 18/11/2026** ("pode seguir
+com todas as etapas"), como na M-14: cada fatia registra a decisão aqui, escreve os testes, roda
+o vermelho e implementa até o verde, num commit próprio.
+
+**D-Cad-6: fatia C2 — Visão Geral.**
+
+* **Os três indicadores viram linhas de extrato dentro do "Sobrou no mês".** Entradas, Saídas e
+  Saldo atual saem da grade de cartões e entram no `SavingsHero` como `children`, num painel à
+  direita a partir de `md` (empilhado abaixo). Cada linha é nome, pontilhado e valor. O
+  `MetricCard` ganha `variant="ledger"`; o padrão `card` não muda. O valor continua um elemento
+  só, `whitespace-nowrap` e sem corte (M-13), e `tone` × `trend` continuam independentes (o bug
+  de 13/08/2026). A grade dos cartões (M-15) sai do `Summary` e do `LoadingState`.
+  *Descartado:* um componente novo só para as linhas — o `MetricCard` já carrega a separação
+  entre cor e seta.
+* **Pontilhado:** `components/shared/Leader.tsx`, `aria-hidden`, só decoração: o leitor de tela
+  lê nome e valor.
+* **`PanelTitle` em Fraunces** (`font-display text-xl font-medium`); o subtítulo de 13 px fica.
+  Substitui o tamanho da D-Tema-8.
+* **`RecurringCard`:** Parcelamentos e Assinaturas em linhas de extrato, e o "Comprometido por mês"
+  num bloco ardósia (`bg-primary text-primary-foreground`), no lugar do `bg-expense/20` da
+  D-Tema-7.
+
 ### Fatias do Caderno
 
 Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.

@@ -63,13 +63,11 @@ const METRIC_GRID =
     " ",
   );
 
-for (const name of ["Summary", "LoadingState"]) {
-  test(`${name}: grade dos cartões em coluna única abaixo de sm, 3 colunas só em xl (Q1: o herói ocupa a linha de cima)`, () => {
-    const src = fn(read(DASHBOARD), name);
-    const grid = tagAt(src, src.indexOf("<section"));
-    assert.deepEqual(classesIn(grid), METRIC_GRID);
-  });
-}
+// A grade dos cartões saiu do Dashboard em 18/11/2026 (Caderno, D-Cad-6): os
+// três indicadores viraram linhas de extrato dentro do SavingsHero. O teste
+// da grade foi para `caderno-dashboard.test.ts`, invertido ("a grade saiu").
+// `METRIC_GRID` fica registrado aqui como a grade que vigorou até então.
+void METRIC_GRID;
 
 test("MetricCard: o valor não quebra e não é cortado", () => {
   const src = read(METRIC_CARD);

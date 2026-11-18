@@ -1,7 +1,6 @@
 /**
- * Cabeçalho único dos cartões do Dashboard (`docs/tema.md`, D-Tema-8): título
- * em 15 px semibold e, embaixo, a linha de apoio em 13 px — o que a proposta de
- * design desenha em todo cartão.
+ * Cabeçalho único dos cartões do Dashboard (`docs/tema.md`, D-Tema-8): o título
+ * em Fraunces desde o Caderno (D-Cad-6) e, embaixo, a linha de apoio em 13 px.
  */
 export function PanelTitle({
   title,
@@ -12,7 +11,7 @@ export function PanelTitle({
 }) {
   return (
     <div>
-      <h2 className="text-[15px] font-semibold">{title}</h2>
+      <h2 className="font-display text-xl font-medium">{title}</h2>
       {subtitle && (
         <p className="mt-1 text-[13px] text-muted-foreground">{subtitle}</p>
       )}

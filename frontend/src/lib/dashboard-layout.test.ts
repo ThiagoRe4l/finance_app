@@ -112,9 +112,9 @@ test("RecurringCard: parcelamentos, assinaturas e o comprometido do mês em dest
   for (const word of ["Parcelamentos", "Assinaturas", "Comprometido"]) {
     assert.ok(src.includes(word), `sem ${word}`);
   }
-  // O destaque laranja: texto escuro sobre laranja suave, nunca laranja puro.
-  assert.match(src, /bg-expense\/20/);
-  assert.match(src, /text-expense-text/);
+  // O destaque: bloco ardósia desde o Caderno (D-Cad-6; antes, laranja suave).
+  assert.match(src, /bg-primary/);
+  assert.match(src, /text-primary-foreground/);
   // Dinheiro não quebra nem é cortado (M-13) e vem pronto do backend.
   assert.match(src, /whitespace-nowrap/);
   assert.doesNotMatch(src, /parseMoney|\+\s*Number/);
@@ -126,12 +126,12 @@ test("o Dashboard não escreve mais o cartão de Recorrências à mão", () => {
 
 // ── Cabeçalho único de cartão ────────────────────────────────────────────
 
-test("PanelTitle: título 15 px semibold e subtítulo 13 px de apoio", () => {
+test("PanelTitle: título em Fraunces (Caderno, D-Cad-6) e subtítulo 13 px de apoio", () => {
   const src = read("../components/dashboard/PanelTitle.tsx");
   assert.match(src, /export function PanelTitle\b/);
   const h2 = tagAt(src, src.indexOf("<h2"));
-  assert.ok(classesIn(h2).includes("text-[15px]"), h2);
-  assert.ok(classesIn(h2).includes("font-semibold"), h2);
+  assert.ok(classesIn(h2).includes("font-display"), h2);
+  assert.ok(classesIn(h2).includes("text-xl"), h2);
   const p = tagAt(src, src.indexOf("<p"));
   assert.ok(classesIn(p).includes("text-[13px]"), p);
   assert.ok(classesIn(p).includes("text-muted-foreground"), p);
