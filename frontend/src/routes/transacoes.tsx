@@ -207,7 +207,8 @@ function EmptyState({
         <>
           <p className="max-w-sm text-xs text-muted-foreground">
             Lance {type === "ENTRADA" ? "o que recebeu" : "o que gastou"} em
-            poucos segundos, ou traga uma fatura em PDF.
+            poucos segundos
+            {type === "SAÍDA" ? ", ou traga uma fatura em PDF" : ""}.
           </p>
           <div className="mt-1 flex flex-col gap-2 sm:flex-row">
             <button
@@ -217,13 +218,15 @@ function EmptyState({
             >
               <Plus className="h-4 w-4" /> Nova transação
             </button>
-            <button
-              type="button"
-              onClick={onImport}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm hover:bg-secondary lg:min-h-0 lg:py-2"
-            >
-              <FileUp className="h-4 w-4" /> Importar fatura
-            </button>
+            {type === "SAÍDA" && (
+              <button
+                type="button"
+                onClick={onImport}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm hover:bg-secondary lg:min-h-0 lg:py-2"
+              >
+                <FileUp className="h-4 w-4" /> Importar fatura
+              </button>
+            )}
           </div>
         </>
       )}
@@ -488,13 +491,16 @@ function TransacoesPage() {
             >
               <Plus className="h-4 w-4" /> Nova
             </button>
-            <button
-              type="button"
-              onClick={() => setIsImporting(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors"
-            >
-              <FileUp className="h-4 w-4" /> Importar fatura
-            </button>
+            {/* Fatura é saída: o botão só existe na aba Saídas. */}
+            {type === "SAÍDA" && (
+              <button
+                type="button"
+                onClick={() => setIsImporting(true)}
+                className="flex items-center justify-center gap-2 px-4 py-2 min-h-11 lg:min-h-0 rounded-lg border border-border bg-card text-sm hover:bg-secondary transition-colors"
+              >
+                <FileUp className="h-4 w-4" /> Importar fatura
+              </button>
+            )}
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input

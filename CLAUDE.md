@@ -31,6 +31,7 @@ D-Tenant-7.
 | `docs/multiusuario.md` | 👥 Multiusuário — dados por dono e despesa compartilhada | antes de tocar consulta, router, migration ou o contrato da despesa compartilhada |
 | `docs/autenticacao.md` | 🔑 Autenticação — Google + allowlist de 4 e-mails | ao mexer em login, sessão, cookie, allowlist ou origens do Google |
 | `docs/deploy-vercel-neon.md` | 🚢 Deploy — Vercel + Neon (Postgres) | ao mexer em `database.py`, pool, Alembic, CI de Postgres ou config da Vercel |
+| `docs/runbook-migracao-producao.md` | 🛠️ Runbook — aplicar migration no Neon | ao aplicar migration em produção ou diagnosticar 500 depois de um deploy com schema novo |
 | `docs/variaveis-de-ambiente.md` | 🔐 Variáveis de Ambiente | ao criar ou ler variável de ambiente, ou ao lidar com `.env.local` |
 | `docs/common-hurdles.md` | 🧯 Common Hurdles (Problemas Recorrentes) | antes de depurar erro de ambiente, deploy, CI ou barra final |
 | `docs/backlog.md` | 🧭 Itens futuros + 🧭 Candidatos ao dia 5 | antes de propor trabalho novo ou escolher o próximo |

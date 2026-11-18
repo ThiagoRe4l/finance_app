@@ -73,3 +73,16 @@ test("o filtro de período não tem mais os atalhos soltos na tela", () => {
   assert.ok(src.indexOf("periodShortcuts()") > src.indexOf("<PopoverContent"));
   assert.match(src, /Intervalo/);
 });
+
+test("Importar fatura só aparece na aba Saídas (barra e estado vazio)", () => {
+  const src = read("../routes/transacoes.tsx");
+  const guarded =
+    src.match(
+      /\{type === "SAÍDA" && \(\s*<button[^>]*?\n?[^>]*?onClick=\{[^}]*(?:setIsImporting|onImport)/g,
+    ) ?? [];
+  assert.equal(
+    guarded.length,
+    2,
+    "os dois botões de importar ficam atrás de type === SAÍDA",
+  );
+});
