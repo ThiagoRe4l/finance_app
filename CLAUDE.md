@@ -37,7 +37,7 @@ D-Tenant-7.
 | `docs/recorrencias.md` | 🔁 Recorrências — assinaturas | ao mexer em assinaturas, cobrança recorrente ou na tela `/recorrencias` |
 | `docs/periodos.md` | 🗓️ Períodos — filtro por página | ao mexer no filtro de período, em `?period=`, na projeção de mês futuro ou em `/periods/range` |
 | `docs/importacao-fatura.md` | 📄 Importação de fatura em PDF | ao mexer na importação de fatura, no parser ou na deduplicação |
-| `docs/tema.md` | 🎨 Tema — paleta 60 · 30 · 10 | ao mexer em cor, token do `styles.css`, menu ou fonte |
+| `docs/tema.md` | 📒 Tema — Caderno (e o histórico da paleta 60 · 30 · 10) | ao mexer em cor, token do `styles.css`, menu ou fonte |
 | `docs/ux-leis.md` | 🧠 Leis da UX — otimização de design | antes de mexer no Dashboard, no formulário de transação ou em estado vazio/feedback |
 | `docs/produto.md` | 🎯 Produto — princípios e requisitos originais (ex-`GEMINI.md`) | ao propor feature nova, para checar contra os requisitos de origem |
 | `docs/seguranca-dependencias.md` | 🔒 Correções de segurança em dependências | ao atualizar dependência ou responder a CVE / `npm audit` |

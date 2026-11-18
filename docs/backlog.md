@@ -389,3 +389,11 @@ próximo ajuste de margem, altura ou breakpoint teria que ser feito em cada cóp
 em duas linhas, com o sinal separado do número — o que a M-13 proíbe. A 1280 px a célula tem
 133 px e cabe. Só `whitespace-nowrap` faria o valor invadir a coluna de ações; a correção pede
 redistribuir as colunas (`grid-cols-12`) a partir de `lg`, e isso muda o desktop.
+
+## 🧭 Total do dia nos grupos de Transações (registrado em 18/11/2026)
+
+**Não decidido; fora do Caderno (`docs/tema.md`, fatia C3).** O canvas do Caderno mostra, no
+cabeçalho de cada dia, o total líquido do dia ("−R$ 364,40"). É soma de dinheiro, que o front não
+faz (`docs/design-patterns.md`, "Dinheiro é `Decimal`"): só entra com o total vindo da API, por
+dia e por dono — endpoint ou campo novo, com decisão de backend própria. Até lá, o grupo mostra só
+a data.

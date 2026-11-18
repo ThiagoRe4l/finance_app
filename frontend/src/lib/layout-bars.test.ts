@@ -50,12 +50,13 @@ test("Sidebar: os itens vêm da fonte única, sem lista local", () => {
   assert.doesNotMatch(src, /const items\s*=/);
 });
 
-test("✅ Sidebar: Link, activeOptions exact e <UserMenu /> sem prop, como hoje", () => {
-  // Regressão: já passa. Trava o que faz ≥ 1024 px ficar idêntico (M-10).
+test("Sidebar: Link, activeOptions exact e <UserMenu /> sem prop; item ativo do Caderno", () => {
+  // Trava o que faz ≥ 1024 px ficar igual ao combinado (M-10). Em 18/11/2026 a
+  // string ganhou o contorno do item ativo do Caderno (docs/tema.md, D-Cad-3).
   const src = read(SIDEBAR);
   assert.ok(
     src.includes(
-      'className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:font-medium"',
+      'className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[status=active]:bg-sidebar-primary data-[status=active]:text-sidebar-primary-foreground data-[status=active]:font-medium data-[status=active]:shadow-[inset_0_0_0_1px_var(--sidebar-border)]"',
     ),
     "classes do Link da Sidebar mudaram",
   );

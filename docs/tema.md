@@ -1,4 +1,61 @@
+## 📒 Tema — Caderno (decidido em 18/11/2026; substitui D-Tema-1, 2, 4 e 5)
+
+**Decidido antes da implementação**, a partir do canvas "Fisco — Redesign visual" no Claude
+Design (direção A, "Caderno"), aprovado pelo usuário em 18/11/2026 ("Caderno completo";
+"Aprovado, seguir"). O canvas cobre login, as 4 telas, celular e todos os popups. Só frontend,
+**sem impacto no contrato com o backend**: nenhum campo novo, nenhuma soma de dinheiro no cliente.
+
+**D-Cad-1: paleta de livro-caixa.** Fundo **papel** `#F6F3EC`, cartão e popover **branco**
+`#FFFFFF`, texto **tinta** `#14222B` (apoio `#5B6670`), ação principal **ardósia** `#26404F` com
+texto papel `#FAF8F5`. Dinheiro: **entrada** verde `#1F7A4D` (texto), **saída** âmbar `#D08A3C`
+(barra e ponto) e `--expense-text` âmbar escuro (texto, ≥ 4,5:1), **erro** vermelho `#B3261E`,
+distinto de saída (D-Tema-3 continua). Valores em `oklch` saídos de `hexToOklchText`.
+*Descartado:* manter verde Fisco + laranja e trocar só a forma (opção "só forma, cores atuais"),
+recusada pelo usuário.
+
+**D-Cad-2: a ação principal volta a servir de texto.** Ardósia sobre papel passa de 9:1, então
+`text-primary` deixa de ser proibido (a regra de D-Tema-2 era do laranja). A regra que fica: o
+**âmbar puro não é texto** (< 3:1 sobre o papel) — texto de saída usa `--expense-text`.
+
+**D-Cad-3: o menu é claro.** Os tokens `--sidebar*` continuam sendo a fonte do menu (D-Tema-4 no
+mecanismo), com outros valores: fundo `#F1EDE3`, texto tinta, borda `#E4DED1`, hover `--sidebar-accent`.
+**Item ativo como no canvas:** na Sidebar, cartão branco (`--sidebar-primary`) com texto tinta e
+contorno de 1 px da borda do menu; na barra inferior, o ícone do ativo numa pílula
+`--sidebar-accent` e o rótulo em tinta semibold. Só as classes do estado ativo mudam (Sidebar e
+BottomNav); tamanho, alvo de 44 px e empilhamento (M-10) ficam. *Descartado:* rótulo ativo em cor
+de destaque na barra inferior — com o menu claro, o `--sidebar-primary` branco seria texto
+invisível.
+
+**D-Cad-4: Fraunces nos títulos e números** (`--font-display`, serifada, eixo `opsz`, pesos 400 a
+600), Inter no resto. O `<link>` do `__root.tsx` troca Space Grotesk por Fraunces. As classes
+`font-display` que já existem (PageHeader, MetricCard, SavingsHero…) herdam a troca sem mudar.
+
+**D-Cad-5: contraste testado, não visto** — a D-Tema-6 continua, com os pares revistos em
+`lib/theme.test.ts`.
+
+### Fatias do Caderno
+
+Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.
+
+| # | Conteúdo |
+|---|---|
+| C1 | Tokens (D-Cad-1/2), Fraunces (D-Cad-4) e menu claro com o item ativo do canvas (D-Cad-3) |
+| C2 | Visão Geral: "Sobrou no mês" com Entradas, Saídas e Saldo atual em linhas de extrato (pontilhado entre nome e valor), Recorrências em cartão escuro |
+| C3 | Transações agrupadas por dia (a data vira cabeçalho do grupo); linha de filtro do canvas |
+| C4 | Categorias e Recorrências: cartões do canvas, trilha de parcelas pagas × a pagar no parcelamento |
+| C5 | Popups: valor em destaque, Tipo como dois botões, prévia da categoria, resumo do parcelamento em linhas de extrato, "Todo dia X · próxima em …" na assinatura |
+| C6 | Login |
+
+**Fora do Caderno, registrado em `docs/backlog.md`:** o **total do dia** nos grupos de
+Transações que o canvas mostra — é soma de dinheiro, então só entra com campo vindo da API
+(decisão de backend própria). Até lá, o cabeçalho do grupo mostra só a data.
+
+---
+
 ## 🎨 Tema — paleta 60 · 30 · 10 (decidido em 13/11/2026)
+
+> ⚠️ **D-Tema-1, 2, 4 e 5 substituídos em 18/11/2026 pelo Caderno (acima).** D-Tema-3
+> (tokens de entrada × saída) e D-Tema-6 (contraste testado) continuam, com os valores novos.
 
 **Decidido antes da implementação**, a partir da proposta de design aprovada pelo usuário
 ("implemente"; autorização para seguir planejamento > implementação > teste > revisão). Só

@@ -29,9 +29,16 @@ export function BottomNav() {
               to={to}
               activeOptions={{ exact: true }}
               aria-current={isActive ? "page" : undefined}
-              className="flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-sidebar-foreground/75 transition-colors aria-[current=page]:font-medium aria-[current=page]:text-sidebar-primary"
+              className="group flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] text-sidebar-foreground/75 transition-colors aria-[current=page]:font-semibold aria-[current=page]:text-sidebar-foreground"
             >
-              <Icon className="h-5 w-5" />
+              {/*
+                Item ativo do Caderno (docs/tema.md, D-Cad-3): o ícone numa
+                pílula e o rótulo em tinta. O --sidebar-primary é branco no menu
+                claro e não serve de texto aqui.
+              */}
+              <span className="grid h-7 w-11 place-items-center rounded-full transition-colors group-aria-[current=page]:bg-sidebar-accent">
+                <Icon className="h-5 w-5" />
+              </span>
               {shortLabel}
             </Link>
           );
