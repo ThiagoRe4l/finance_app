@@ -71,11 +71,11 @@ export function MetricCard({
 
   return (
     <div>
-      <div className="flex items-baseline gap-2 text-[15px]">
+      <div className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
         <span className="shrink-0">{label}</span>
         <Leader />
         <span
-          className={`shrink-0 font-display text-xl tabular-nums whitespace-nowrap ${toneClasses[tone]}`}
+          className={`ml-auto shrink-0 font-display text-xl tabular-nums whitespace-nowrap ${toneClasses[tone]}`}
         >
           {value}
         </span>

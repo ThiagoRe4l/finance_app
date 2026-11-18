@@ -143,40 +143,42 @@ function SchedulePreviewBox({
     // Linhas de extrato do Caderno (D-Cad-9): nome, pontilhado e valor. O
     // `<div>` dentro do `<dl>` agrupa cada par e é válido em HTML.
     <dl className="flex flex-col gap-2 text-sm">
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <dt className="shrink-0 text-muted-foreground">Parcela</dt>
         <Leader />
-        <dd className="shrink-0 font-display text-base tabular-nums whitespace-nowrap">
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
           {formatBRL(data.installment_amount)}
         </dd>
       </div>
       {firstDiffers && (
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <dt className="shrink-0 text-muted-foreground">
             Parcela {first.number}
           </dt>
           <Leader />
-          <dd className="shrink-0 font-display text-base tabular-nums whitespace-nowrap">
+          <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
             {formatBRL(first.amount)}
           </dd>
         </div>
       )}
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <dt className="shrink-0 text-muted-foreground">Valor total</dt>
         <Leader />
-        <dd className="shrink-0 font-display text-base tabular-nums whitespace-nowrap">
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums whitespace-nowrap">
           {formatBRL(data.total_amount)}
         </dd>
       </div>
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <dt className="shrink-0 text-muted-foreground">Termina em</dt>
         <Leader />
-        <dd className="shrink-0 font-display text-base">{data.end_date}</dd>
+        <dd className="ml-auto shrink-0 font-display text-base">
+          {data.end_date}
+        </dd>
       </div>
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <dt className="shrink-0 text-muted-foreground">Parcelas a lançar</dt>
         <Leader />
-        <dd className="shrink-0 font-display text-base tabular-nums">
+        <dd className="ml-auto shrink-0 font-display text-base tabular-nums">
           {data.installments.length}
         </dd>
       </div>

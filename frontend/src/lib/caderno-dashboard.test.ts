@@ -90,6 +90,16 @@ test("MetricCard ledger: o valor em Fraunces, numa linha só, sem corte", () => 
   );
 });
 
+test("MetricCard ledger: sem espaço (320 px), o valor desce inteiro para a linha de baixo", () => {
+  // Achado na revisão final do Caderno: "Saldo atual" + R$ 24.318,40 em
+  // text-xl passa dos ~224 px do painel a 320 e transbordaria o documento (M-11).
+  const src = read(METRIC_CARD);
+  const row = openingBefore(src, src.indexOf("<Leader"), "div");
+  assert.ok(classesIn(row).includes("flex-wrap"), row);
+  const value = openingBefore(src, src.lastIndexOf("{value}"), "span");
+  assert.ok(classesIn(value).includes("ml-auto"), value);
+});
+
 test("MetricCard ledger: a seta continua vindo do trend, separada do tone", () => {
   const src = read(METRIC_CARD);
   const ledger = src.slice(src.indexOf("<Leader"));
