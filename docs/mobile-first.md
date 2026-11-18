@@ -707,6 +707,23 @@ com o mesmo banco e os mesmos dados, sobre uma cópia do working tree, acrescent
 as telas e os diálogos dentro da tela, com os números crus no relatório. **Sem impacto no
 contrato com o backend.**
 
+### M-17: a marca do Fisco e os ícones do app (decidido em 18/11/2026)
+
+**Decidido em 18/11/2026 para os ícones; a parte do `BrandMark` é documentada retroativamente em
+18/11** (saiu no commit `3320a53`, em 17/11, antes deste registro). O desenho da marca (quadrado
+arredondado em gradiente azul-escuro, "F" claro com a barra do meio verde) existe em **dois
+lugares**: `frontend/public/favicon.svg`, de onde saem o ícone da aba (`favicon.ico` em 16/32/48 px
+e `favicon.svg`) e o atalho do iOS (`apple-touch-icon.png`, 180 × 180), declarados nos `links` do
+`head()` de `routes/__root.tsx`; e `components/shared/BrandMark.tsx`, o mesmo SVG inline, usado na
+Sidebar e na barra superior (commit `3320a53`). **Descartado:** `<img src="/favicon.svg">` dentro
+do app, que dependeria de arquivo servido de `public/`. O custo de ter duas cópias é coberto por
+`lib/favicon.test.ts`: lê o `favicon.svg` e exige que o `BrandMark` tenha o mesmo desenho, elemento
+por elemento e nos dois sentidos (cores e ordem do gradiente, `rx`, traços e espessura), e confere
+o formato dos três arquivos (IHDR do PNG, cabeçalho e 3 imagens do `.ico`, `viewBox` do SVG, sem
+metadado de proveniência). O `.ico` é declarado com `sizes="32x32"`, não `"any"`: com `"any"` o
+Chrome e o Edge o preferem ao SVG. **Não é PWA:** sem manifest e sem service worker, que continuam
+fora pela M-8. **Sem impacto no contrato com o backend.**
+
 ### Fatias
 
 Um commit verde por fatia, na `main`, conferido num checkout limpo. Em cada uma: `tsc --noEmit`,

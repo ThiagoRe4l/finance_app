@@ -4,6 +4,8 @@
  * de arquivo servido de `public/`.
  *
  * Escrito **antes** da implementação. Teste sobre arquivo, um por asserção.
+ * A igualdade do desenho com o `favicon.svg` (cores, traços, `rx`, espessura,
+ * ordem do gradiente) está em `favicon.test.ts`, lida do próprio arquivo.
  */
 
 import { test } from "node:test";
@@ -20,22 +22,6 @@ function read(rel: string): string {
 
 const MARK = "../components/shared/BrandMark.tsx";
 const SIDEBAR = "../components/dashboard/Sidebar.tsx";
-
-test("BrandMark: o fundo é o gradiente azul-escuro do ícone da aba", () => {
-  const src = read(MARK);
-  assert.ok(
-    src.includes('"#26404f"') && src.includes('"#14222b"'),
-    "sem as duas cores do gradiente",
-  );
-});
-
-test("BrandMark: o F claro e a barra do meio verde são os traços do ícone da aba", () => {
-  const src = read(MARK);
-  assert.ok(
-    src.includes('d="M22 47V17h20"') && src.includes('d="M22 31h14"'),
-    "sem os dois traços do F",
-  );
-});
 
 test("BrandMark: o id do gradiente é único por instância (useId)", () => {
   // A barra lateral e a superior podem estar no DOM ao mesmo tempo (uma

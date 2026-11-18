@@ -98,6 +98,10 @@ a procurar as classes de largura no `<MonthColumn>`, onde a coluna agora mora.
 
 ### Fatia 4 — ícone da página (implementada em 13/11/2026)
 
+> ⚠️ **Substituída em 18/11/2026 pela M-17** (`docs/mobile-first.md`): os ícones passaram a ter o
+> desenho do `BrandMark` (gradiente ardósia, "F" claro com a barra verde), ganharam o
+> `favicon.ico` e um teste que confere os dois desenhos. O texto abaixo é o histórico.
+
 `frontend/public/favicon.svg` (quadrado arredondado escuro com a letra F de Fisco em verde, sem
 fonte nem recurso externo) e `public/apple-touch-icon.png` (180×180, sem cantos: o iOS arredonda
 sozinho), declarados no `__root.tsx`. Não há `favicon.ico`: os navegadores atuais usam o SVG; só

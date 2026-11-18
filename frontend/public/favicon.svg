@@ -1,8 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0f172a"/>
-  <g fill="#34d399">
-    <rect x="19" y="13" width="11" height="38" rx="2"/>
-    <rect x="19" y="13" width="27" height="11" rx="2"/>
-    <rect x="19" y="29" width="20" height="10" rx="2"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>Fisco</title>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26404f"/><stop offset="1" stop-color="#14222b"/></linearGradient></defs>
+<rect width="64" height="64" rx="15" fill="url(#g)"/>
+<path d="M22 47V17h20" fill="none" stroke="#faf8f5" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M22 31h14" fill="none" stroke="#63d18f" stroke-width="9" stroke-linecap="round"/></svg>

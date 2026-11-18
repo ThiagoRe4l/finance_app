@@ -376,7 +376,7 @@ frontend/src/
 │   ├── installments/    # formulário de parcelamento
 │   ├── layout/          # AppShell: Sidebar + <main> das 5 telas (M-9)
 │   ├── transactions/    # formulário e exclusão de transação
-│   ├── shared/          # CategorySelect
+│   ├── shared/          # BrandMark, CategorySelect, EmptyPeriod, FloatingActionButton, Leader, MoneyInput, MonthColumn, MonthScroller, PeriodFilter
 │   └── ui/              # Shadcn/UI — 46 arquivos, não editar à mão
 ├── lib/                 # funções puras, cada uma com *.test.ts ao lado
 │   ├── api.ts           # Cliente HTTP centralizado

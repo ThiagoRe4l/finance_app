@@ -70,11 +70,15 @@ export const Route = createRootRoute({
       { name: "twitter:card", content: "summary" },
     ],
     links: [
-      // Ícone da página (docs/periodos.md, fatia 4). Em `public/`, servido na
-      // raiz: a Vercel serve o arquivo antes do rewrite para o shell.
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "stylesheet", href: appCss },
+      // Ícones da aba e do atalho do iOS (M-17; substitui o ícone da fatia 4 de
+      // docs/periodos.md). Em `public/`, servidos na raiz: a Vercel serve o
+      // arquivo antes do rewrite para o shell. O `.ico` declara "32x32", não
+      // "any": com "any" o Chrome e o Edge o preferem ao SVG. Assim o SVG vence
+      // onde é suportado, e o `.ico` fica para quem não lê SVG.
+      { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "preconnect",
