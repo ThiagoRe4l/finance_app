@@ -155,7 +155,7 @@ function SubscriptionCard({
             <Repeat className="h-5 w-5 text-brand" />
           </div>
           <div className="min-w-0">
-            <p className="min-w-0 text-sm font-medium wrap-anywhere">
+            <p className="min-w-0 font-display text-lg font-medium wrap-anywhere">
               {subscription.title}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -166,7 +166,7 @@ function SubscriptionCard({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 lg:gap-8">
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Por mês</p>
-            <p className="text-sm font-medium tabular-nums whitespace-nowrap">
+            <p className="font-display text-base tabular-nums whitespace-nowrap">
               {formatBRL(subscription.amount)}
             </p>
           </div>

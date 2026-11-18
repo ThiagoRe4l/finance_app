@@ -68,6 +68,17 @@ o vermelho e implementa até o verde, num commit próprio.
   *Descartado:* tirar a coluna Data da tabela, como no canvas — mudaria as classes travadas da
   M-12 e o valor a 1024 px (backlog) sem ganho de leitura.
 
+**D-Cad-8: fatia C4 — Categorias e Recorrências.**
+
+* **Trilha de parcelas** no cartão de parcelamento: um segmento por parcela — pagas em ardósia,
+  a atual em ardósia clara, as que faltam em papel. Função pura `installmentTrack(atual, total)`
+  em `lib/installments.ts`, sobre a mesma regra de `installmentProgress` (pagas = atual − 1,
+  quitado = atual > total). **Acima de 36 parcelas** (ou total inválido) devolve `null` e o
+  cartão mantém a barra contínua: segmento de menos de ~8 px não se lê. A trilha é
+  `role="img"` com "Parcela X de Y"; o texto "Parcela X de Y · N% pago" continua em cima.
+* **Nomes e valores em Fraunces** nos cartões de categoria, parcelamento e assinatura
+  (`font-display`); classes de quebra (M-16) e de não-corte (M-13) ficam.
+
 ### Fatias do Caderno
 
 Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.

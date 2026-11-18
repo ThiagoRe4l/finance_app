@@ -144,8 +144,8 @@ function CategoryCard({
           >
             <Icon className="h-5 w-5" style={{ color: category.color }} />
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium wrap-anywhere">{category.name}</p>
+          <div className="min-w-0 text-lg">
+            <p className="font-display wrap-anywhere">{category.name}</p>
             <p className="text-xs text-muted-foreground">
               {category.txs_count}{" "}
               {category.txs_count === 1 ? "transação" : "transações"}
