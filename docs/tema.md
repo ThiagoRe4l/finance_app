@@ -79,6 +79,26 @@ o vermelho e implementa até o verde, num commit próprio.
 * **Nomes e valores em Fraunces** nos cartões de categoria, parcelamento e assinatura
   (`font-display`); classes de quebra (M-16) e de não-corte (M-13) ficam.
 
+**D-Cad-9: fatia C5 — popups.**
+
+* **Títulos em Fraunces** em todo `DialogTitle` e `AlertDialogTitle` (formulários de transação,
+  categoria, parcelamento e assinatura, importação de fatura e as quatro exclusões), pela
+  `className` no ponto de uso — `components/ui/` não muda (M-3). O `wrap-anywhere` das
+  exclusões (M-16) fica, e a exclusão de assinatura passa a tê-lo também.
+* **Valor em destaque no formulário de transação:** o campo do valor em Fraunces `text-xl`, com
+  a altura e o alvo de hoje (`h-11 sm:h-9`, M-12). O Tipo já é o par de botões Entrada/Saída
+  (F-2) e fica.
+* **Resumo do parcelamento em linhas de extrato:** cada par `dt`/`dd` numa linha com o
+  pontilhado (`Leader`) e o valor em Fraunces; a semântica de `dl` continua.
+* **Prévia da categoria** no formulário: ícone, cor, nome e orçamento como o cartão vai
+  aparecer, `aria-hidden` (repete o que os campos já dizem). Nenhuma conta: o orçamento aparece
+  como foi digitado.
+* **Assinatura:** na criação, uma linha "Todo dia X · primeira cobrança em DD/MM/AAAA", função
+  pura `chargePreview` em `lib/subscriptions.ts`, sobre o `billingDay` que o resto da tela já
+  usa. *Descartado:* calcular a "próxima" cobrança no cliente — a regra de mês curto é do
+  backend, e uma prévia divergente engana.
+* **Descartado:** reescrever o Tipo, os seletores ou o calendário — já são os do canvas.
+
 ### Fatias do Caderno
 
 Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.

@@ -30,7 +30,7 @@ import {
   subscriptionEditSchema,
   type SubscriptionFormInput,
 } from "@/lib/subscription-form";
-import type { Subscription } from "@/lib/subscriptions";
+import { chargePreview, type Subscription } from "@/lib/subscriptions";
 import { SUBSCRIPTION_QUERY_KEYS } from "./query-keys";
 
 interface Account {
@@ -183,7 +183,7 @@ export function SubscriptionFormDialog({
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-display text-2xl font-medium">
               {isEditing ? "Editar assinatura" : "Nova assinatura"}
             </DialogTitle>
             <DialogDescription>
@@ -270,6 +270,12 @@ export function SubscriptionFormDialog({
                   O dia desta data é o dia da cobrança. Em data passada (até 12
                   meses), as cobranças que já venceram entram agora.
                 </p>
+                {/* Prévia do Caderno (D-Cad-9), só na criação. */}
+                {!isEditing && chargePreview(values.first_charge_date) && (
+                  <p className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
+                    {chargePreview(values.first_charge_date)}
+                  </p>
+                )}
                 {errors.first_charge_date && (
                   <p className="text-xs text-destructive">
                     {errors.first_charge_date}

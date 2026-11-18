@@ -56,7 +56,9 @@ export function DeleteSubscriptionDialog({
       {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir "{shown?.title}"?</AlertDialogTitle>
+          <AlertDialogTitle className="font-display text-xl font-medium wrap-anywhere">
+            Excluir "{shown?.title}"?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             Esta ação não pode ser desfeita. As cobranças já lançadas continuam
             no extrato, sem o vínculo com a assinatura, e nenhuma cobrança nova

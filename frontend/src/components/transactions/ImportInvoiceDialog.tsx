@@ -181,7 +181,9 @@ export function ImportInvoiceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col overflow-hidden outline-none sm:max-w-2xl max-h-[90dvh] max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] max-sm:top-auto max-sm:bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] max-sm:left-2 max-sm:right-2 max-sm:w-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-xl max-sm:data-[state=open]:slide-in-from-left-0 max-sm:data-[state=open]:slide-in-from-bottom-8 max-sm:data-[state=closed]:slide-out-to-left-0 max-sm:data-[state=closed]:slide-out-to-bottom-8 max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100">
         <DialogHeader>
-          <DialogTitle>Importar fatura</DialogTitle>
+          <DialogTitle className="font-display text-2xl font-medium">
+            Importar fatura
+          </DialogTitle>
           <DialogDescription>
             {preview === null
               ? "O PDF é lido e descartado: nada é gravado antes da sua revisão."

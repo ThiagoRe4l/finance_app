@@ -421,7 +421,7 @@ export function TransactionFormDialog({
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-display text-2xl font-medium">
               {isEditing ? "Editar transação" : "Nova transação"}
             </DialogTitle>
             <DialogDescription>
@@ -475,7 +475,7 @@ export function TransactionFormDialog({
                 ref={amountRef}
                 value={values.amount}
                 onValueChange={(v) => update("amount", v)}
-                className="h-11 sm:h-9"
+                className="h-11 sm:h-9 font-display text-xl md:text-xl tabular-nums"
               />
               {errors.amount && (
                 <p className="text-xs text-destructive">{errors.amount}</p>

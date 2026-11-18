@@ -68,7 +68,7 @@ export function DeleteTransactionDialog({
       {/* Centrado, com margem lateral e cantos no celular (M-3, M-12). */}
       <AlertDialogContent className="max-sm:w-[calc(100%-2rem)] max-sm:rounded-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle className="wrap-anywhere">
+          <AlertDialogTitle className="font-display text-xl font-medium wrap-anywhere">
             Excluir "{shown?.title}"?
           </AlertDialogTitle>
           <AlertDialogDescription>

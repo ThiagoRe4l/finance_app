@@ -48,3 +48,14 @@ export function describeCharge(subscription: Subscription): string {
   }
   return `Todo dia ${day} · próxima em ${formatDMY(subscription.next_charge_date)}`;
 }
+
+/**
+ * Prévia da cobrança na criação de assinatura (Caderno, `docs/tema.md`,
+ * D-Cad-9): "Todo dia 20 · primeira cobrança em 20/11/2026". Só o dia do mês e
+ * a primeira data, que o formulário já tem; a "próxima" cobrança é regra do
+ * backend (mês curto) e não é recalculada aqui.
+ */
+export function chargePreview(isoDate: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
+  return `Todo dia ${billingDay(isoDate)} · primeira cobrança em ${formatDMY(isoDate)}`;
+}
