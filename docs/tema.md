@@ -55,6 +55,19 @@ o vermelho e implementa até o verde, num commit próprio.
   num bloco ardósia (`bg-primary text-primary-foreground`), no lugar do `bg-expense/20` da
   D-Tema-7.
 
+**D-Cad-7: fatia C3 — Transações agrupadas por dia.**
+
+* **Função pura `groupByDay(transações, hoje)`** (`lib/day-groups.ts`): agrupa a lista já ordenada
+  (mais nova primeiro) por `date`, na mesma ordem, e dá a cada grupo um rótulo: "Hoje · 17 nov",
+  "Ontem · 16 nov", senão o dia da semana ("Sexta · 14 nov"); o ano entra só quando não é o de
+  hoje. Datas lidas por componente, sem `new Date(iso)` (o erro de fuso do `date.ts`).
+  **Sem total do dia** (backlog: soma de dinheiro no cliente).
+* **Nas duas marcações:** nos cartões, cada dia é um `<li>` com um `<h3>` em Fraunces e a lista
+  dos cartões do dia; na tabela, uma linha de cabeçalho do dia antes das linhas dele. Cartão,
+  linha, colunas e ações ficam como estão (M-12, M-16): a data continua no cartão e na coluna.
+  *Descartado:* tirar a coluna Data da tabela, como no canvas — mudaria as classes travadas da
+  M-12 e o valor a 1024 px (backlog) sem ganho de leitura.
+
 ### Fatias do Caderno
 
 Um commit verde por fatia, com teste vermelho aprovado antes, como na reforma mobile.
